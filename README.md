@@ -26,3 +26,10 @@ PSSdb/<br>
 &nbsp;&nbsp;&nbsp;&nbsp;plot_map.R<br>
 &nbsp;&nbsp;&nbsp;&nbsp;test_aggregation.py<br>
 &nbsp;&nbsp;&nbsp;&nbsp;...<br>
+
+
+
+###Hints on code documentation
+
+
+https://realpython.com/documenting-python-code/
