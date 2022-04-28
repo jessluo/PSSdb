@@ -11,23 +11,22 @@ PSSdb/
   raw/
   scratch/
   final/
-  scripts/
+  code/
     0.all.py
     1.gather_IFCB_data.py
     1.gather_UVP_data.py
     2.grid_data.py
     3....
-  functions/
     gridding.py
     ecotaxa.py
-  tests/
-    test_gridding.py
-    test_ecotaxa.py
-    ...
-  extra/
-    plot_map.R
-    test_aggregation.py
-    ...
+    tests/
+      test_gridding.py
+      test_ecotaxa.py
+      ...
+    extra/
+      plot_map.R
+      test_aggregation.py
+      ...
 ```
         
 ### Hints on code documentation
