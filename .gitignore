@@ -2,5 +2,5 @@
 __pycache__
 *.pyc
 .idea
-Scripts/Ecotaxa_API_pw.yaml
+Ecotaxa_API_pw.yaml
 
