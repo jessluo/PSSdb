@@ -1,0 +1,16 @@
+# Ecotaxa login
+# Cut-paste lines 1:4, replace with appropriate credentials, and save as Ecotaxa_API_pw.yalm (file on .gitignore)
+ecotaxa_user : 'your Ecotaxa email login'
+ecotaxa_pass : 'your Ecotaxa password'
+
+# GIT repository for storage
+git_dir : '~/GIT/PSSdb/'
+
+# Sotrage sub-direcotry (API/Instrument)
+dataset_subdir : 'Data/API'
+
+# Numeric id of project to download
+# you should have appropriate access rights to it:
+# - either the project should be visible to all
+# - or you should be explicitly registered to it, as viewer at least
+proj_id : 3657
