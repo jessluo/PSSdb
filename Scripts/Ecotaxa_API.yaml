@@ -1,5 +1,6 @@
 # Ecotaxa login
-# Cut-paste lines 1:4, replace with appropriate credentials, and save as Ecotaxa_API_pw.yaml (file on .gitignore)
+# Cut-paste lines 1:5, replace with appropriate credentials, and save as 
+#    Ecotaxa_API_pw.yaml in Scripts (file on .gitignore)
 # ecotaxa_user : 'your Ecotaxa email login'
 # ecotaxa_pass : 'your Ecotaxa password'
 
@@ -7,7 +8,7 @@
 git_dir : '~/GIT/PSSdb/'
 
 # Storage sub-direcotry (API/Instrument)
-dataset_subdir : 'Data/API'
+dataset_subdir : 'raw/API'
 
 # Numeric id of project to download
 # you should have appropriate access rights to it:

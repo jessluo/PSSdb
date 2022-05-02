@@ -68,7 +68,13 @@ with open(path_to_config ,'r') as config_file:
 # read config file (text file) with inputs:  project ID, output directory
 path_to_config_usr=Path('~/GIT/PSSdb/Scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
-    cfg_pw = yaml.safe_load(config_file)
+    try:
+        cfg_pw = yaml.safe_load(config_file)
+    except FileNotFoundError:
+        print("Please create password file 'Ecotaxa_API_pw.yaml', instructions in\
+               'Ecotaxa_API.yaml'")
+        print("Exiting")
+        quit()
 
 path_to_git=Path(cfg['git_dir']).expanduser()
 
@@ -76,6 +82,7 @@ path_to_git=Path(cfg['git_dir']).expanduser()
 # prepare storage based on path stored in the yaml config file and instrument type
 
 path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir']
+
 
 
 # Query list of instruments
@@ -94,7 +101,7 @@ with ecotaxa_py_client.ApiClient(ecotaxa_py_client.Configuration(host = "https:/
 
 
 path_to_export = path_to_data / api_instrumentresponse[0]
-#path_to_export.mkdir(parents=True,exist_ok=True)
+path_to_export.mkdir(parents=True,exist_ok=True)
 
 # Step 1: Authentication in EcoTaxa
 with ecotaxa_py_client.ApiClient() as client:
@@ -170,7 +177,7 @@ with ecotaxa_py_client.ApiClient(configuration) as api_client:
 
 # Step 4: Get/Download export zipfile
 zip_file = "ecotaxa_export_{}_{}.zip".format(str(cfg['proj_id']), datetime.datetime.now().strftime("%Y%m%d_%H%M"))
-path_to_zip=Path('/Volumes/WD/Pssdb/Data/API/').expanduser() / zip_file
+path_to_zip=Path('~/GIT/PSSdb/raw/API/').expanduser() / zip_file
 print("\nExporting file", zip_file, "to", path_to_export, ", please wait", sep=' ')
 
 with requests.Session() as sess:
