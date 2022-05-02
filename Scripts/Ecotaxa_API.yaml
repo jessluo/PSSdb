@@ -6,7 +6,7 @@ ecotaxa_pass : 'your Ecotaxa password'
 # GIT repository for storage
 git_dir : '~/GIT/PSSdb/'
 
-# Sotrage sub-direcotry (API/Instrument)
+# Storage sub-direcotry (API/Instrument)
 dataset_subdir : 'Data/API'
 
 # Numeric id of project to download
