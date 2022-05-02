@@ -177,7 +177,7 @@ with ecotaxa_py_client.ApiClient(configuration) as api_client:
 
 # Step 4: Get/Download export zipfile
 zip_file = "ecotaxa_export_{}_{}.zip".format(str(cfg['proj_id']), datetime.datetime.now().strftime("%Y%m%d_%H%M"))
-path_to_zip=Path('~/GIT/PSSdb/raw/API/').expanduser() / zip_file
+path_to_zip=path_to_export / zip_file
 print("\nExporting file", zip_file, "to", path_to_export, ", please wait", sep=' ')
 
 with requests.Session() as sess:

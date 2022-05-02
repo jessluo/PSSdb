@@ -1,8 +1,4 @@
-# Ecotaxa login
-# Cut-paste lines 1:5, replace with appropriate credentials, and save as 
-#    Ecotaxa_API_pw.yaml in Scripts (file on .gitignore)
-# ecotaxa_user : 'your Ecotaxa email login'
-# ecotaxa_pass : 'your Ecotaxa password'
+
 
 # GIT repository for storage
 git_dir : '~/GIT/PSSdb/'
