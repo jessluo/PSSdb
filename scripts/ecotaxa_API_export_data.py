@@ -4,7 +4,7 @@
 # Note that you need annotator right on the project you wish to download
 # Note that you need to install ecotaxa API using git first:
 # in terminal: pip install git+https://github.com/ecotaxa/ecotaxa_py_client.git
-# Note that you need to change the local path to exported zipfile (l. 173)
+# Note that you need to change the local path to exported zipfile (l. 180)
 # Note that you need two text files in your git repository that contain the info relative to:
 # authentication (Ecotaxa_API_pw.yaml, in .gitignore), project ID/output path (Ecotaxa_API.yaml, tracked)
 # Note that you need to change the path to the config files on lines 65 & 69
@@ -22,7 +22,7 @@
 # See documentation for step 3: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#export_object_set
 # See documentation for step 4: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/JobsApi.md#get_job_file
 
-## TO DO: Explore ways to make the script faster, Loop through all project ID of interest
+## TO DO: Explore ways to make the script faster, Loop through all project ID of interest once the list of projects has been created
 
 
 ## Python modules
@@ -39,7 +39,7 @@ import datetime
 
 # Ecotaxa API modules. Install module via git first
 import ecotaxa_py_client
-### Authentification on Ecotaxa
+### Authentication on Ecotaxa
 from ecotaxa_py_client.api import authentification_api
 from ecotaxa_py_client.model.login_req import LoginReq
 ### Object, export, task API on Ecotaxa
@@ -62,11 +62,11 @@ from pprint import pprint
 ## Workflow starts here
 
 # read git-tracked config file (text file) with inputs:  project ID, output directory
-path_to_config=Path('~/GIT/PSSdb/Scripts/Ecotaxa_API.yaml').expanduser()
+path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 # read config file (text file) with inputs:  project ID, output directory
-path_to_config_usr=Path('~/GIT/PSSdb/Scripts/Ecotaxa_API_pw.yaml').expanduser()
+path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     try:
         cfg_pw = yaml.safe_load(config_file)
@@ -166,8 +166,8 @@ with ecotaxa_py_client.ApiClient(configuration) as api_client:
         if result.state=='F':
             break
         bar.update(i)
-    # Lines 163:169 are not working. Laurent is updating get_job_file.py.
-    # Uncomment line 165 when get_job_file.py is working to proceed to step 4
+    # Lines 169:175 are not working. Laurent is updating get_job_file.py.
+    # Uncomment line 171 when get_job_file.py is working to proceed to step 4
     # api_downloadresponse = api_jobinstance.get_job_file(job_id)
     # api_downloadresponse = api_jobinstance.get_job_file(job_id, async_req=True, _preload_content=False,_return_http_data_only=False)
     # urlresponse = api_downloadresponse.get()

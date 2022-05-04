@@ -1,3 +1,7 @@
+# Ecotaxa login
+# Cut-paste lines 1:4, replace with appropriate credentials, and save as Ecotaxa_API_pw.yalm (file on .gitignore)
+ecotaxa_user : 'your Ecotaxa email login'
+ecotaxa_pass : 'your Ecotaxa password'
 
 
 # GIT repository for storage
