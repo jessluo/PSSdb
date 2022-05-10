@@ -4,17 +4,17 @@
 # Note that you need annotator right on the project you wish to download
 # Note that you need to install ecotaxa API using git first:
 # in terminal: pip install git+https://github.com/ecotaxa/ecotaxa_py_client.git
-# Note that you need to change the local path to exported zipfile (l. 180)
 # Note that you need two text files in your git repository that contain the info relative to:
 # authentication (Ecotaxa_API_pw.yaml, in .gitignore), project ID/output path (Ecotaxa_API.yaml, tracked)
-# Note that you need to change the path to the config files on lines 65 & 69
+# Note that exported zipfiles may be large (>50 MB), hence set the output path accordingly (info stored in Ecotaxa_API.yaml)
+# Note that you need to change the path of the config files on lines 70 & 74
 
 ## Workflow:
 # This script uses 4 API steps:
 # Step 1: Configure the API using your Ecotaxa login/pw (info stored in untracked Ecotaxa_API_pw.yaml)
 # Step 2: Generate a request to export a project tsv based on project ID (info stored in git-tracked Ecotaxa_API.yaml)
 # Step 3: Generate a job/task(=export) based on the request (step 2)
-# Step 4: Get the job file (ecotaxa_export_projectID_date_time.zip)
+# Step 4: Get the job file (ecotaxa_export_projectID_date_timeZ.zip)
 
 ## Useful documentations:
 # See documentation for step 1: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/AuthentificationApi.md
@@ -29,13 +29,18 @@
 
 # Path modules
 from pathlib import Path # Handling of path object
+import shutil # Delete uncompressed export zip folder
 
 # Config modules
 import yaml # requires installation of PyYAML package
 
 # Progress bar modules
-import progressbar # Creating progress bar of unknown length
-import datetime
+#import progressbar # Attention: Use pip install progressbar2 to install
+from tqdm import tqdm
+import datetime, time # Time module for break and current date
+
+# Prompt for export confirmation
+import sys
 
 # Ecotaxa API modules. Install module via git first
 import ecotaxa_py_client
@@ -85,7 +90,7 @@ path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir']
 
 
 
-# Query list of instruments
+# Query list of instruments. Authentication not needed
 with ecotaxa_py_client.ApiClient(ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api")) as api_client:
     # Create an instance of the API class
     api_instrumentinstance = instruments_api.InstrumentsApi(api_client)
@@ -102,6 +107,25 @@ with ecotaxa_py_client.ApiClient(ecotaxa_py_client.Configuration(host = "https:/
 
 path_to_export = path_to_data / api_instrumentresponse[0]
 path_to_export.mkdir(parents=True,exist_ok=True)
+
+# Prompting a warning if an export file for the project of interest already exists
+# asking for confirmation to overwrite. Attention: the outdated project export file will be erased!
+
+existing_project_path = list(path_to_export.glob('*export_{}*'.format(str(cfg['proj_id']))))
+
+if len(existing_project_path) != 0:
+
+    confirmation = input(
+        "Project already downloaded. Do you wish to overwrite the export file(s)? Enter Y or N\n If Y, outdated project export will be erased\n")
+    if confirmation != 'Y':
+        quit()
+
+    print("Overwriting project export file, please wait")
+    for file in existing_project_path:
+        shutil.rmtree(file, ignore_errors=True)
+        file.unlink(missing_ok=True)
+else:
+    print("Creating project export file, please wait")
 
 # Step 1: Authentication in EcoTaxa
 with ecotaxa_py_client.ApiClient() as client:
@@ -155,19 +179,28 @@ with ecotaxa_py_client.ApiClient(configuration) as api_client:
     api_jobinstance = jobs_api.JobsApi(api_client)
     print("Creating export file with job ID: ", job_id, sep=' ')
 
-    # Necessary break between step 3 and 4
-    # Insert a progress bar to allow for the job to be done based on get_job state. Use time.sleep instead
-    bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
-    i = 0
-    while True:
-        i += 1
+   # Necessary break between step 3 and 4
+   # Insert a progress bar to allow for the job to be done based on get_job status.
+   # Attention, the break cannot be timed with job progress=(percentage) due to a small temporal offset between job progress and status
+
+with  tqdm(desc='Working on Job', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
+    job_status = 'R'  # percent = 0
+    while job_status not in ('F', 'E'):  # percent!=100:
+        time.sleep(2)  # Check the job status every 2 seconds. Modify as needed
         thread = api_jobinstance.get_job(job_id, async_req=True)
         result = thread.get()
-        if result.state=='F':
+        job_status = result.state
+        percent = result.progress_pct
+        bar.set_description("Working on Job %s%%" % percent, refresh=True)
+        # and update progress bar
+        ok = bar.update(n=10)
+        if job_status == 'F':
             break
-        bar.update(i)
-    # Lines 169:175 are not working. Laurent is updating get_job_file.py.
-    # Uncomment line 171 when get_job_file.py is working to proceed to step 4
+        if job_status == 'E':
+            print("Error creating job. Please check your connection or EcoTaxa server")
+
+# Lines 202:208 are not working. Laurent is updating get_job_file.py.
+    # Uncomment line 204 when get_job_file.py is working to proceed to step 4
     # api_downloadresponse = api_jobinstance.get_job_file(job_id)
     # api_downloadresponse = api_jobinstance.get_job_file(job_id, async_req=True, _preload_content=False,_return_http_data_only=False)
     # urlresponse = api_downloadresponse.get()
@@ -176,7 +209,7 @@ with ecotaxa_py_client.ApiClient(configuration) as api_client:
 
 
 # Step 4: Get/Download export zipfile
-zip_file = "ecotaxa_export_{}_{}.zip".format(str(cfg['proj_id']), datetime.datetime.now().strftime("%Y%m%d_%H%M"))
+zip_file =  "ecotaxa_export_{}_{}Z.zip".format(str(cfg['proj_id']), datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))#"ecotaxa_{}".format(str(result.result['out_file']))
 path_to_zip=path_to_export / zip_file
 print("\nExporting file", zip_file, "to", path_to_export, ", please wait", sep=' ')
 
