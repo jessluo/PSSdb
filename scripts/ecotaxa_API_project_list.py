@@ -59,7 +59,7 @@ with open(path_to_config_usr ,'r') as config_file:
 path_to_git=Path(cfg['git_dir']).expanduser()
 
 # prepare storage based on path stored in the yaml config file
-path_to_data = Path(cfg['git_dir']).expanduser() / 'raw'
+path_to_data = path_to_git / Path(cfg['dataset_subdir']).parent
 
 # Step 1: Search all visible projects based on instrument filter
 # This step does require your authentication in EcoTaxa
