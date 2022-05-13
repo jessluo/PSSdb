@@ -39,6 +39,16 @@ import time
 # Panda module (used for excel files)
 import pandas as pd
 
+# Dictionary/interpreter modules (used to create instrument-specific directory of variables of interest)
+from collections import ChainMap
+import difflib
+from funcy import join_with # use pip install funcy
+def dict_match(word,dict):
+    if len(difflib.get_close_matches(word,dict)):
+       return 'fre.'+ str(difflib.get_close_matches(word, dict)[0])
+    else:
+        return ''
+
 # Ecotaxa API modules. Install module via git first
 import ecotaxa_py_client
 from ecotaxa_py_client.api import projects_api
@@ -61,7 +71,7 @@ path_to_git=Path(cfg['git_dir']).expanduser()
 # prepare storage based on path stored in the yaml config file
 path_to_data = path_to_git / Path(cfg['dataset_subdir']).parent
 
-# Step 1: Search all visible projects based on instrument filter
+# Step 1: Search visible and accessible projects based on instrument filter
 # This step does require your authentication in EcoTaxa
 with ecotaxa_py_client.ApiClient() as client:
     api = authentification_api.AuthentificationApi(client)
@@ -91,9 +101,9 @@ with ecotaxa_py_client.ApiClient(configuration) as api_client:
         print("Exception when calling ProjectsApi->search_projects: %s\n" % e)
 
 
-print("Searching for projects:",len(api_response_project_search_visible)+len(api_response_project_search_accessible),"projects found", sep=' ')
+print("Searching for projects on EcoTaxa:",len(api_response_project_search_visible)+len(api_response_project_search_accessible),"projects found", sep=' ')
 
-# Generate a dataframe with variables of interest
+# Step 2: Generate a dataframe with variables of interest (project ID, instrument, contact infos, access rights, and image annotation statistics) and save/overwrite in project_list_all.xslx
 df=pd.concat([pd.DataFrame({'Project_ID':list(map(lambda x: x.projid,api_response_project_search_accessible)),
 'Instrument':list(map(lambda x: x.instrument,api_response_project_search_accessible)),
 'Contact_name':list(map(lambda x: x.managers[0].name if (x.contact is None) else x.contact['name'],api_response_project_search_accessible)),
@@ -112,7 +122,7 @@ pd.DataFrame({'Project_ID':list(map(lambda x: x.projid,api_response_project_sear
 
 df_metadata=pd.DataFrame({'Variables':df.columns,'Variable_types':df.dtypes,
 'Units/Values':['','','','','','%','%'],
-'Description':['Project ID in EcoTaxa','Project instrument','Name of the project contact','Email of the project contact','Project accessibility. If True, export is possible','Percentage of predicted images','Percentage of validated images']})
+'Description':['Project ID in EcoTaxa','Project instrument','Name of the project contact','Email of the project contact','Project accessibility. If True, export is possible with current authentication','Percentage of predicted images','Percentage of validated images']})
 
 # Prompting a warning if a project_list_all file already exists
 # asking for confirmation to overwrite. Attention: the outdated project list will be erased!
@@ -136,3 +146,46 @@ else:
     with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'),engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name='Data', index=False)
         df_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+# Step 3: Generate an instrument-specific overview of accessible projects (project ID, Entry/latest update date, sampling ranges, image annotation statistics, and EcoPart ID) and save/overwrite in instrument_project_list.xslx
+# Step 3a: Build instrument-specific interpreters(dictionaries) to search specific fields in export files/EcoTaxa database
+dict_acq=dict(ChainMap(*list(map(lambda x: {x.instrument:  [str(key) for key in x.acquisition_free_cols.keys()]}, api_response_project_search_visible))))
+dict_obj=dict(ChainMap(*list(map(lambda x: {x.instrument:  [str(key) for key in x.obj_free_cols.keys()]}, api_response_project_search_visible))))
+dict_sam=dict(ChainMap(*list(map(lambda x: {x.instrument:  [str(key) for key in x.sample_free_cols.keys()]}, api_response_project_search_visible))))
+dict_pro=dict(ChainMap(*list(map(lambda x: {x.instrument:  [str(key) for key in x.process_free_cols.keys()]}, api_response_project_search_visible))))
+dict_all=join_with(tuple, [dict_acq,dict_obj,dict_sam,dict_pro])
+# Step 3b: Use instrument-specific interpreters to provide summary/custom fields of interest and store in instrument_project_list files
+subset_df=df[df['PSSdb_access']=='True']
+inst=subset_df.Instrument.unique()
+for instrument in inst:
+    subset_df_instrument=pd.DataFrame({'Project_ID':subset_df[subset_df['Instrument'] == instrument]['Project_ID']})
+
+    subset_df_instrument_interpreter=pd.DataFrame({'Variables':['Project_ID','Cruise','Station','Profile','Latitude','Longitude','Depth','Volume','Dilution','ESD','pixel_micron']})
+    dict_inst=dict_all[instrument][0]+dict_all[instrument][1]+dict_all[instrument][2]+dict_all[instrument][3]
+    dict_inst_fields = dict(zip(['fre.' + string for string in dict_inst],['acq_'+ string for string in dict_all[instrument][0]] + ['object_'+ string for string in dict_all[instrument][1]] + ['sample_'+ string for string in dict_all[instrument][2]] + ['process_'+ string for string in dict_all[instrument][3]]))
+    subset_df_instrument_interpreter=subset_df_instrument_interpreter.assign(Ecotaxa_interpreter=['',
+                                                                dict_match("program|cruise",dict_inst),
+                                                                dict_match("station",dict_inst),
+                                                                dict_match("profile",dict_inst),
+                                                                dict_match("lat",dict_inst),
+                                                                dict_match("lon",dict_inst),
+                                                                dict_match("depth",dict_inst),
+                                                                dict_match("vol",dict_inst),
+                                                                dict_match("dil", dict_inst),
+                                                                dict_match("esd|equiv_diameter", dict_inst),
+                                                                dict_match("particle_pixel", dict_inst)
+                                                                 ])
+    subset_df_instrument_interpreter['Fields_interpreter']=subset_df_instrument_interpreter['Ecotaxa_interpreter'].map(dict_inst_fields)
+    subset_df_instrument_interpreter.loc[[4,5],'Fields_interpreter']=['obj.latitude','obj.longitude']
+    with ecotaxa_py_client.ApiClient(configuration) as api_client:
+    api_instance = projects_api.ProjectsApi(api_client)
+    ids = '+'.join(subset_df_instrument.Project_ID.unique().astype(str)) # String containing the list of project id(s) separated +
+    names =  'obj.latitude,obj.longitude,obj.depth_min,obj.depth_max'#','.join(string for string in subset_df_instrument_interpreter.Ecotaxa_interpreter.astype(str) if len(string) > 0)# str | Coma-separated prefixed columns, on which stats are needed.
+
+        try:
+        # Project Set Get Column Stats
+
+        api_response_stats = api_instance.project_set_get_column_stats(ids, names)
+        pprint(api_response)
+        except ecotaxa_py_client.ApiException as e:
+        print("Exception when calling ProjectsApi->project_set_get_column_stats: %s\n" % e)
+
