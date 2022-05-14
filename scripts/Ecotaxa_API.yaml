@@ -10,6 +10,9 @@ git_dir : '~/GIT/PSSdb/'
 # Storage sub-direcotry (API/Instrument)
 dataset_subdir : 'raw/API'
 
+# Path to project_list_all.xlsx
+proj_list : 'raw/project_list_all.xlsx'
+
 # Numeric id of project to download
 # you should have appropriate access rights to it:
 # - either the project should be visible to all
