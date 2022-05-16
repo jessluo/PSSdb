@@ -17,4 +17,4 @@ proj_list : 'raw/project_list_all.xlsx'
 # you should have appropriate access rights to it:
 # - either the project should be visible to all
 # - or you should be explicitly registered to it, as viewer at least
-proj_id : 3297
+proj_id : 3302
