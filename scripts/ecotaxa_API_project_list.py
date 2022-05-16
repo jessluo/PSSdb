@@ -165,21 +165,21 @@ for instrument in inst:
     subset_df_instrument_interpreter=subset_df_instrument_interpreter.assign(Ecotaxa_interpreter=['',
                                                                 dict_match("program|cruise",dict_inst),
                                                                 dict_match("station",dict_inst),
-                                                                dict_match("profile",dict_inst),
-                                                                dict_match("lat",dict_inst),
-                                                                dict_match("lon",dict_inst),
+                                                                dict_match("profile|cast",dict_inst),
+                                                                'obj.latitude',
+                                                                'obj.longitude',
                                                                 dict_match("depth",dict_inst),
                                                                 dict_match("vol",dict_inst),
                                                                 dict_match("dil", dict_inst),
                                                                 dict_match("esd|equiv_diameter", dict_inst),
-                                                                dict_match("particle_pixel", dict_inst)
+                                                                dict_match("pixel", dict_inst)
                                                                  ])
     subset_df_instrument_interpreter['Fields_interpreter']=subset_df_instrument_interpreter['Ecotaxa_interpreter'].map(dict_inst_fields)
-    subset_df_instrument_interpreter.loc[[4,5],'Fields_interpreter']=['obj.latitude','obj.longitude']
+    subset_df_instrument_interpreter.loc[[4,5],'Fields_interpreter']=['object_lat','object_lon']
     with ecotaxa_py_client.ApiClient(configuration) as api_client:
     api_instance = projects_api.ProjectsApi(api_client)
     ids = '+'.join(subset_df_instrument.Project_ID.unique().astype(str)) # String containing the list of project id(s) separated +
-    names =  'obj.latitude,obj.longitude,obj.depth_min,obj.depth_max'#','.join(string for string in subset_df_instrument_interpreter.Ecotaxa_interpreter.astype(str) if len(string) > 0)# str | Coma-separated prefixed columns, on which stats are needed.
+    names =  'obj.latitude,obj.longitude,obj.depth_min'#','.join(string for string in subset_df_instrument_interpreter.Ecotaxa_interpreter.astype(str) if len(string) > 0)# str | Coma-separated prefixed columns, on which stats are needed.
 
         try:
         # Project Set Get Column Stats
