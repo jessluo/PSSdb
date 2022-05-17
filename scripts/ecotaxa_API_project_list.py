@@ -6,7 +6,7 @@
 # Note that you need to authenticate on EcoTaxa to search projects based on title/instrument filter, regardless of access rights
 # Note that you need two text files in your git repository that contain the info relative to:
 # authentication (Ecotaxa_API_pw.yaml, in .gitignore), output path (Ecotaxa_API.yaml, tracked)
-# Note that you need to change the path of the config files on lines 51 & 55
+# Note that you need to change the path of the config files on lines 61 & 65
 
 ## Workflow:
 # This script uses 4 API functions:
@@ -58,11 +58,11 @@ from ecotaxa_py_client.model.login_req import LoginReq
 
 # Workflow starts here
 # read git-tracked config file (text file) with inputs:  output directory
-path_to_config=Path('~/GIT/PSSdb/Scripts/Ecotaxa_API.yaml').expanduser()
+path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 # read config file (text file) with inputs:  EcoTaxa username, password. Make sure to secure this file if needed
-path_to_config_usr=Path('~/GIT/PSSdb/Scripts/Ecotaxa_API_pw.yaml').expanduser()
+path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
