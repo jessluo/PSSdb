@@ -50,6 +50,7 @@ path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
 proj_list = pd.read_excel(path_to_proj_id_list)
 id_list = proj_list['Project_ID'].loc[(proj_list['Instrument']=='IFCB') & # change instrument type as needed
                                       (proj_list['PSSdb_access']==True)].tolist()
+id_list = [3315, 3318, 3326] #THIS IS THE TEST LIST, USE THIS WHEN DEBUGGING
 
 #create lists for the statistics of the Size spectrum analysis
 project_number = []
@@ -58,7 +59,7 @@ intercept = []
 r_val = []
 p_val =[]
 #create lists for sampling sites and depths
-depth_range =[]
+Middepth_range =[]
 station_lat = []
 station_lon = []
 
@@ -77,15 +78,21 @@ depths = [0, 25, 50, 100, 200, 500, 1000, 3000, 8000]
 
 #Size spectra calculations for each project starts here
 for id in id_list:
-    search_pattern = path_to_data / 'IFCB' / ("*" + str(id_list[0]) + "*")# hard coded to find the ICFB folder
+    search_pattern = path_to_data / 'IFCB' / ("*" + str(id) + "*")# hard coded to find the ICFB folder
     #volume_info = id_list[0]
     filename = glob(str(search_pattern))
     df = pd.read_csv(filename[0], sep='\t', encoding='latin_1', encoding_errors='ignore', header=0)
 
     # convert taxonomic Id column into categorical
     df['object_annotation_category'] = df['object_annotation_category'].astype('category')
-    # filter taxonomic categories that are artefacts
+
+    # FILTERING DATA: filter taxonomic categories that are artefacts
     data_clean = df[df['object_annotation_category'].str.contains("artefact") == False]
+    # remove data points where size metrics = 0
+    data_clean = data_clean[data_clean.object_equivdiameter != 0]
+    #finally, remove any row with coordinates =nan
+    data_clean = data_clean[data_clean['object_lat'].notna()]
+    data_clean = data_clean[data_clean['object_lon'].notna()]
 
     #scale the dimensions of the particles to metric units and append to the dataframe
     #THIS SECTION NEEDS TO BE COMPARED TO THE IFCB LITERATURE and/or Mathilde could advise us on this
@@ -118,22 +125,54 @@ for id in id_list:
                                    bins=SizeBins_um , include_lowest=True)
 
     #the dataframe now needs to be parsed, first by station and second, by depth ranges
-    # create a categorical variable that will serve as the station ID based on lat and lon
-    data_clean['station_ID'] = data_clean['sample_lat'].astype(str) + '_' + data_clean['sample_lon'].astype(str)
+    # create a categorical variable that will serve as the station ID based on binned lat and lon
+    #1) create arrays that will serve to bin lat and long with 1 degree increments
+    lat_increments = np.arange(np.floor(min(data_clean['object_lat'])-1), np.ceil(max(data_clean['object_lat'])+1), 1)
+    lon_increments = np.arange(np.floor(min(data_clean['object_lon'])-1), np.ceil(max(data_clean['object_lon'])+1), 1)
+
+    #2) create bins
+    data_clean['lat_bin'] = pd.cut(x=data_clean[('object_lat')],
+                                       bins=lat_increments, include_lowest=True)
+
+    data_clean['lon_bin'] = pd.cut(x=data_clean[('object_lon')],
+                                   bins=lon_increments, include_lowest=True)
+
+    #3) get middle lat after assigning each sample to a lat/lon bin
+
+    midLat_bin = []
+    for i in range(0, len(data_clean.index)):
+        midLat_bin.append(data_clean['lat_bin'].iloc[i].mid)
+    data_clean['midLat_bin'] = midLat_bin
+
+    midLon_bin = []
+    for i in range(0, len(data_clean.index)):
+        midLon_bin.append(data_clean['lon_bin'].iloc[i].mid)
+    data_clean['midLon_bin'] = midLon_bin
+
+    #create categorical variable for station ID
+    data_clean['station_ID'] = data_clean['midLat_bin'].astype(str) + '_' + data_clean['midLon_bin'].astype(str)
     data_clean['station_ID'] = data_clean['station_ID'].astype('category')
+
 
     # create depth bins based on Jessica's suggestion (see line 65)
     data_clean['depth_bin'] = pd.cut(x=data_clean[('object_depth_min')], #min and max depths are the same in the IFCB data
                                        bins=depths, include_lowest=True)
 
+    midDepth_bin = []
+    for i in range(0, len(data_clean.index)):
+        midDepth_bin.append(data_clean['depth_bin'].iloc[i].mid)
+    data_clean['midDepth_bin'] = midDepth_bin
+
+    data_clean['midDepth_bin'] = data_clean['midDepth_bin'].astype('category')
+
     #create a dataframe with summary statistics for each station, depth bin and size class
-    stats_biovol_SC = data_clean[['station_ID', 'depth_bin', 'sizeClasses', 'biovol_um3', 'sample_lat', 'sample_lon']] \
-                .groupby(['station_ID', 'depth_bin', 'sizeClasses']).describe()
+    stats_biovol_SC = data_clean[['station_ID', 'midDepth_bin', 'sizeClasses', 'biovol_um3', 'midLat_bin', 'midLon_bin']] \
+                .groupby(['station_ID', 'midDepth_bin', 'sizeClasses']).describe()
     stats_biovol_SC = stats_biovol_SC.reset_index()
     stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
 
     # add column of summed biovolume per size class to the stats_biovol_SC dataframe (needs to be different lat long)
-    sum_biovol_SC= data_clean.groupby(['station_ID', 'depth_bin', 'sizeClasses']).agg({'biovol_um3':['sum']})
+    sum_biovol_SC= data_clean.groupby(['station_ID', 'midDepth_bin', 'sizeClasses']).agg({'biovol_um3':['sum']})
     sum_biovol_SC = sum_biovol_SC.reset_index()
     sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
     sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['biovol_um3_sum'] !=0]
@@ -147,40 +186,44 @@ for id in id_list:
         range_size_bin.append(stats_biovol_SC['sizeClasses'].iloc[i].length)
     stats_biovol_SC['range_size_bin'] = range_size_bin
 
-    midDepth_bin = []
-    for i in range(0, len(stats_biovol_SC.index)):
-        midDepth_bin.append(stats_biovol_SC['depth_bin'].iloc[i].length)
-    stats_biovol_SC['midDepth_bin'] = midDepth_bin
+
 
     # create two more columns with the parameters of normalized size spectra:
     stats_biovol_SC['logBm/size'] = np.log(stats_biovol_SC['sum_biovol'] / stats_biovol_SC['range_size_bin'])
     stats_biovol_SC['logSize'] = np.log(stats_biovol_SC['range_size_bin'])
 
     #change depth and station ID to strings so that they are easily indexed
-    stats_biovol_SC['midDepth_bin'] = stats_biovol_SC.midDepth_bin.astype(str)
-    stats_biovol_SC['station_ID'] = stats_biovol_SC.station_ID.astype(str)
+    #stats_biovol_SC['midDepth_bin'] = stats_biovol_SC.midDepth_bin.astype(str)
+    #stats_biovol_SC['station_ID'] = stats_biovol_SC.station_ID.astype(str)
 
     # do fitting for each station and for each depth bin. I could only figure out how to parse the data by stations
     #even then, an issue to resolve is to determine the cutoff between stations of lat and long
     # any help in also parsing data by 'midDepth_bin' is appreciated
 
-    for  n, s in enumerate(stats_biovol_SC.station_ID.unique()):
+    for n, s in enumerate(stats_biovol_SC.station_ID.unique()):
         subset_station = stats_biovol_SC[(stats_biovol_SC['station_ID']==s)]
-        subset_station = subset_station .reset_index(drop=True)
-        # populate the lists of lat long, and depth range. Lots of work to be done here
-        depth_range.append(subset_station['depth_bin'][0])
-        station_lat.append(subset_station['sample_lat_mean'][0])
-        station_lon.append(subset_station['sample_lon_mean'][0])
-        #make the linear fit between normalized biovolume and size
-        model = linregress(subset_station['logSize'], subset_station['logBm/size'])
-        # add the statistics to the empty lists
-        slopes.append(model.slope)
-        intercept.append(model.intercept)
-        r_val.append(model.rvalue)
-        p_val.append(model.pvalue)
-        proj_number=[id]*(n+1)
+        subset_station = subset_station.reset_index(drop=True)
+        for o, d in enumerate(subset_station.midDepth_bin.unique()):
+            subset_stDepth = subset_station[(subset_station['midDepth_bin'] == d)]
+            subset_stDepth = subset_station.reset_index(drop=True)
+            # populate the lists of lat long, and depth range. Lots of work to be done here
+            Middepth_range.append(subset_stDepth['midDepth_bin'][0])
+            station_lat.append(subset_stDepth['midLat_bin_mean'][0])
+            station_lon.append(subset_stDepth['midLon_bin_mean'][0])
+            #make the linear fit between normalized biovolume and size
+            model = linregress(subset_stDepth['logSize'], subset_stDepth['logBm/size'])
+            # add the statistics to the empty lists
+            slopes.append(model.slope)
+            intercept.append(model.intercept)
+            r_val.append(model.rvalue)
+            p_val.append(model.pvalue)
+        proj_number=[id]*(n+o+1)
     project_number = project_number + proj_number
 # compile all the lists of values into a dataframe. This is still missing depth bins,
-results_SS = pd.DataFrame (list(zip(project_number, station_lat, station_lon, slopes, intercept, r_val, p_val)),
-                           columns = ['project_id', 'station_lat', 'station_lon', 'slope', 'intercept', 'r_val', 'p_val'])
-#return results_SS
+results_SS = pd.DataFrame (list(zip(project_number, station_lat, station_lon, Middepth_range, slopes, intercept, r_val, p_val)),
+                           columns = ['project_id', 'station_lat', 'station_lon', 'Middepth_m', 'slope', 'intercept', 'r_val', 'p_val'])
+
+results_SS.to_csv(os.path.join(path_to_data, 'NPSS_IFCB.tsv'))
+
+
+
