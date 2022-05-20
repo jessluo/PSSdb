@@ -223,7 +223,4 @@ for id in id_list:
 results_SS = pd.DataFrame (list(zip(project_number, station_lat, station_lon, Middepth_range, slopes, intercept, r_val, p_val)),
                            columns = ['project_id', 'station_lat', 'station_lon', 'Middepth_m', 'slope', 'intercept', 'r_val', 'p_val'])
 
-results_SS.to_csv(os.path.join(path_to_data, 'NPSS_IFCB.tsv'))
-
-
-
+results_SS.to_csv(os.path.join(path_to_data, 'NPSS_IFCB.tsv'), sep='\t')
