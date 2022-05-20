@@ -56,4 +56,8 @@ plt.legend( ncol = 3, scatterpoints=1, frameon=False,
            labelspacing=1, title='intercept')
 
 
-plt.show
+figname = 'slopes_intercept_IFCB.pdf'
+
+savepath = Path(cfg['git_dir']).expanduser() / 'figures' / figname
+
+plt.savefig(savepath)
