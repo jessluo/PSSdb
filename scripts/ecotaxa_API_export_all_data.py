@@ -99,11 +99,17 @@ with requests.Session() as sess:
 
 # prepare storage based on project list  stored in the yaml config file and instrument type
 path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir']
-project_list=pd.read_excel(path_to_git / cfg['proj_list'],sheet_name="Data",usecols=['Project_ID','Instrument','PSSdb_access'])
+project_list=pd.read_excel(path_to_git / cfg['proj_list'],sheet_name="Data",usecols=['Project_ID','Instrument','PSSdb_access','Project_test'])
 project_ids = project_list[project_list['PSSdb_access']==True].Project_ID.unique().astype(str)#str(cfg['proj_id'])
 project_inst=project_list[project_list['PSSdb_access']==True].Instrument.unique().astype(str)
 
 dict_instruments={'IFCB':'IFCB','UVP':['UVP5HD','UVP5SD','UVP5Z','UVP6'],'Zooscan':'Zooscan','Unknown':'?','AMNIS':'AMNIS','CPICS':'CPICS','CytoSense':'CytoSense','FastCam':'FastCam','FlowCam':'FlowCam','ISIIS':'ISIIS','LISST':['LISST','LISST-Holo'],'Loki':'Loki','Other':['Other camera','Other flowcytometer','Other microscope','Other scanner'],'PlanktoScope':'PlanktoScope','VPR':'VPR','ZooCam':'ZooCam','eHFCM':'eHFCM'}
+
+#Prompting a warning to export all accessible projects or test set only
+test_confirmation=input("Do you wish to export all accessible project(s) or the test subset? Enter all or test\n")
+if test_confirmation=='test':
+    project_ids=project_list[(project_list['PSSdb_access']==True) & (project_list['Project_test']==True)].Project_ID.unique().astype(str)
+
 
 # Prompting a warning if export files for the list of projects already exist
 # asking for confirmation to overwrite. Attention: all outdated project export files will be erased!
@@ -122,7 +128,7 @@ if len(existing_project_path)!=0:
          shutil.rmtree(file, ignore_errors=True)
          file.unlink(missing_ok=True)
 else:
-  print("Creating project export file using",str(path_to_data.parent / cfg['proj_list']) ,"file, please wait",sep=" ")
+  print("Creating project export file using",str(path_to_git / cfg['proj_list']) ,"file, please wait",sep=" ")
 
 
 for i in range(len(project_ids)):
