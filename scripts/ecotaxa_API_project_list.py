@@ -11,8 +11,8 @@
 ## Workflow:
 # This script uses 4 API functions:
 # Entry 1: Search projects ID given instrument filter.
-# Entry 2: Generate an exhaustive list of accessible/inaccessible project(s) based on your Ecotaxa login/pw (info stored in untracked Ecotaxa_API_pw.yaml). Projects list stored as project_list_all
-# Entry 3: Query projects/objects summary to inform project uploading/updating/sampling date, spatial coverage, images predictions/annotations status. Create instrument-specific project lists
+# Entry 2: Generate an exhaustive list of visible and accessible project(s) based on your Ecotaxa login/pw (info stored in untracked Ecotaxa_API_pw.yaml). Projects list stored as project_list_all
+# Entry 3: Generate instrument-specific project spreadsheets used to standardize and harmonize fields of interest (i.e. needed to calculate NBSS)
 # Entry 4: Bridge EcoPart-EcoTaxa projects (UVP-specific)
 
 ## Useful documentations:
@@ -21,7 +21,7 @@
 # See documentation for entry 3: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ProjectsApi.md#project_set_get_column_stats,https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#get_object_set_summary
 # See documentation for entry 4: upcoming
 
-## TO DO: Automate search for person to contact, Bridge EcoPart and EcoTaxa projects
+## TO DO: Bridge EcoPart and EcoTaxa projects
 
 
 ## Python modules
@@ -118,10 +118,11 @@ pd.DataFrame({'Project_ID':list(map(lambda x: x.projid,api_response_project_sear
 'Percentage_classified':list(map(lambda x: x.pctclassified,api_response_project_search_visible)),
 'Percentage_validated':list(map(lambda x: x.pctvalidated, api_response_project_search_visible))})
 ])
+df=df.assign(Project_test=df['Project_ID'].isin([3315,3318,3326,377,378,714,560,579,5693]).astype(str)) # Add boolean variable to identify fixed test set (3 projects per instrument)
 
 df_metadata=pd.DataFrame({'Variables':df.columns,'Variable_types':df.dtypes,
-'Units/Values':['','','','','','#','%','%'],
-'Description':['Project ID in EcoTaxa','Project instrument','Name of the project contact','Email of the project contact','Project accessibility. If True, export is possible with current authentication','Total number of objects (images) in the project','Percentage of predicted images','Percentage of validated images']})
+'Units/Values':['','','','','','#','%','%',''],
+'Description':['Project ID in EcoTaxa','Project instrument','Name of the project contact','Email of the project contact','Project accessibility. If True, export is possible with current authentication','Total number of objects (images) in the project','Percentage of predicted images','Percentage of validated images','Test set boolean identifier. If True, project is one of the test set projects']})
 
 # Prompting a warning if a project_list_all file already exists
 # asking for confirmation to overwrite. Attention: the outdated project list will be erased!
@@ -155,7 +156,7 @@ for i, n in enumerate(api_response_project_search_accessible):
 inst=list(set(list(map(lambda x: x.instrument, api_response_project_search_accessible))))
 inst_all=list(map(lambda x: x.instrument, api_response_project_search_accessible))
 
-print("Building standardizer for",'/'.join(inst),"projects",sep=" ")
+print("Building standardizer for",'/'.join(inst),"projects if they don't exist",sep=" ")
 # Step 3b: Use instrument-specific interpreters to provide summary/custom fields of interest and store in instrument_project_list files
 subset_df=df[df['PSSdb_access']=='True']
 #inst=[key for key, value in dict_instruments.items() if any(pd.Series(value).isin(subset_df.Instrument.unique().tolist()))]#subset_df.Instrument.unique()
@@ -206,7 +207,7 @@ for instrument in inst:
                 dict_match("pixel", [re.subn("object_|acq_|process_|sample_", "", string)[0] for string in y])[0][
                     'Index'] + 1],
             'Pixel.unit': '',
-            'Category.field': ''
+            'Category.field': 'object_annotation_category'
         }, orient="index").T,
                                     list(
                                         map(lambda x: ["acq_" + str for str in list(x.acquisition_free_cols.keys())] + [
