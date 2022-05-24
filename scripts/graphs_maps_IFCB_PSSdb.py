@@ -14,7 +14,7 @@ from glob import glob
 import yaml  # requires installation of PyYAML package
 
 
-#  PROBLEM here: look for coastline layer and add it to that map, UNABLE to import cartopy, see issue
+#look for coastline layer and add it to that map, UNABLE to import cartopy, see issue
 import cartopy.crs as ccrs
 
 
@@ -37,20 +37,30 @@ slope, intercept = df['slope'], df['intercept']
 intercept_t = [a * 10 for a in intercept]
 
 # Scatter the points, using size and color but no label
-plt.scatter(lon, lat, label=None,
-            c=slope, cmap='seismic',
-            s=intercept_t, linewidth=0, alpha=0.5)
+
 #plt.axis(aspect='equal')
-plt.xlabel('longitude')
-plt.ylabel('latitude')
-plt.colorbar(label='slope')
-plt.clim(min(slope), max(slope))
+
+#plt.figure(figsize=(5, 3))
+#set lat lon grid
+ax = plt.axes(projection=ccrs.PlateCarree())
+ax.set_extent([min(lon)-5, max(lon)+5, min(lat)-5, max(lat)+5] )
+plt.gca().coastlines('50m')
+g1=ax.gridlines(draw_labels=True)
+g1.xlines = False
+g1.ylines = False
+ax.set_title(''.join("'PSS results for IFCB  projects 3315, 3318, 3326'"))
+
+plt.scatter(lon, lat, label=None, c=slope, cmap='seismic', s=intercept_t, linewidth=0, alpha=0.5, transform=ccrs.PlateCarree())
+#ax.xlabel('longitude')
+#ax.ylabel('latitude')
+plt.colorbar(label='slope', orientation='horizontal', anchor=(0.5, -1))
+#ax.clim(min(slope), max(slope))
 
 
 labels = ["3", "8", "12.5"]
 
 for n, area in enumerate([30, 80, 125]):
-    plt.scatter([], [], c='k', alpha=0.3, s=area, label=labels[n])
+    plt.scatter([], [], c='k', alpha=0.3, s=area, label=labels[n], transform=ccrs.PlateCarree())
 
 plt.legend( ncol = 3, scatterpoints=1, frameon=False,
            labelspacing=1, title='intercept')
