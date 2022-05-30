@@ -1,7 +1,6 @@
 # create a python function that receives a folder as an imput (such folder contains csv files)
 # another imput should be bin count
 # and returns: slope, intercept and R^2 of the regression (do we want plots?)
-# def SS_fit (pathname, n_bins):
 
 import numpy as np
 import pandas as pd
@@ -15,13 +14,14 @@ from glob import glob
 import yaml  # requires installation of PyYAML package
 from scipy.stats import linregress
 
-#follow these to test functionality
-path_to_data, ID = proj_id_list('IFCB', testing=True)
-data_clean = read_clean(path_to_data, 3326)
-data_clean = biovol(data_clean, 'IFCB')
-data_clean = binning(data_clean)
-stats_biovol_SC = NB_SS(data_clean)
-results_SS = NB_SS_regress(stats_biovol_SC, 3326)
+
+# follow these to test functionality
+# path_to_data, ID = proj_id_list('IFCB', testing=True)
+# data_clean = read_clean(path_to_data, 3326)
+# data_clean = biovol(data_clean, 'IFCB')
+# data_clean = binning(data_clean)
+# stats_biovol_SC = NB_SS(data_clean)
+# results_SS = NB_SS_regress(stats_biovol_SC, 3326)
 
 
 # functions here
@@ -42,7 +42,7 @@ def log_bins_func(start, bin_number, power=10):
 
 # 2) function to create list of projects. Inputs: instrument
 
-def proj_id_list(instrument, testing= False ):
+def proj_id_list(instrument, testing=False):
     import pandas as pd
     import yaml
     from pathlib import Path
@@ -66,22 +66,23 @@ def proj_id_list(instrument, testing= False ):
         if instrument == 'IFCB':
             id_list = [3315, 3318, 3326]  # THIS IS THE TEST LIST, USE THIS WHEN DEBUGGING for IFCB
         elif instrument == 'Zooscan':
-            id_list = [1] # ask mathilde about her test projects
+            id_list = [1]  # ask mathilde about her test projects
         elif instrument == 'UVP':
-            id_list = [2] # ask mathilde about her test projects
+            id_list = [2]  # ask mathilde about her test projects
     return path_to_data, id_list
 
-#3) Create clean dataframes, input: a path and an ID
+
+# 3) Create clean dataframes, input: a path and an ID
 def read_clean(path_to_data, ID):
-    #returns a dataframe for each project, excluding datapoints with errors
+    # returns a dataframe for each project, excluding datapoints with errors
     import pandas as pd
     from glob import glob
     search_pattern = path_to_data / ("*" + str(ID) + "*")  # hard coded to find the ICFB folder
     filename = glob(str(search_pattern))
     df = pd.read_csv(filename[0], sep='\t', encoding='latin_1', encoding_errors='ignore', header=0)
     # convert taxonomic Id column into categorical.
-    #NOTE all of these column names might need to be modified after standardization of datasets
-    df['object_annotation_category'] = df['object_annotation_category'].astype('category')#t
+    # NOTE all of these column names might need to be modified after standardization of datasets
+    df['object_annotation_category'] = df['object_annotation_category'].astype('category')  # t
     # FILTERING DATA: filter taxonomic categories that are artefacts
     data_clean = df[df['object_annotation_category'].str.contains("artefact") == False]
     # remove data points where size metrics = 0
@@ -93,7 +94,7 @@ def read_clean(path_to_data, ID):
     return data_clean
 
 
-#4) calculate biovolume of each object. input: a dataframe
+# 4) calculate biovolume of each object. input: a dataframe
 def biovol(data_clean, instrument):
     import pandas as pd
     # these calculations should be done differently for each instrument, perhaps?
@@ -114,9 +115,10 @@ def biovol(data_clean, instrument):
                 (data_clean['ESD_um'] / 2) ** 2)  # based on sphere volume, likely better ways
     return data_clean
 
-#5) bin by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
-#of depth bins
-def binning (data_clean, st_increment=1, depths = [0, 25, 50, 100, 200, 500, 1000, 3000, 8000], N_log_bins = 200):
+
+# 5) bin by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
+# of depth bins
+def binning(data_clean, st_increment=1, depths=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000], N_log_bins=200):
     import numpy as np
     import pandas as pd
     # create size bins, dependent of log_bins_func
@@ -124,7 +126,7 @@ def binning (data_clean, st_increment=1, depths = [0, 25, 50, 100, 200, 500, 100
     SizeBins_um3 = np.array(PD_SizeBins_um3)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume
-    data_clean['sizeClasses'] = pd.cut(x=data_clean[('biovol_um3')], #size classes defined by biovolume
+    data_clean['sizeClasses'] = pd.cut(x=data_clean[('biovol_um3')],  # size classes defined by biovolume
                                        bins=SizeBins_um3, include_lowest=True)
 
     # obtain the size of each size class bin and append it to the stats dataframe
@@ -138,9 +140,9 @@ def binning (data_clean, st_increment=1, depths = [0, 25, 50, 100, 200, 500, 100
     # create a categorical variable that will serve as the station ID based on binned lat and lon
     # 1) create arrays that will serve to bin lat and long with 1 degree increments
     lat_increments = np.arange(np.floor(min(data_clean['object_lat']) - st_increment),
-                              np.ceil(max(data_clean['object_lat']) + st_increment), 1)
+                               np.ceil(max(data_clean['object_lat']) + st_increment), 1)
     lon_increments = np.arange(np.floor(min(data_clean['object_lon']) - st_increment),
-                              np.ceil(max(data_clean['object_lon']) + st_increment), 1)
+                               np.ceil(max(data_clean['object_lon']) + st_increment), 1)
     # 2) create bins
     data_clean['lat_bin'] = pd.cut(x=data_clean[('object_lat')],
                                    bins=lat_increments, include_lowest=True)
@@ -173,18 +175,18 @@ def binning (data_clean, st_increment=1, depths = [0, 25, 50, 100, 200, 500, 100
     return data_clean
 
 
-#6)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
+# 6)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
 # inputs: a dataframe and the volume sampled of each (in cubic meters). using 5 ml for IFCB
-def NB_SS(data_clean, vol_filtered = 5e-6):
+def NB_SS(data_clean, vol_filtered=5e-6):
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
-    #these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
-    #group data by bins
+    # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
+    # group data by bins
     stats_biovol_SC = data_clean[
         ['station_ID', 'midDepth_bin', 'range_size_bin', 'biovol_um3', 'midLat_bin', 'midLon_bin']] \
         .groupby(['station_ID', 'midDepth_bin', 'range_size_bin']).describe()
-    #reset index and rename columns to facilitate further calculations
+    # reset index and rename columns to facilitate further calculations
     stats_biovol_SC = stats_biovol_SC.reset_index()
     stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
 
@@ -193,10 +195,10 @@ def NB_SS(data_clean, vol_filtered = 5e-6):
     # reset index and rename columns to facilitate further calculations
     sum_biovol_SC = sum_biovol_SC.reset_index()
     sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
-    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['biovol_um3_sum'] != 0] #remove bins that have zero values
+    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['biovol_um3_sum'] != 0]  # remove bins that have zero values
     sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
     stats_biovol_SC['sum_biovol'] = sum_biovol_SC['biovol_um3_sum']
-    #standardize by volume sample
+    # standardize by volume sample
     stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'].div(vol_filtered)) / stats_biovol_SC['range_size_bin']
     # remove data points with concentrations < 10 000 particles/m3
     # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L)
@@ -209,14 +211,15 @@ def NB_SS(data_clean, vol_filtered = 5e-6):
 
     return stats_biovol_SC
 
-#7) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
+
+# 7) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
 # (this can be modified based on Mathilde's comment
 # to remove size bins based on  non linear least squares).
 def NB_SS_regress(stats_biovol_SC, ID):
     import numpy as np
     import pandas as pd
     from scipy.stats import linregress
-    #create empty lists that will be populated with the data of interest
+    # create empty lists that will be populated with the data of interest
     Middepth_range = []
     station_lat = []
     station_lon = []
@@ -225,11 +228,11 @@ def NB_SS_regress(stats_biovol_SC, ID):
     r_val = []
     p_val = []
     project_number = []
-    #parse data by station
+    # parse data by station
     for n, s in enumerate(stats_biovol_SC.station_ID.unique()):
         subset_station = stats_biovol_SC[(stats_biovol_SC['station_ID'] == s)]
         subset_station = subset_station.reset_index(drop=True)
-        #parse data by depth
+        # parse data by depth
         for o, d in enumerate(subset_station.midDepth_bin.unique()):
             subset_stDepth = subset_station[(subset_station['midDepth_bin'] == d)]
             subset_stDepth = subset_station.reset_index(drop=True)
@@ -246,21 +249,30 @@ def NB_SS_regress(stats_biovol_SC, ID):
             p_val.append(model.pvalue)
         proj_number = [ID] * (n + o + 1)
     project_number = project_number + proj_number
-    #compile all lists into a dataframe
+    # compile all lists into a dataframe
     results_SS = pd.DataFrame(
         list(zip(project_number, station_lat, station_lon, Middepth_range, slopes, intercept, r_val, p_val)),
         columns=['project_id', 'station_lat', 'station_lon', 'Middepth_m', 'slope', 'intercept', 'r_val', 'p_val'])
     return results_SS
 
-#8) compile all regression results for all the projects, input: a list of projects, and use functions 2-7 to compile
+
+# 8) compile all regression results for all the projects, input: a list of projects, and use functions 2-7 to compile
 # everything. This should be the only call, from telling it what instrument and then doing the rest.
 # It needs to loop through the project ID and merge all the resulting dataframes at the end
-path_to_data, ID = proj_id_list('IFCB', testing=True)
-data_clean = read_clean(path_to_data, 3326)
-data_clean = biovol(data_clean, 'IFCB')
-data_clean = binning(data_clean)
-stats_biovol_SC = NB_SS(data_clean)
-results_SS = NB_SS_regress(stats_biovol_SC, 3326)
-
-
-results_SS.to_csv(os.path.join(path_to_data, 'NPSS_IFCB.tsv'), sep='\t')
+def PSS(instrument, testing=False):  # highly redundant to function 2,
+    # but I think it's still better to keep it separate
+    import pandas as pd
+    if testing == True:
+        path_to_data, ID = proj_id_list(instrument, testing=True)
+    else:
+        path_to_data, ID = proj_id_list(instrument, testing=False)
+    results_PSS_all = pd.DataFrame()
+    for i in ID:
+        data_clean = read_clean(path_to_data, i)
+        data_clean = biovol(data_clean, instrument)
+        data_clean = binning(data_clean)
+        stats_biovol_SC = NB_SS(data_clean)
+        results_PSS = NB_SS_regress(stats_biovol_SC, i)
+        results_PSS_all = pd.concat([results_PSS_all, results_PSS], axis=0)
+    results_PSS_all.to_csv(os.path.join(path_to_data, 'NPSS_IFCB.tsv'), sep='\t')
+    return results_PSS_all
