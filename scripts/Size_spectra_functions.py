@@ -84,9 +84,14 @@ def read_clean(path_to_data, ID):
     data_clean['proj_ID'] = [ID] * (len(data_clean))
     return data_clean
 
+#standardizer function should go here in the work flow (see outputs from functions below)
 
-# 4) calculate biovolume of each object. input: a dataframe
-def biovol(data_clean, instrument):
+#biovol_standardizer (scaling should happen here)
+#area_to_ESD
+#biovol_from_ESD
+
+# 4) calculate biovolume of each object. input: a dataframe, important to biovol_fromArea, biovol_from_ESD
+def biovol(data_clean, instrument): # imput should be equiv_diameter and process_pixel_to_micron
     import pandas as pd
     # these calculations should be done differently for each instrument, perhaps?
     if instrument == 'IFCB':
@@ -108,7 +113,7 @@ def biovol(data_clean, instrument):
 
 
 # 5) bin by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
-# of depth bins
+# of depth bins. NOTE: separate this into three functions
 def binning(data_clean, st_increment=1, depths=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000], N_log_bins=200):
     import numpy as np
     import pandas as pd
@@ -168,7 +173,7 @@ def binning(data_clean, st_increment=1, depths=[0, 25, 50, 100, 200, 500, 1000, 
 
 # 6)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
 # inputs: a dataframe and the volume sampled of each (in cubic meters). using 5 ml for IFCB
-def NB_SS(data_clean, vol_filtered=5e-6):
+def NB_SS(data_clean, vol_filtered=5e-6): #  one of the imputs should be a list of strings that define how is the
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
