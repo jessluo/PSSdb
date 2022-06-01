@@ -81,6 +81,7 @@ def read_clean(path_to_data, ID):
     data_clean = data_clean[data_clean['object_lat'].notna()]
     data_clean = data_clean[data_clean['object_lon'].notna()]
     data_clean = data_clean.reset_index()
+    data_clean['proj_ID'] = [ID] * (len(data_clean))
     return data_clean
 
 
@@ -174,7 +175,7 @@ def NB_SS(data_clean, vol_filtered=5e-6):
     # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
     # group data by bins
     stats_biovol_SC = data_clean[
-        ['station_ID', 'midDepth_bin', 'range_size_bin', 'biovol_um3', 'midLat_bin', 'midLon_bin']] \
+        ['station_ID', 'midDepth_bin', 'range_size_bin', 'biovol_um3', 'midLat_bin', 'midLon_bin', 'proj_ID']] \
         .groupby(['station_ID', 'midDepth_bin', 'range_size_bin']).describe()
     # reset index and rename columns to facilitate further calculations
     stats_biovol_SC = stats_biovol_SC.reset_index()
