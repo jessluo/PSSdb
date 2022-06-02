@@ -7,13 +7,18 @@ for i in ID:
     data_clean = read_clean(path_to_data, i)
     data_clean_all = pd.concat([data_clean_all, data_clean], axis=0)
 
-data_clean_all = biovol(data_clean_all, 'IFCB')
+data_clean_all['biovol_um3']= biovol_standardizer(data_clean_all['object_biovolume'],
+                                     data_clean_all['process_pixel_to_micron'],  'IFCB')
 
+data_clean_all['sizeClasses'], data_clean_all['range_size_bin'] = size_binning(data_clean_all['biovol_um3'])
+data_clean_all['midDepthBin'] = depth_binning(data_clean_all['object_depth_min'])
+
+data_clean_all['Station_ID'], data_clean_all['midLatBin'], data_clean_all['midLonBin'] = \
+    station_binning(data_clean_all['object_lat'], data_clean_all['object_lon'])
 # this bit was for generating random numbers and see if the equations were working properly
 #data_clean_all['biovol_um3']=np.random.poisson(data_clean_all['biovol_um3'].mode(),
                                                #data_clean_all['biovol_um3'].count())
 
-data_clean_all = binning(data_clean_all)
 stats_biovol_SC = NB_SS(data_clean_all)
 
 #plotting of biovolume and NBSS here. this is to see how the data looks like
