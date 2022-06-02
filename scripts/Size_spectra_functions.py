@@ -16,7 +16,7 @@ from scipy.stats import linregress
 
 # functions here
 
-# 1) function to create size bins
+#function to create size bins
 def log_bins_func(start, bin_number, power=10):
     import numpy as np
     # start: lower size limit of the entire series
@@ -30,8 +30,7 @@ def log_bins_func(start, bin_number, power=10):
     return limits_list
 
 
-# 2) function to create list of projects. Inputs: instrument
-
+# 1) function to create list of projects. Inputs: instrument
 def proj_id_list(instrument, testing=False):
     import pandas as pd
     import yaml
@@ -62,7 +61,7 @@ def proj_id_list(instrument, testing=False):
     return path_to_data, id_list
 
 
-# 3) Create clean dataframes, input: a path and an ID
+# 2) Create clean dataframes, input: a path and an ID
 def read_clean(path_to_data, ID):
     # returns a dataframe for each project, excluding datapoints with errors
     import pandas as pd
@@ -84,118 +83,115 @@ def read_clean(path_to_data, ID):
     data_clean['proj_ID'] = [ID] * (len(data_clean))
     return data_clean
 
-#standardizer function should go here in the work flow (see outputs from functions below)
+#3.1standardizer function should go here in the work flow (see outputs from functions below)
 
-#biovol_standardizer (scaling should happen here)
-#area_to_ESD
-#biovol_from_ESD
-
-# 4) calculate biovolume of each object. input: a dataframe, important to biovol_fromArea, biovol_from_ESD
-def biovol(data_clean, instrument): # imput should be equiv_diameter and process_pixel_to_micron
-    import pandas as pd
-    # these calculations should be done differently for each instrument, perhaps?
+#3.2biovol_standardizer (should scaling happen here?). Imputs: column with size measurement (area or biovolume)
+def biovol_standardizer(measurement, scale, instrument):
     if instrument == 'IFCB':
-        data_clean['ESD_um'] = data_clean['object_equivdiameter'] / data_clean['process_pixel_to_micron']
-        data_clean['biovol_um3'] = (4 / 3) * 3.14 * (
-                (data_clean['ESD_um'] / 2) ** 2)  # based on sphere volume, likely better ways
-        # to do this
-    elif instrument == 'UVP':
-        # a set of calculations here, repeated calculations as a placeholder
-        data_clean['ESD_um'] = data_clean['object_equivdiameter'] / data_clean['process_pixel_to_micron']
-        data_clean['biovol_um3'] = (4 / 3) * 3.14 * (
-                (data_clean['ESD_um'] / 2) ** 2)  # based on sphere volume, likely better ways
-    elif instrument == 'Zooscan':
-        # a set of calculations here, repeated calculations as a placeholder
-        data_clean['ESD_um'] = data_clean['object_equivdiameter'] / data_clean['process_pixel_to_micron']
-        data_clean['biovol_um3'] = (4 / 3) * 3.14 * (
-                (data_clean['ESD_um'] / 2) ** 2)  # based on sphere volume, likely better ways
-    return data_clean
+        biovol_um3 = measurement / (scale**3)
+        # what should we do here for UVP and Zooscan
+    return biovol_um3
 
+#3.3 area_to_ESD: should scaling happen here?
 
-# 5) bin by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
+#3.4 ESD_to_biovol: note: ESD should be in micrometers already
+def ESD_to_biovol(ESD):
+    biovol_um3 = (4 / 3) * 3.14 * ((ESD / 2) ** 2)
+
+#5) data binning
+    # by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
 # of depth bins. NOTE: separate this into three functions
-def binning(data_clean, st_increment=1, depths=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000], N_log_bins=200):
+    #5.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
+    #returns two lists : the sizeClasses bins (categorical) and range_size_bins (float)
+def size_binning(biovolume, N_log_bins=200):
     import numpy as np
-    import pandas as pd
-    # create size bins, dependent of log_bins_func
-    PD_SizeBins_um3 = log_bins_func((min(data_clean['biovol_um3'])), N_log_bins)  # number of bins work for this data
+    PD_SizeBins_um3 = log_bins_func((min(biovolume)), N_log_bins)  # number of bins work for this data
     SizeBins_um3 = np.array(PD_SizeBins_um3)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume
-    data_clean['sizeClasses'] = pd.cut(x=data_clean[('biovol_um3')],  # size classes defined by biovolume
+    sizeClasses= pd.cut(x=biovolume,  # size classes defined by biovolume
                                        bins=SizeBins_um3, include_lowest=True)
-
     # obtain the size of each size class bin and append it to the stats dataframe
     # unfortunately the Interval type produced by pd.cut is hard to work with. So they need to be modified
     range_size_bin = []
-    for i in range(0, len(data_clean.index)):
-        range_size_bin.append(data_clean['sizeClasses'].iloc[i].length)
-    data_clean['range_size_bin'] = range_size_bin
+    for i in range(0, len(biovolume)):
+        range_size_bin.append(sizeClasses.iloc[i].length)
+    return sizeClasses, range_size_bin
 
-    # the dataframe now needs to be parsed, first by station and second, by depth ranges
-    # create a categorical variable that will serve as the station ID based on binned lat and lon
-    # 1) create arrays that will serve to bin lat and long with 1 degree increments
-    lat_increments = np.arange(np.floor(min(data_clean['object_lat']) - st_increment),
-                               np.ceil(max(data_clean['object_lat']) + st_increment), 1)
-    lon_increments = np.arange(np.floor(min(data_clean['object_lon']) - st_increment),
-                               np.ceil(max(data_clean['object_lon']) + st_increment), 1)
-    # 2) create bins
-    data_clean['lat_bin'] = pd.cut(x=data_clean[('object_lat')],
-                                   bins=lat_increments, include_lowest=True)
-
-    data_clean['lon_bin'] = pd.cut(x=data_clean[('object_lon')],
-                                   bins=lon_increments, include_lowest=True)
-    # 3) get middle lat after assigning each sample to a lat/lon bin
-    midLat_bin = []
-    for i in range(0, len(data_clean.index)):
-        midLat_bin.append(data_clean['lat_bin'].iloc[i].mid)
-    data_clean['midLat_bin'] = midLat_bin
-    midLon_bin = []
-    for i in range(0, len(data_clean.index)):
-        midLon_bin.append(data_clean['lon_bin'].iloc[i].mid)
-    data_clean['midLon_bin'] = midLon_bin
-    # create categorical variable for station ID
-    data_clean['station_ID'] = data_clean['midLat_bin'].astype(str) + '_' + data_clean['midLon_bin'].astype(str)
-    data_clean['station_ID'] = data_clean['station_ID'].astype('category')
-
+   # 5.3 by depth. Inputs: a column of the dataframe with depth data, and a list of depth bins
+def depth_binning(depth, depth_bins=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000]):
     # create depth bins based on Jessica's suggestion (Jessica's suggestions as default)
-    data_clean['depth_bin'] = pd.cut(x=data_clean[('object_depth_min')],
-                                     # min and max depths are the same in the IFCB data
-                                     bins=depths, include_lowest=True)
+    depth_bin = pd.cut(x=depth, bins=depth_bins, include_lowest=True)
     # create a categorical variable with the middle depth of each bin
     midDepth_bin = []
-    for i in range(0, len(data_clean.index)):
-        midDepth_bin.append(data_clean['depth_bin'].iloc[i].mid)
-    data_clean['midDepth_bin'] = midDepth_bin
-    data_clean['midDepth_bin'] = data_clean['midDepth_bin'].astype('category')
-    return data_clean
+    for i in range(0, len(depth)):
+        midDepth_bin.append(depth_bin.iloc[i].mid)
+    return midDepth_bin
 
+def station_binning(lat, lon, st_increment=1):
+    import numpy as np
+    # create a categorical variable that will serve as the station ID based on binned lat and lon
+    # 1) create arrays that will serve to bin lat and long with 1 degree increments
+    lat_increments = np.arange(np.floor(min(lat) - st_increment),
+                               np.ceil(max(lat) + st_increment), 1)
+    lon_increments = np.arange(np.floor(min(lon) - st_increment),
+                               np.ceil(max(lon) + st_increment), 1)
+    # 2) create bins
+    lat_bin = pd.cut(x=lat, bins=lat_increments, include_lowest=True)
+
+    lon_bin = pd.cut(x=lon, bins=lon_increments, include_lowest=True)
+    # 3) get middle lat after assigning each sample to a lat/lon bin
+    midLat_bin = []
+    for i in range(0, len(lat_bin)):
+        midLat_bin.append(lat_bin.iloc[i].mid)
+    midLon_bin = []
+    for i in range(0, len(lon_bin)):
+        midLon_bin.append(lon_bin.iloc[i].mid)
+    # create a station ID
+    Station_ID = []
+    for i in range(0, len(midLon_bin)):
+        Station_ID.append(str(midLat_bin[i]) + '_' + str(midLon_bin[i]))
+
+    return Station_ID, midLat_bin, midLon_bin
 
 # 6)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
-# inputs: a dataframe and the volume sampled of each (in cubic meters). using 5 ml for IFCB
-def NB_SS(data_clean, vol_filtered=5e-6): #  one of the imputs should be a list of strings that define how is the
+# inputs: a dataframe and the volume sampled of each (in cubic meters). other inputs are the column names
+# from the original dataset that want to be retained (i.e;  proj ID, station ID, depth, size classes,
+# range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
+# stations, depths and size classes
+# using 5 ml for IFCB
+def NB_SS(data_clean,
+          station='Station_ID',
+          depths='midDepthBin',
+          size_range='range_size_bin',
+          sizeClasses='biovol_um3',
+          biovolume='biovol_um3',
+          lat='midLatBin',
+          lon='midLonBin',
+          project_ID='proj_ID',
+          vol_filtered=5e-6): #  one of the imputs should be a list of strings that define how is the
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
     # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
     # group data by bins
     stats_biovol_SC = data_clean[
-        ['station_ID', 'midDepth_bin', 'range_size_bin', 'biovol_um3', 'midLat_bin', 'midLon_bin', 'proj_ID']] \
-        .groupby(['station_ID', 'midDepth_bin', 'range_size_bin']).describe()
+        [station, depths, size_range, biovolume, lat, lon, project_ID]] \
+        .groupby([station, depths, sizeClasses]).describe()
     # reset index and rename columns to facilitate further calculations
     stats_biovol_SC = stats_biovol_SC.reset_index()
     stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
 
     # add column of summed biovolume per size class to the stats_biovol_SC dataframe
-    sum_biovol_SC = data_clean.groupby(['station_ID', 'midDepth_bin', 'sizeClasses']).agg({'biovol_um3': ['sum']})
+    sum_biovol_SC = data_clean.groupby([station, depths, sizeClasses]).agg({biovolume: ['sum']})
     # reset index and rename columns to facilitate further calculations
     sum_biovol_SC = sum_biovol_SC.reset_index()
     sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
-    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['biovol_um3_sum'] != 0]  # remove bins that have zero values
+    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC[biovolume] != 0]  # remove bins that have zero values
     sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
     stats_biovol_SC['sum_biovol'] = sum_biovol_SC['biovol_um3_sum']
     # standardize by volume sample
-    stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'].div(vol_filtered)) / stats_biovol_SC['range_size_bin']
+    stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'].div(vol_filtered)) / stats_biovol_SC[size_range]
     # remove data points with concentrations < 10 000 particles/m3
     # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L)
     stats_biovol_SC = stats_biovol_SC[stats_biovol_SC['NBSS'] > 10000]
