@@ -160,24 +160,15 @@ def station_binning(lat, lon, st_increment=1):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS(data_clean,
-          station='Station_ID',
-          depths='midDepthBin',
-          size_range='range_size_bin',
-          sizeClasses='biovol_um3',
-          biovolume='biovol_um3',
-          lat='midLatBin',
-          lon='midLonBin',
-          project_ID='proj_ID',
-          vol_filtered=5e-6): #  one of the imputs should be a list of strings that define how is the
+def NB_SS(data_clean, station, depths, size_range, sizeClasses, biovolume, lat, lon, project_ID, vol_filtered=5e-6):
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
     # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
     # group data by bins
     stats_biovol_SC = data_clean[
-        [station, depths, size_range, biovolume, lat, lon, project_ID]] \
-        .groupby([station, depths, sizeClasses]).describe()
+        [station, depths, sizeClasses, size_range, biovolume, lat, lon, project_ID]] \
+        .groupby([station, depths, sizeClasses, size_range, lat, lon, project_ID]).describe()
     # reset index and rename columns to facilitate further calculations
     stats_biovol_SC = stats_biovol_SC.reset_index()
     stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
@@ -187,7 +178,7 @@ def NB_SS(data_clean,
     # reset index and rename columns to facilitate further calculations
     sum_biovol_SC = sum_biovol_SC.reset_index()
     sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
-    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC[biovolume] != 0]  # remove bins that have zero values
+    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['biovol_um3_sum'] != 0]  # remove bins that have zero values
     sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
     stats_biovol_SC['sum_biovol'] = sum_biovol_SC['biovol_um3_sum']
     # standardize by volume sample
@@ -207,7 +198,7 @@ def NB_SS(data_clean,
 # 7) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
 # (this can be modified based on Mathilde's comment
 # to remove size bins based on  non linear least squares).
-def NB_SS_regress(stats_biovol_SC, ID):
+def NB_SS_regress(stats_biovol_SC, station, depths, lat, lon,  ID):
     import numpy as np
     import pandas as pd
     from scipy.stats import linregress
@@ -221,19 +212,19 @@ def NB_SS_regress(stats_biovol_SC, ID):
     p_val = []
     project_number = []
     # parse data by station
-    for n, s in enumerate(stats_biovol_SC.station_ID.unique()):
-        subset_station = stats_biovol_SC[(stats_biovol_SC['station_ID'] == s)]
+    for n, s in enumerate(stats_biovol_SC[station].unique()):
+        subset_station = stats_biovol_SC[(stats_biovol_SC[station] == s)]
         subset_station = subset_station.reset_index(drop=True)
         # parse data by depth
-        for o, d in enumerate(subset_station.midDepth_bin.unique()):
-            subset_stDepth = subset_station[(subset_station['midDepth_bin'] == d)]
+        for o, d in enumerate(subset_station[depths].unique()):
+            subset_stDepth = subset_station[(subset_station[depths] == d)]
             subset_stDepth = subset_station.reset_index(drop=True)
             # make the linear fit between normalized biovolume and size
             model = linregress(subset_stDepth['logSize'], subset_stDepth['logNBSS'])
             # populate the lists of lat long, and depth range
-            Middepth_range.append(subset_stDepth['midDepth_bin'][0])
-            station_lat.append(subset_stDepth['midLat_bin_mean'][0])
-            station_lon.append(subset_stDepth['midLon_bin_mean'][0])
+            Middepth_range.append(subset_stDepth[depths][0])
+            station_lat.append(subset_stDepth[lat][0])
+            station_lon.append(subset_stDepth[lon][0])
             # add the statistics to the empty lists
             slopes.append(model.slope)
             intercept.append(model.intercept)
