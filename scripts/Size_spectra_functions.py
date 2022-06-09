@@ -61,7 +61,7 @@ def proj_id_list(instrument, testing=False):
     return path_to_data, id_list
 
 
-# 2) Create clean dataframes, input: a path and an ID
+# 2) Create clean dataframes, input: a path and an ID. modify this to prevent removing 
 def read_clean(path_to_data, ID):
     # returns a dataframe for each project, excluding datapoints with errors
     import pandas as pd
