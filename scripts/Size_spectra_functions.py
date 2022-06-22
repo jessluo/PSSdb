@@ -194,10 +194,24 @@ def NB_SS(data_clean, station, depths, size_range, sizeClasses, biovolume, lat, 
 
     return stats_biovol_SC
 
+# 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
+# low threshold will be filtered because they are smaller than the next standardized size specttrum
+# high threshold: still unsure. same concept? remove points that are higher than the previous one?
+# imputs: the data frame, and the column that contains the NBSS
+#def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
+    # step 1: if a value is lower than the next one, remove that row
+    #for  i in  range  (1, len(subset_stDepth[logNBSS]):
+        #if subset_stDepth[logNBSS][i-1] < subset_stDepth[logNBSS][i]:
+            #subset_stDepth.drop([i-1])
+        #elif subset_stDepth[logNBSS][i] < subset_stDepth[logNBSS][i+1]:
+            #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
+    #subset_stDepth = subset_stDepth.reset_index(drop=True)
+    #return subset_stDepth
 
-# 7) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
+
+# 8) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
 # (this can be modified based on Mathilde's comment
-# to remove size bins based on  non linear least squares).
+# to remove size bins based on  non linear least squares). In this example, the clean_lin_fit will be used for now
 def NB_SS_regress(stats_biovol_SC, station, depths, lat, lon,  ID):
     import numpy as np
     import pandas as pd
@@ -239,7 +253,7 @@ def NB_SS_regress(stats_biovol_SC, station, depths, lat, lon,  ID):
     return results_SS
 
 
-# 8) compile all regression results for all the projects, input: a list of projects, and use functions 2-7 to compile
+# 9) compile all regression results for all the projects, input: a list of projects, and use functions 2-7 to compile
 # everything. This should be the only call, from telling it what instrument and then doing the rest.
 # It needs to loop through the project ID and merge all the resulting dataframes at the end
 def PSS(instrument, testing=False):  # highly redundant to function 2,
