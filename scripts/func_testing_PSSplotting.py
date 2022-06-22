@@ -1,7 +1,7 @@
 
 
 # follow these to test functionality (this is to figure out why we are getting such horrible slopes)
-path_to_data, ID = proj_id_list('IFCB', testing=True)
+path_to_data, ID = proj_id_list('IFCB', testing=False)
 data_clean_all=pd.DataFrame()
 for i in ID:
     data_clean = read_clean(path_to_data, i)
@@ -28,7 +28,7 @@ stats_biovol_SC = NB_SS(data_clean_all,
           sizeClasses='sizeClasses',
           biovolume='biovol_um3',
           lat='midLatBin',
-          lon='midLatBin',
+          lon='midLonBin',
           project_ID='proj_ID')
 
 results_SS_all=pd.DataFrame()
@@ -74,3 +74,13 @@ results_SS_all=pd.DataFrame()
 for i in ID:
     results_SS = NB_SS_regress(stats_biovol_SC, i)
     results_SS_all = pd.concat([results_SS_all , results_SS], axis=0)
+
+#use these to define names of columns and test each step of the functions
+station = 'Station_ID'
+depths = 'midDepthBin'
+size_range = 'range_size_bin'
+sizeClasses = 'sizeClasses'
+biovolume = 'biovol_um3'
+lat = 'midLatBin'
+lon = 'midLonBin'
+project_ID = 'proj_ID'
