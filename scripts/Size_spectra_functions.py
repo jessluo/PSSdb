@@ -183,8 +183,7 @@ def NB_SS(data_clean, station, depths, size_range, sizeClasses, biovolume, lat, 
     stats_biovol_SC['sum_biovol'] = sum_biovol_SC['biovol_um3_sum']
     # standardize by volume sample
     stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'].div(vol_filtered)) / stats_biovol_SC[size_range]
-    # remove data points with concentrations < 10 000 particles/m3
-    # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L)
+    # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L= 10 000 particles/m3)
     stats_biovol_SC = stats_biovol_SC[stats_biovol_SC['NBSS'] > 10000]
     stats_biovol_SC = stats_biovol_SC.reset_index(drop=True)
 
