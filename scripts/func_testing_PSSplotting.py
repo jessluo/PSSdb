@@ -32,6 +32,7 @@ stats_biovol_SC = NB_SS(data_clean_all,
           project_ID='proj_ID')
 
 results_SS_all=pd.DataFrame()
+
 for i in ID:
     results_SS = NB_SS_regress(stats_biovol_SC, station='Station_ID',
                                depths='midDepthBin', lat='midLatBin', lon='midLonBin',  ID=i)
@@ -70,6 +71,9 @@ stats_biovol_SC.biovol_um3_count[(stats_biovol_SC['proj_ID_min']==3318)].min()
 
 
 
+
+
+
 results_SS_all=pd.DataFrame()
 for i in ID:
     results_SS = NB_SS_regress(stats_biovol_SC, i)
@@ -84,3 +88,10 @@ biovolume = 'biovol_um3'
 lat = 'midLatBin'
 lon = 'midLonBin'
 project_ID = 'proj_ID'
+
+
+# histrogram to show the number of samples per size bin in all of the IFCB projects
+plt.hist(x=stats_biovol_SC['biovol_um3_count'], bins= 5000)
+plt.xlim(0, 500)
+plt.xlabel(' number of samples in a Size Bin (including artifacts)')
+plt.ylabel('frequency')
