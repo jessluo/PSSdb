@@ -31,7 +31,7 @@ def log_bins_func(start, bin_number, power=10):
 
 
 # 1) function to create list of projects. Inputs: instrument
-def proj_id_list(instrument, testing=False):
+def proj_id_list_func(instrument, testing=False):
     import pandas as pd
     import yaml
     from pathlib import Path
@@ -62,7 +62,7 @@ def proj_id_list(instrument, testing=False):
 
 
 # 2) Create clean dataframes, input: a path and an ID. modify this to prevent removing 
-def read_clean(path_to_data, ID):
+def read_func(path_to_data, ID):
     # returns a dataframe for each project, excluding datapoints with errors
     import pandas as pd
     from glob import glob
@@ -72,7 +72,12 @@ def read_clean(path_to_data, ID):
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
     df['object_annotation_category'] = df['object_annotation_category'].astype('category')  # t
-    # FILTERING DATA: filter taxonomic categories that are artefacts
+    df['proj_ID'] = [ID] * (len(df))
+    return df
+
+#function to remove rows without data
+def clean_df_func(df):
+ # FILTERING DATA: filter taxonomic categories that are artefacts
     data_clean = df[df['object_annotation_category'].str.contains("artefact") == False]
     # remove data points where size metrics = 0
     data_clean = data_clean[data_clean.object_equivdiameter != 0]
@@ -80,13 +85,12 @@ def read_clean(path_to_data, ID):
     data_clean = data_clean[data_clean['object_lat'].notna()]
     data_clean = data_clean[data_clean['object_lon'].notna()]
     data_clean = data_clean.reset_index()
-    data_clean['proj_ID'] = [ID] * (len(data_clean))
     return data_clean
 
 #3.1standardizer function should go here in the work flow (see outputs from functions below)
 
 #3.2biovol_standardizer (should scaling happen here?). Imputs: column with size measurement (area or biovolume)
-def biovol_standardizer(measurement, scale, instrument):
+def biovol_standardizer_func(measurement, scale, instrument):
     if instrument == 'IFCB':
         biovol_um3 = measurement / (scale**3)
         # what should we do here for UVP and Zooscan
@@ -95,7 +99,7 @@ def biovol_standardizer(measurement, scale, instrument):
 #3.3 area_to_ESD: should scaling happen here?
 
 #3.4 ESD_to_biovol: note: ESD should be in micrometers already
-def ESD_to_biovol(ESD):
+def ESD_to_biovol_func(ESD):
     biovol_um3 = (4 / 3) * 3.14 * ((ESD / 2) ** 2)
 
 #5) data binning
@@ -103,7 +107,7 @@ def ESD_to_biovol(ESD):
 # of depth bins. NOTE: separate this into three functions
     #5.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
     #returns two lists : the sizeClasses bins (categorical) and range_size_bins (float)
-def size_binning(biovolume, N_log_bins=200):
+def size_binning_func(biovolume, N_log_bins=200):
     import numpy as np
     PD_SizeBins_um3 = log_bins_func((min(biovolume)), N_log_bins)  # number of bins work for this data
     SizeBins_um3 = np.array(PD_SizeBins_um3)
@@ -119,7 +123,7 @@ def size_binning(biovolume, N_log_bins=200):
     return sizeClasses, range_size_bin
 
    # 5.3 by depth. Inputs: a column of the dataframe with depth data, and a list of depth bins
-def depth_binning(depth, depth_bins=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000]):
+def depth_binning_func(depth, depth_bins=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000]):
     # create depth bins based on Jessica's suggestion (Jessica's suggestions as default)
     depth_bin = pd.cut(x=depth, bins=depth_bins, include_lowest=True)
     # create a categorical variable with the middle depth of each bin
@@ -128,7 +132,7 @@ def depth_binning(depth, depth_bins=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000]
         midDepth_bin.append(depth_bin.iloc[i].mid)
     return midDepth_bin
 
-def station_binning(lat, lon, st_increment=1):
+def station_binning_func(lat, lon, st_increment=1):
     import numpy as np
     # create a categorical variable that will serve as the station ID based on binned lat and lon
     # 1) create arrays that will serve to bin lat and long with 1 degree increments
@@ -160,7 +164,7 @@ def station_binning(lat, lon, st_increment=1):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS(data_clean, station, depths, size_range, sizeClasses, biovolume, lat, lon, project_ID, vol_filtered=5e-6):
+def NB_SS_func(data_clean, station, depths, size_range, sizeClasses, biovolume, lat, lon, project_ID, vol_filtered=5e-6):
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
@@ -211,7 +215,7 @@ def NB_SS(data_clean, station, depths, size_range, sizeClasses, biovolume, lat, 
 # 8) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
 # (this can be modified based on Mathilde's comment
 # to remove size bins based on  non linear least squares). In this example, the clean_lin_fit will be used for now
-def NB_SS_regress(stats_biovol_SC, station, depths, lat, lon,  ID):
+def NB_SS_regress_func(stats_biovol_SC, station, depths, lat, lon,  ID):
     import numpy as np
     import pandas as pd
     from scipy.stats import linregress
