@@ -5,7 +5,10 @@ cubic_decimeter=decimeter*decimeter*decimeter=dm3
 square_meter= meter * meter=m2
 cubic_micrometer= micron * micron * micron=um3
 square_micrometer= micron * micron=um2
+micron= 1e-6 * meter
 micrometer=micron=um
+milliliter=1e-03 * liter=ml
+cubic_centimeter=1e-03 * cubic_decimeter=cm3
 millimeter= 1e-3 * meter=mm
 square_millimeter=1e-6 * meter=mm2
 pixel_per_micron= pixel / micron=pixelperum
