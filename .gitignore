@@ -4,3 +4,4 @@ __pycache__
 .idea
 Ecotaxa_API_pw.yaml
 raw/API
+raw/raw_standardized
