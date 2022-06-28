@@ -1,0 +1,15 @@
+square_pixel=pixel * pixel=pixel2
+cubic_pixel= pixel * pixel * pixel=pixel3
+cubic_meter= meter * meter * meter=m3
+cubic_decimeter=decimeter*decimeter*decimeter=dm3
+square_meter= meter * meter=m2
+cubic_micrometer= micron * micron * micron=um3
+square_micrometer= micron * micron=um2
+micrometer=micron=um
+millimeter= 1e-3 * meter=mm
+square_millimeter=1e-6 * meter=mm2
+pixel_per_micron= pixel / micron=pixelperum
+micron_per_pixel=micron / pixel=umperpixel
+pixel_per_millimeter= pixel / millimeter=pixelpermm
+millimeter_per_pixel= millimeter / pixel=mmperpixel
+square_millimeter_per_square_pixel=(millimeter / pixel )**2=mm2perpixel2
