@@ -1,5 +1,5 @@
 #function that calls on
-def PSS_func()
+def PSS_func():
     import funcs_size_spectra
     path_to_data, ID = proj_id_list('IFCB', testing=True)
     data_clean_all=pd.DataFrame()
