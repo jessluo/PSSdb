@@ -53,7 +53,7 @@ PQ=pint.quantity.Quantity
 from pint import UnitRegistry # Use pip install pint to install
 ureg=UnitRegistry()
 #ureg.default_format = '~' # Add this if you want to use abbreviated unit names.
-ureg.load_definitions('units_def.txt')  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
+ureg.load_definitions('/Users/mc4214/GIT/PSSdb/scripts/units_def.txt')  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
 full_list_units = list(dict.fromkeys(sorted(dir(ureg))))  # list(dict.fromkeys(sorted(list(np.concatenate([dir(getattr(ureg.sys,system)) for system in dir(ureg.sys)]).flat))))
 import re
 
