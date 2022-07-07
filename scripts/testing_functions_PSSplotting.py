@@ -95,3 +95,25 @@ plt.hist(x=stats_biovol_SC['biovol_um3_count'], bins= 5000)
 plt.xlim(0, 500)
 plt.xlabel(' number of samples in a Size Bin (including artifacts)')
 plt.ylabel('frequency')
+
+
+## Testing of standardization and merge of data from multiple instruments
+# for a unified workflow, this should happen after running the script ecotaxa_API_export_all_data
+import funcs_size_spectra
+
+#standardize all downloaded files by instrument:
+for i in ['IFCB', 'Zooscan']:
+    mass_st_func(i)
+
+#open files as dataframes and bin them by location and depth:
+
+def binning_all(instrument):
+    path_to_data, ID = proj_id_list(instrument, testing=True)#generate path and project ID's
+    for i in ID:
+        df = read_func(path_to_data, i, cat='Category')# get a dataframe for each project
+        # there has to be a step here where biovolume is calculated
+        df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['biovolume'])
+        df['midDepthBin'] = depth_binning_func(data_clean_all['Depth_max'])
+        df['Station_ID'], df['midLatBin'], df['midLonBin'] = \
+            station_binning_func(df['Latitude'], df['Longitude'])
+
