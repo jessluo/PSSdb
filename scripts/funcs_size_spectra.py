@@ -32,6 +32,10 @@ def log_bins_func(start, bin_number, power=10):
 
 # 1) function to create list of projects. Inputs: instrument
 def proj_id_list_func(instrument, testing=False):
+    """"
+    Objective:
+    generate a list of the downloaded Ecotaxa projects, and return the path of the files
+    """
     import pandas as pd
     import yaml
     from pathlib import Path
@@ -123,8 +127,7 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
     data_clean = data_clean.reset_index()
     return data_clean
 
-#3.1standardizer function should go here in the work flow (see outputs from functions below)
-
+ ## BIOVOLUME STANDARDIZATION AND CALCULATION SHOULD HAPPEN HERE
 #3.2biovol_standardizer (should scaling happen here?). Imputs: column with size measurement (area or biovolume)
 def biovol_standardizer_func(measurement, scale, instrument):
     if instrument == 'IFCB':
