@@ -60,13 +60,49 @@ def proj_id_list_func(instrument, testing=False):
             id_list = [2]  # ask mathilde about her test projects
     return path_to_data, id_list
 
+# 2) Standardize all files:
+def mass_st_func(instrument):
+    """"
+    Objective:
+    Complete standardization of all projects for a given instrument
+    """
+    #import functions to 1. get project ID lists and
+    from funcs_size_spectra import proj_id_list_func as id_list
+    #get the standardizer function
+    from funcs_export_standardizer import standardization_func as standardize
+    from pathlib import Path
+    import yaml
+    import glob
+    instrument = str(instrument)
+    #define the paths to the config file and the standardizer using the yaml file
+    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    with open(path_to_config, 'r') as config_file:
+        cfg = yaml.safe_load(config_file)
+    # read config file (text file) with inputs:  project ID, output directory
+    standardizer_path = glob.glob(str(Path(cfg['raw_dir']).expanduser()) + '/' + '*' + instrument+ '*xlsx')[0]
+    config_path = str(Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser())
+    path_to_data, ID_list = id_list(instrument, testing=False)
+    if instrument == 'IFCB':# this removal is only for testing,
+        # since the standardizer should be able to deal with projects with empty rows
+        IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
+        for element in IFCB_empty_rows:
+            if element in ID_list:
+                ID_list.remove(element)
+        for i in ID_list:
+            standardize(config_path, standardizer_path, i)
 
-# 2) Create clean dataframes, input: a path and an ID. modify this to prevent removing rows
+    else:
+        for i in ID_list:
+            standardize(config_path, standardizer_path, i)
+
+
+
+# 3) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
 def read_func(path_to_data, ID, cat='Category'):
     # returns a dataframe for each project, excluding datapoints with errors
     import pandas as pd
     from glob import glob
-    search_pattern = path_to_data / ("*" + str(ID) + "*")  # hard coded to find the ICFB folder
+    search_pattern = path_to_data / ("*" + str(ID) + "*")
     filename = glob(str(search_pattern))
     df = pd.read_csv(filename[0], sep='\t', encoding='latin_1', encoding_errors='ignore', header=0)
     # convert taxonomic Id column into categorical.
