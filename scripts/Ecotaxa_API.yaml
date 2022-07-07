@@ -7,6 +7,9 @@ ecotaxa_pass : 'your Ecotaxa password'
 # GIT repository for storage
 git_dir : '~/GIT/PSSdb/'
 
+#raw subdirectory
+raw_dir : '~/GIT/PSSdb/raw/'
+
 # Storage sub-direcotry (API/Instrument)
 dataset_subdir : 'raw/API'
 
