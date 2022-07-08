@@ -31,10 +31,16 @@ def log_bins_func(start, bin_number, power=10):
 
 
 # 1) function to create list of projects. Inputs: instrument
-def proj_id_list_func(instrument, testing=False):
-    """"
+def proj_id_list_func(instrument, standardized=False,  testing=False):
+    """
     Objective:
     generate a list of the downloaded Ecotaxa projects, and return the path of the files
+    :param instrument: the device used for image adcquisition. important since the path will change according to it
+    :param standardized: will change the paths whether the data of interest is standardized or not
+    :param testing: restrict the id list to only the ecotaxa projects that are for testing functions
+    :return path_to_data: string where the tsv files are stores
+    :return id_list: list with the ecotaxa project identifiers (might not be relevant once we expand
+    to get data from other platforms)
     """
     import pandas as pd
     import yaml
@@ -47,7 +53,10 @@ def proj_id_list_func(instrument, testing=False):
     # read config file (text file) with inputs:  project ID, output directory
     path_to_git = Path(cfg['git_dir']).expanduser()
     # prepare storage based on path stored in the yaml config file and instrument type
-    path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir'] / instrument
+    if standardized == False:
+        path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir'] / instrument
+    elif standardized ==True:
+        path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument
     # create a list  projects that we have access to, based on project_list_all.xlsx
     path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
     proj_list = pd.read_excel(path_to_proj_id_list)
