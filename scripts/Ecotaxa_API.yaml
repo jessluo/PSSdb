@@ -10,8 +10,11 @@ git_dir : '~/GIT/PSSdb/'
 #raw subdirectory
 raw_dir : '~/GIT/PSSdb/raw/'
 
-# Storage sub-direcotry (API/Instrument)
+# API download Storage sub-direcotry (API/Instrument)
 dataset_subdir : 'raw/API'
+
+#standadrized datasets storage sub-subdirectory
+standardized_subdir : 'raw/raw_standardized'
 
 # Path to project_list_all.xlsx
 proj_list : 'raw/project_list_all.xlsx'
