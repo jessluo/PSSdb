@@ -138,19 +138,23 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
 
  ## BIOVOLUME STANDARDIZATION AND CALCULATION SHOULD HAPPEN HERE
 #3.2biovol_standardizer (should scaling happen here?). Imputs: column with size measurement (area or biovolume)
-def biovol_standardizer_func(measurement, scale, instrument):
+def biovol_um3_func(measurement, scale, instrument):
     """
-    Objective: calculate biovolume (in cubic micrometers)
+    Objective: calculate biovolume (in cubic micrometers) of EACH ROV,
     :param measurement: column (or columns) of the dataframe necessary to calculate biovolume
     :param scale: relation of pixels to micrometers
     :param instrument: instrument that was used to get the data (determines the type of calculation to get biovolume)
     :return:
     """
+    import math
     if instrument == 'IFCB':
         biovol_um3 = measurement / (scale**3)
         # what should we do here for UVP and Zooscan
     if instrument == 'Zooscan':
-        biovol_um3 =
+        um2 = measurement / (scale**2)
+        r = math.sqrt((um2/3.14))
+        biovol_um3 = ((4/3)*3.14*(r**3))
+
     return biovol_um3
 
 #3.3 area_to_ESD: should scaling happen here?
