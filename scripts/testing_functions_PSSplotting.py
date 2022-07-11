@@ -106,17 +106,18 @@ for i in ['IFCB', 'Zooscan']:
     mass_st_func(i)
 
 #open files as dataframes and bin them by location and depth:
-
-def binning_all(instrument):
+def binning_all(instrument, scale):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
     :return: tsv files with the same data but binned (would we like to delete the standardized data?)
     """
     path_to_data, ID = proj_id_list(instrument, standardized=True testing=True)#generate path and project ID's
+
     for i in ID:
         df = read_func(path_to_data, i, cat='Category')# get a dataframe for each project
         # there has to be a step here where biovolume is calculated
+        df['Biovolume_um3'] = biovol_um3_func()##INCOMPLETE, CONTINUE HERE
         df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['biovolume'])
         df['midDepthBin'] = depth_binning_func(data_clean_all['Depth_max'])
         df['Station_ID'], df['midLatBin'], df['midLonBin'] = \
