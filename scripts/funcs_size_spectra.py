@@ -16,7 +16,7 @@ from scipy.stats import linregress
 
 # functions here
 
-#function to create size bins
+#1) function to create size bins
 def log_bins_func(start, bin_number, power=10):
     import numpy as np
     # start: lower size limit of the entire series
@@ -30,7 +30,7 @@ def log_bins_func(start, bin_number, power=10):
     return limits_list
 
 
-# 1) function to create list of projects. Inputs: instrument
+# 2) function to create list of projects. Inputs: instrument
 def proj_id_list_func(instrument, standardized=False,  testing=False):
     """
     Objective:
@@ -73,7 +73,7 @@ def proj_id_list_func(instrument, standardized=False,  testing=False):
             id_list = [2]  # ask mathilde about her test projects
     return path_to_data, id_list
 
-# 2) Standardize all files:
+# 3) Standardize all files:
 def mass_st_func(instrument):
     """"
     Objective:
@@ -110,7 +110,7 @@ def mass_st_func(instrument):
 
 
 
-# 3) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
+# 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
 def read_func(path_to_data, ID, cat='Category'):
     # returns a dataframe for each project, excluding datapoints with errors
     import pandas as pd
@@ -120,11 +120,11 @@ def read_func(path_to_data, ID, cat='Category'):
     df = pd.read_csv(filename[0], sep='\t', encoding='latin_1', encoding_errors='ignore', header=0)
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
-    df[cat] = df[cat].astype('category')  # t
+    #df.loc[:, cat].astype('category')
     df['proj_ID'] = [ID] * (len(df))
     return df
 
-#function to remove rows without data
+# 5) function to remove rows without data
 def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Category'):
  # FILTERING DATA: filter taxonomic categories that are artefacts
     data_clean = df[df[cat].str.contains("artefact") == False]
@@ -136,37 +136,27 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
     data_clean = data_clean.reset_index()
     return data_clean
 
- ## BIOVOLUME STANDARDIZATION AND CALCULATION SHOULD HAPPEN HERE
-#3.2biovol_standardizer (should scaling happen here?). Imputs: column with size measurement (area or biovolume)
-def biovol_um3_func(measurement, scale, instrument):
+
+#5 biovol_standardizer
+def biovol_for_ellipsoid_func(df):
     """
-    Objective: calculate biovolume (in cubic micrometers) of EACH ROV,
-    :param measurement: column (or columns) of the dataframe necessary to calculate biovolume
-    :param scale: relation of pixels to micrometers
-    :param instrument: instrument that was used to get the data (determines the type of calculation to get biovolume)
-    :return:
+    Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
+    the volume of an ellipsoid.
+    :param df: a STANDARDIZED dataframe that contains object's Area (should be in micrometers^2)
+     and object's Minor_axis (should be in micrometers)
+    :return: Biovolume in cubic micrometers
     """
-    import math
-    if instrument == 'IFCB':
-        biovol_um3 = measurement / (scale**3)
-        # what should we do here for UVP and Zooscan
-    if instrument == 'Zooscan':
-        um2 = measurement / (scale**2)
-        r = math.sqrt((um2/3.14))
-        biovol_um3 = ((4/3)*3.14*(r**3))
+    import math as m
+    for i in range(0, len(df)):
+        r = m.sqrt((df.loc[i, 'Area']/m.pi))# problem here: standardized files have two entries for area
+        df.loc[i, 'Biovolume'] = (4/3) * m.pi * ((r/2) * (df.loc[i, 'Minor_axis']/2) * (df.loc[i, 'Minor_axis']/2))
 
-    return biovol_um3
 
-#3.3 area_to_ESD: should scaling happen here?
 
-#3.4 ESD_to_biovol: note: ESD should be in micrometers already
-def ESD_to_biovol_func(ESD):
-    biovol_um3 = (4 / 3) * 3.14 * ((ESD / 2) ** 2)
-
-#5) data binning
+#6) data binning
     # by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
 # of depth bins. NOTE: separate this into three functions
-    #5.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
+    #6.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
     #returns two lists : the sizeClasses bins (categorical) and range_size_bins (float)
 def size_binning_func(biovolume, N_log_bins=200):
     import numpy as np
@@ -183,7 +173,7 @@ def size_binning_func(biovolume, N_log_bins=200):
         range_size_bin.append(sizeClasses.iloc[i].length)
     return sizeClasses, range_size_bin
 
-   # 5.3 by depth. Inputs: a column of the dataframe with depth data, and a list of depth bins
+   # 6.2 by depth. Inputs: a column of the dataframe with depth data, and a list of depth bins
 def depth_binning_func(depth='Depth_min', depth_bins=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000]):
     # create depth bins based on Jessica's suggestion (Jessica's suggestions as default)
     depth_bin = pd.cut(x=depth, bins=depth_bins, include_lowest=True)
@@ -193,6 +183,7 @@ def depth_binning_func(depth='Depth_min', depth_bins=[0, 25, 50, 100, 200, 500, 
         midDepth_bin.append(depth_bin.iloc[i].mid)
     return midDepth_bin
 
+    #6.3 by station (geographical location)
 def station_binning_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
     import numpy as np
     # create a categorical variable that will serve as the station ID based on binned lat and lon
@@ -219,7 +210,31 @@ def station_binning_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
 
     return Station_ID, midLat_bin, midLon_bin
 
-# 6)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
+#6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
+def binning_all_func(instrument):
+    """
+    Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
+    :param instrument: the device used for image adcquisition. important since the path will change
+    :return: tsv files with the same data but binned (would we like to delete the standardized data?)
+    """
+    path_to_data, ID = proj_id_list_func(instrument, standardized=True, testing=False)#generate path and project ID's
+
+    for i in ID:
+        df = read_func(path_to_data, i)# get a dataframe for each project
+        if instrument != 'IFCB': #not equal to IFCB, since UVP and Zooscan projects need their biovolume calculated
+            biovol_for_ellipsoid_func(df)
+        df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
+        df['midDepthBin'] = depth_binning_func(df['Depth_max'])
+        df['Station_ID'], df['midLatBin'], df['midLonBin'] = \
+            station_binning_func(df['Latitude'], df['Longitude'])
+        df.to_csv(str(path_to_data) + '/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
+
+
+## 7) MERGER FUNCTION here
+
+
+
+# 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
 # inputs: a dataframe and the volume sampled of each (in cubic meters). other inputs are the column names
 # from the original dataset that want to be retained (i.e;  proj ID, station ID, depth, size classes,
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
