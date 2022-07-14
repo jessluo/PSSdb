@@ -51,7 +51,6 @@ def proj_id_list_func(instrument, standardized=False,  testing=False):
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
-    path_to_git = Path(cfg['git_dir']).expanduser()
     # prepare storage based on path stored in the yaml config file and instrument type
     if standardized == False:
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir'] / instrument
@@ -111,17 +110,22 @@ def mass_st_func(instrument):
 
 
 # 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
-def read_func(path_to_data, ID, cat='Category'):
-    # returns a dataframe for each project, excluding datapoints with errors
+def read_func(path_to_data, ID):
+    """
+    Objective: returns a dataframe for each STANDARDIZED project
+    :param path_to_data: path where the standardized files are stored
+    :param ID: id number in ecotaxa of eatch project
+    """
     import pandas as pd
     from glob import glob
-    search_pattern = path_to_data / ("*" + str(ID) + "*")
+    search_pattern = path_to_data / ("*" + str(ID) + ".tsv")
     filename = glob(str(search_pattern))
-    df = pd.read_csv(filename[0], sep='\t', encoding='latin_1', encoding_errors='ignore', header=0)
+    df = pd.read_csv(filename[0], sep='\t', header=0, index_col=[0])
+    df = df.loc[:, ~df.columns.str.match("Unnamed")]
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
     #df.loc[:, cat].astype('category')
-    df['proj_ID'] = [ID] * (len(df))
+    #df['proj_ID'] = [ID] * (len(df))
     return df
 
 # 5) function to remove rows without data
@@ -138,20 +142,38 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
 
 
 #5 biovol_standardizer
-def biovol_for_ellipsoid_func(df):
+def biovol_for_ellipsoid_func(df, area_type= 'object_area', geom_shape = 'sphere'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
-    the volume of an ellipsoid.
+    the volume of an ellipsoid OR a sphere. Also, determine which area will be used to calculate the biovolume
     :param df: a STANDARDIZED dataframe that contains object's Area (should be in micrometers^2)
      and object's Minor_axis (should be in micrometers)
+    :param area_type: name of the column that contains the area to be used to calculate biovolume
+    :param geom_shape: geometric shape to be used to calculate biovolume, either 'sphere' or 'ellipse'
     :return: Biovolume in cubic micrometers
     """
     import math as m
+    from glob import glob
+    import pandas as pd
+    # find the Area column in the metadata file and use its position to select the area
+    ID = df.loc[0, 'Project_ID']
+    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    with open(path_to_config, 'r') as config_file:
+        cfg = yaml.safe_load(config_file)
+    path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'])+ '/**/*'+ str(ID)+ '*metadata*')
+    metadata = pd.read_csv(path_to_metadata[0], sep='\t')
+    if 'exc' in area_type: # this condition might be exclusive for Zooscan only
+        ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
+    else:
+        ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
+                           (metadata['Description'].str.contains('exc')== False)].index[0]
     for i in range(0, len(df)):
-        r = m.sqrt((df.loc[i, 'Area']/m.pi))# problem here: standardized files have two entries for area
-        df.loc[i, 'Biovolume'] = (4/3) * m.pi * ((r/2) * (df.loc[i, 'Minor_axis']/2) * (df.loc[i, 'Minor_axis']/2))
-
-
+        r = m.sqrt((df.iloc[i, [ind]]/m.pi))
+        df.loc[i, 'ESD'] = r*2
+        if geom_shape =='sphere':
+            df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
+        elif geom_shape == 'ellipse':
+            df.loc[i, 'Biovolume'] = (4/3) * m.pi * ((r/2) * (df.loc[i, 'Minor_axis']/2) * (df.loc[i, 'Minor_axis']/2))
 
 #6) data binning
     # by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
@@ -217,17 +239,18 @@ def binning_all_func(instrument):
     :param instrument: the device used for image adcquisition. important since the path will change
     :return: tsv files with the same data but binned (would we like to delete the standardized data?)
     """
+    import os
     path_to_data, ID = proj_id_list_func(instrument, standardized=True, testing=False)#generate path and project ID's
-
+    os.mkdir(str(path_to_data) + '/binned_data/')
     for i in ID:
         df = read_func(path_to_data, i)# get a dataframe for each project
         if instrument != 'IFCB': #not equal to IFCB, since UVP and Zooscan projects need their biovolume calculated
-            biovol_for_ellipsoid_func(df)
+            biovol_for_ellipsoid_func(df, area_type= 'object_area', geom_shape = 'ellipse')
         df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
         df['Station_ID'], df['midLatBin'], df['midLonBin'] = \
             station_binning_func(df['Latitude'], df['Longitude'])
-        df.to_csv(str(path_to_data) + '/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
+        df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
 
 
 ## 7) MERGER FUNCTION here
