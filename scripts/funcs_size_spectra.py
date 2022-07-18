@@ -233,6 +233,7 @@ def station_binning_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
     return Station_ID, midLat_bin, midLon_bin
 
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
+# do we want to do the size class limits here?
 def binning_all_func(instrument):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
@@ -252,8 +253,34 @@ def binning_all_func(instrument):
             station_binning_func(df['Latitude'], df['Longitude'])
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
 
+# 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
+# low threshold will be filtered because they are smaller than the next standardized size specttrum
+# high threshold: still unsure. same concept? remove points that are higher than the previous one?
+# imputs: the data frame, and the column that contains the NBSS
+#def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
+    # step 1: if a value is lower than the next one, remove that row
+    #for  i in  range  (1, len(subset_stDepth[logNBSS]):
+        #if subset_stDepth[logNBSS][i-1] < subset_stDepth[logNBSS][i]:
+            #subset_stDepth.drop([i-1])
+        #elif subset_stDepth[logNBSS][i] < subset_stDepth[logNBSS][i+1]:
+            #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
+    #subset_stDepth = subset_stDepth.reset_index(drop=True)
+    #return subset_stDepth
 
-## 7) MERGER FUNCTION here
+
+## 7)  MERGER FUNCTION here: one way to make this (especially if it will have to be done globally) is to use as imput
+# the date, lat/lon and depth
+
+def merge_data_func(date, lat, lon, depth):
+    """
+    Objective: find STANDARDIZED, BINNED tsv files from different instruments and stitch them together.
+    :param date: date of interest of the dataset (how close do we want it to be?)
+    :param lat: latitude of the station (station should be +-1 degree from the input)
+    :param lon: longitude of the station (station should be +-1 degree from the input)
+    :param depth: depth range of the data of interest, would have to be located into the one of the
+    preexisting depth bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000]
+    :return: a dataframe that contains all the size classes across instruments
+    """
 
 
 
@@ -298,19 +325,7 @@ def NB_SS_func(data_clean, station= 'Station_ID', depths = 'midDepth_bin',\
 
     return stats_biovol_SC
 
-# 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
-# low threshold will be filtered because they are smaller than the next standardized size specttrum
-# high threshold: still unsure. same concept? remove points that are higher than the previous one?
-# imputs: the data frame, and the column that contains the NBSS
-#def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
-    # step 1: if a value is lower than the next one, remove that row
-    #for  i in  range  (1, len(subset_stDepth[logNBSS]):
-        #if subset_stDepth[logNBSS][i-1] < subset_stDepth[logNBSS][i]:
-            #subset_stDepth.drop([i-1])
-        #elif subset_stDepth[logNBSS][i] < subset_stDepth[logNBSS][i+1]:
-            #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
-    #subset_stDepth = subset_stDepth.reset_index(drop=True)
-    #return subset_stDepth
+
 
 
 # 8) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
@@ -355,6 +370,8 @@ def NB_SS_regress_func(stats_biovol_SC, station, depths, lat, lon,  ID):
         list(zip(project_number, station_lat, station_lon, Middepth_range, slopes, intercept, r_val, p_val)),
         columns=['project_id', 'station_lat', 'station_lon', 'Middepth_m', 'slope', 'intercept', 'r_val', 'p_val'])
     return results_SS
+
+
 
 
 # 9) compile all regression results for all the projects, input: a list of projects, and use functions 2-7 to compile
