@@ -232,9 +232,30 @@ def station_binning_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
 
     return Station_ID, midLat_bin, midLon_bin
 
+def date_binning_func(date, group_by= 'year_month'):
+    """
+    Objective: reduce the date information, so that the data can be binned by month, year, or month and year
+    :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
+    with format yyyymmdd (GMT)
+    :param group_by: range of time to bin the data, options are: 'year', 'month' and 'year_month'
+    :return:
+    """
+    date_bin = []
+    for i in range(0, len(date)):
+        date_string = str(date.iloc[i])
+        if group_by == 'year':
+            date_bin.append(date_string[0:3])
+        elif group_by == 'year_month':
+            date_bin.append(date_string[4:5])
+        elif group_by == 'month':
+            date_bin.append(date_string[0:5])
+
+    return date_bin
+
+
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
 # do we want to do the size class limits here?
-def binning_all_func(instrument):
+def binning_NBS_func(instrument):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
@@ -249,12 +270,15 @@ def binning_all_func(instrument):
             biovol_for_ellipsoid_func(df, area_type= 'object_area', geom_shape = 'ellipse')
         df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
-        df['Station_ID'], df['midLatBin'], df['midLonBin'] = \
+        df['date_bin'] = date_binning_func(df['Sampling_date'])
+        df['Station_location'], df['midLatBin'], df['midLonBin'] = \
             station_binning_func(df['Latitude'], df['Longitude'])
+        NBS_data_binned = NB_SS_func(df)
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
+        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_binned.csv', sep='\t')
 
 # 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
-# low threshold will be filtered because they are smaller than the next standardized size specttrum
+# low threshold will be filtered because they are smaller than the next standardized size spectrum
 # high threshold: still unsure. same concept? remove points that are higher than the previous one?
 # imputs: the data frame, and the column that contains the NBSS
 #def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
@@ -290,16 +314,16 @@ def merge_data_func(date, lat, lon, depth):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(data_clean, station= 'Station_ID', depths = 'midDepth_bin',\
+def NB_SS_func(data_clean, dates, station= 'Station_location', depths = 'midDepthBin',\
                size_range= 'range_size_bin', sizeClasses= 'sizeClasses', biovolume='Biovolume',\
-               lat='midLat_bin', lon= 'midLon_bin', project_ID= 'proj_ID', vol_filtered=5e-6):
+               lat='midLatbin', lon= 'midLonbin', project_ID= 'Project_ID', vol_filtered='Volume_analyzed'):
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
     # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
     # group data by bins
     stats_biovol_SC = data_clean[
-        [station, depths, sizeClasses, size_range, biovolume, lat, lon, project_ID]] \
+        [dates, station, depths, sizeClasses, size_range, biovolume, lat, lon, project_ID]] \
         .groupby([station, depths, sizeClasses, size_range, lat, lon, project_ID]).describe()
     # reset index and rename columns to facilitate further calculations
     stats_biovol_SC = stats_biovol_SC.reset_index()
