@@ -104,8 +104,9 @@ import funcs_size_spectra
 #standardize all downloaded files by instrument:
 for i in ['IFCB', 'Zooscan']:
     mass_st_func(i)
-    #bin all loaded files
+    #bin all loaded files and calculate NBSS
     binning_all_func(i)
-    #MERGE files with same station, depth, date TRICKY
+    #calculate NBSS for each individual file
+
 
 
