@@ -244,11 +244,11 @@ def date_binning_func(date, group_by= 'year_month'):
     for i in range(0, len(date)):
         date_string = str(date.iloc[i])
         if group_by == 'year':
-            date_bin.append(date_string[0:3])
+            date_bin.append(date_string[0:4])
         elif group_by == 'year_month':
-            date_bin.append(date_string[4:5])
+            date_bin.append(date_string[0:6])
         elif group_by == 'month':
-            date_bin.append(date_string[0:5])
+            date_bin.append(date_string[4:6])
 
     return date_bin
 
@@ -275,7 +275,7 @@ def binning_NBS_func(instrument):
             station_binning_func(df['Latitude'], df['Longitude'])
         NBS_data_binned = NB_SS_func(df)
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
-        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_binned.csv', sep='\t')
+        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
 
 # 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
 # low threshold will be filtered because they are smaller than the next standardized size spectrum
@@ -314,23 +314,24 @@ def merge_data_func(date, lat, lon, depth):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(data_clean, dates, station= 'Station_location', depths = 'midDepthBin',\
+def NB_SS_func(df, dates='date_bin', station= 'Station_location', depths = 'midDepthBin',\
                size_range= 'range_size_bin', sizeClasses= 'sizeClasses', biovolume='Biovolume',\
-               lat='midLatbin', lon= 'midLonbin', project_ID= 'Project_ID', vol_filtered='Volume_analyzed'):
+               lat='midLatBin', lon='midLonBin', project_ID= 'Project_ID', vol_filtered='Volume_analyzed'):
     import numpy as np
     import pandas as pd
     # create a dataframe with summary statistics for each station, depth bin and size class
     # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
     # group data by bins
-    stats_biovol_SC = data_clean[
-        [dates, station, depths, sizeClasses, size_range, biovolume, lat, lon, project_ID]] \
-        .groupby([station, depths, sizeClasses, size_range, lat, lon, project_ID]).describe()
+    stats_biovol_SC = df[
+        [dates, station, depths, sizeClasses, size_range,  lat, lon, project_ID, vol_filtered,  biovolume]] \
+        .groupby([dates, station, depths, sizeClasses, size_range, lat, lon, project_ID, vol_filtered]).describe()
     # reset index and rename columns to facilitate further calculations
     stats_biovol_SC = stats_biovol_SC.reset_index()
     stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
 
     # add column of summed biovolume per size class to the stats_biovol_SC dataframe
-    sum_biovol_SC = data_clean.groupby([station, depths, sizeClasses]).agg({biovolume: ['sum']})
+    sum_biovol_SC = df[[dates, station, depths, sizeClasses, size_range,  lat, lon, project_ID, vol_filtered,  biovolume]] \
+        .groupby([dates, station, depths, sizeClasses, size_range, lat, lon, project_ID, vol_filtered])[biovolume].sum()  #agg({biovolume: ['sum']})
     # reset index and rename columns to facilitate further calculations
     sum_biovol_SC = sum_biovol_SC.reset_index()
     sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
