@@ -31,7 +31,7 @@ def log_bins_func(start, bin_number, power=10):
 
 
 # 2) function to create list of projects. Inputs: instrument
-def proj_id_list_func(instrument, standardized=False,  testing=False):
+def proj_id_list_func(instrument, standardized=True,  testing=False):
     """
     Objective:
     generate a list of the downloaded Ecotaxa projects, and return the path of the files
@@ -186,8 +186,7 @@ def size_binning_func(biovolume, N_log_bins=200):
     SizeBins_um3 = np.array(PD_SizeBins_um3)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume
-    sizeClasses= pd.cut(x=biovolume,  # size classes defined by biovolume
-                                       bins=SizeBins_um3, include_lowest=True)
+    sizeClasses= pd.cut(x=biovolume, bins=SizeBins_um3, include_lowest=True)# size classes defined by biovolume
     # obtain the size of each size class bin and append it to the stats dataframe
     # unfortunately the Interval type produced by pd.cut is hard to work with. So they need to be modified
     range_size_bin = []
@@ -277,19 +276,7 @@ def binning_NBS_func(instrument):
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
         NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
 
-# 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
-# low threshold will be filtered because they are smaller than the next standardized size spectrum
-# high threshold: still unsure. same concept? remove points that are higher than the previous one?
-# imputs: the data frame, and the column that contains the NBSS
-#def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
-    # step 1: if a value is lower than the next one, remove that row
-    #for  i in  range  (1, len(subset_stDepth[logNBSS]):
-        #if subset_stDepth[logNBSS][i-1] < subset_stDepth[logNBSS][i]:
-            #subset_stDepth.drop([i-1])
-        #elif subset_stDepth[logNBSS][i] < subset_stDepth[logNBSS][i+1]:
-            #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
-    #subset_stDepth = subset_stDepth.reset_index(drop=True)
-    #return subset_stDepth
+
 
 
 ## 7)  MERGER FUNCTION here: one way to make this (especially if it will have to be done globally) is to use as imput
@@ -330,19 +317,20 @@ def NB_SS_func(df, dates='date_bin', station= 'Station_location', depths = 'midD
     stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
 
     # add column of summed biovolume per size class to the stats_biovol_SC dataframe
-    sum_biovol_SC = df[[dates, station, depths, sizeClasses, size_range,  lat, lon, project_ID, vol_filtered,  biovolume]] \
-        .groupby([dates, station, depths, sizeClasses, size_range, lat, lon, project_ID, vol_filtered])[biovolume].sum()  #agg({biovolume: ['sum']})
+    sum_biovol_SC = df.groupby([dates, station, depths, sizeClasses])[biovolume].sum()  #agg({biovolume: ['sum']})
     # reset index and rename columns to facilitate further calculations
     sum_biovol_SC = sum_biovol_SC.reset_index()
-    sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
-    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['biovol_um3_sum'] != 0]  # remove bins that have zero values
+    #sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
+    sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['Biovolume'] != 0]  # remove bins that have zero values
     sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
-    stats_biovol_SC['sum_biovol'] = sum_biovol_SC['biovol_um3_sum']
+    stats_biovol_SC['sum_biovol'] = sum_biovol_SC['Biovolume']
     # standardize by volume sample
-    stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'].div(vol_filtered)) / stats_biovol_SC[size_range]
+    stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'] / (stats_biovol_SC[vol_filtered]/1000)) / stats_biovol_SC[size_range]
+
+    #include function to clean data here
     # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L= 10 000 particles/m3)
-    stats_biovol_SC = stats_biovol_SC[stats_biovol_SC['NBSS'] > 10000]
-    stats_biovol_SC = stats_biovol_SC.reset_index(drop=True)
+    #stats_biovol_SC = stats_biovol_SC[stats_biovol_SC['NBSS'] > 10000]
+    #stats_biovol_SC = stats_biovol_SC.reset_index(drop=True)
 
     # create two more columns with the parameters of normalized size spectra,:
     stats_biovol_SC['logNBSS'] = np.log(stats_biovol_SC['NBSS'])
@@ -350,7 +338,20 @@ def NB_SS_func(df, dates='date_bin', station= 'Station_location', depths = 'midD
 
     return stats_biovol_SC
 
-
+# 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
+# low threshold will be filtered because they are smaller than the next standardized size spectrum
+# high threshold: obtain the highest size class, then iterate from highest to lowest and remove the large size bins
+# that have less than an (instrument specific) threshold
+# imputs: the data frame, and the column that contains the NBSS
+#def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
+    # step 1: if a value is lower than the next one, remove that row
+    #for  i in  range  (1, len(subset_stDepth[logNBSS]):
+        #if subset_stDepth[logNBSS][i-1] < subset_stDepth[logNBSS][i]:
+            #subset_stDepth.drop([i-1])
+        #elif subset_stDepth[logNBSS][i] < subset_stDepth[logNBSS][i+1]:
+            #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
+    #subset_stDepth = subset_stDepth.reset_index(drop=True)
+    #return subset_stDepth
 
 
 # 8) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
