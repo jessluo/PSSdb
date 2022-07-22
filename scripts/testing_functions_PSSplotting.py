@@ -48,17 +48,18 @@ plt.plot(stats_biovol_SC['logSize'], stats_biovol_SC['logNBSS']) #def not linear
 # NOTE: this can be useful to detect stations with problematic data
 #now, parse by project and by stations:
 stats_biovol_SC['proj_ID_min'] = stats_biovol_SC['proj_ID_min'].astype('int')
-stats_biovol_SC['proj_ID_min'] = stats_biovol_SC['proj_ID_min'].astype('category')
+stats_biovol_SC['Project_ID'] = stats_biovol_SC['Project_ID'].astype('category')
 ncols = 3
-nrows = len(stats_biovol_SC.proj_ID_min.unique()) // ncols + (len(stats_biovol_SC.proj_ID_min.unique()) % ncols > 0)
+nrows = len(stats_biovol_SC.Project_ID.unique()) // ncols + (len(stats_biovol_SC.Project_ID.unique()) % ncols > 0)
 
-for n, t in enumerate(stats_biovol_SC.proj_ID_min.unique()):
+
+for n, t in enumerate(stats_biovol_SC.Project_ID.unique()):
     ax = plt.subplot(nrows, ncols, n+1)
-    data_plotting = stats_biovol_SC[(stats_biovol_SC['proj_ID_min'] == t)]
-    for i in data_plotting.station_ID.unique():
+    data_plotting = stats_biovol_SC[(stats_biovol_SC['Project_ID'] == t)]
+    for i in data_plotting.Station_location.unique():
         plt.plot(
-            data_plotting.logSize[data_plotting['station_ID'] == i],
-            data_plotting.logNBSS[data_plotting['station_ID'] == i])
+            data_plotting.logSize[data_plotting['Station_location'] == i],
+            data_plotting.logNBSS[data_plotting['Station_location'] == i])
     # for each taxonomic category and make a histogram with the counts of each biovolume bin
         ax.set_title(str(t).upper(), fontsize=10)
         ax.set_xlabel('Logbiovolume')
