@@ -94,8 +94,10 @@ def mass_st_func(instrument):
     standardizer_path = glob.glob(str(Path(cfg['raw_dir']).expanduser()) + '/' + '*' + instrument+ '*xlsx')[0]
     config_path = str(Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser())
     path_to_data, ID_list = id_list(instrument, testing=False)
+    for i in ID_list:
+        standardize(config_path, standardizer_path, i)
     if instrument == 'IFCB':# this removal is only for testing,
-        # since the standardizer should be able to deal with projects with empty rows
+        #since the standardizer should be able to deal with projects with empty rows
         IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
         for element in IFCB_empty_rows:
             if element in ID_list:
@@ -103,7 +105,7 @@ def mass_st_func(instrument):
         for i in ID_list:
             standardize(config_path, standardizer_path, i)
 
-    else:
+    #else:
         for i in ID_list:
             standardize(config_path, standardizer_path, i)
 
@@ -120,7 +122,7 @@ def read_func(path_to_data, ID):
     from glob import glob
     search_pattern = path_to_data / ("*" + str(ID) + ".tsv")
     filename = glob(str(search_pattern))
-    df = pd.read_csv(filename[0], sep='\t', header=0, index_col=[0])
+    df = pd.read_csv(filename[0], sep='\t') # , header=0, index_col=[0]
     df = df.loc[:, ~df.columns.str.match("Unnamed")]
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
@@ -140,12 +142,12 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
     data_clean = data_clean.reset_index()
     return data_clean
 
-
 #5 biovol_standardizer
-def biovol_for_ellipsoid_func(df, area_type= 'object_area', geom_shape = 'sphere'):
+def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
-    the volume of an ellipsoid OR a sphere. Also, determine which area will be used to calculate the biovolume
+    the volume of an ellipsoid OR a sphere. Also, determine which area will be used to calculate the biovolume.
+    This function also removes Biovolumes= 0 in the IFCB files
     :param df: a STANDARDIZED dataframe that contains object's Area (should be in micrometers^2)
      and object's Minor_axis (should be in micrometers)
     :param area_type: name of the column that contains the area to be used to calculate biovolume
@@ -162,19 +164,27 @@ def biovol_for_ellipsoid_func(df, area_type= 'object_area', geom_shape = 'sphere
         cfg = yaml.safe_load(config_file)
     path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'])+ '/**/*'+ str(ID)+ '*metadata*')
     metadata = pd.read_csv(path_to_metadata[0], sep='\t')
-    if 'exc' in area_type: # this condition might be exclusive for Zooscan only
-        ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
+    if instrument == 'IFCB':# for IFCB projects, it needs to remove the column that is repeated
+        if 'summed' in area_type:
+            df = df.drop(df.columns[[19]], axis=1)
+            df = df[df.Biovolume != 0]
+        else:
+            df = df.drop(df.columns[[20]], axis=1)
+            df = df[df.Biovolume != 0]
     else:
-        ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
+        if 'exc' in area_type:# this condition might be exclusive for Zooscan only
+            ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
+        else:
+            ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
                            (metadata['Description'].str.contains('exc')== False)].index[0]
-    for i in range(0, len(df)):
-        r = m.sqrt((df.iloc[i, [ind]]/m.pi))
-        df.loc[i, 'ESD'] = r*2
-        if geom_shape =='sphere':
-            df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
-        elif geom_shape == 'ellipse':
-            df.loc[i, 'Biovolume'] = (4/3) * m.pi * ((r/2) * (df.loc[i, 'Minor_axis']/2) * (df.loc[i, 'Minor_axis']/2))
-
+        for i in range(0, len(df)):
+            r = m.sqrt((df.iloc[i, [ind]]/m.pi))
+            df.loc[i, 'ESD'] = r*2
+            if geom_shape =='sphere':
+                df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
+            elif geom_shape == 'ellipse':
+                df.loc[i, 'Biovolume'] = (4/3) * m.pi * ((r/2) * (df.loc[i, 'Minor_axis']/2) * (df.loc[i, 'Minor_axis']/2))
+    return df
 #6) data binning
     # by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
 # of depth bins. NOTE: separate this into three functions
@@ -261,12 +271,17 @@ def binning_NBS_func(instrument):
     :return: tsv files with the same data but binned (would we like to delete the standardized data?)
     """
     import os
-    path_to_data, ID = proj_id_list_func(instrument, standardized=True, testing=False)#generate path and project ID's
+    path_to_data, id_list = proj_id_list_func(instrument, standardized=True, testing=False)#generate path and project ID's
+    if instrument == 'IFCB':# this removal is only for testing,
+        #since the standardizer should be able to deal with projects with empty rows
+        IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
+        for element in IFCB_empty_rows:
+            if element in id_list:
+                id_list.remove(element)
     os.mkdir(str(path_to_data) + '/binned_data/')
-    for i in ID:
+    for i in id_list:
         df = read_func(path_to_data, i)# get a dataframe for each project
-        if instrument != 'IFCB': #not equal to IFCB, since UVP and Zooscan projects need their biovolume calculated
-            biovol_for_ellipsoid_func(df, area_type= 'object_area', geom_shape = 'ellipse')
+        df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse')
         df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
         df['date_bin'] = date_binning_func(df['Sampling_date'])
@@ -325,7 +340,7 @@ def NB_SS_func(df, dates='date_bin', station= 'Station_location', depths = 'midD
     sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
     stats_biovol_SC['sum_biovol'] = sum_biovol_SC['Biovolume']
     # standardize by volume sample
-    stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'] / (stats_biovol_SC[vol_filtered]/1000)) / stats_biovol_SC[size_range]
+    stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'] / (stats_biovol_SC[vol_filtered])) / stats_biovol_SC[size_range]
 
     #include function to clean data here
     # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L= 10 000 particles/m3)
