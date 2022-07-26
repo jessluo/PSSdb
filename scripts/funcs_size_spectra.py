@@ -122,7 +122,7 @@ def read_func(path_to_data, ID):
     from glob import glob
     search_pattern = path_to_data / ("*" + str(ID) + ".tsv")
     filename = glob(str(search_pattern))
-    df = pd.read_csv(filename[0], sep='\t') # , header=0, index_col=[0]
+    df = pd.read_csv(filename[0], sep='\t',  header=0, index_col=[0]) #
     df = df.loc[:, ~df.columns.str.match("Unnamed")]
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
@@ -171,7 +171,7 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere')
         else:
             df = df.drop(df.columns[[20]], axis=1)
             df = df[df.Biovolume != 0]
-    else:
+    elif instrument == 'Zooscan':
         if 'exc' in area_type:# this condition might be exclusive for Zooscan only
             ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
         else:
@@ -241,7 +241,7 @@ def station_binning_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
 
     return Station_ID, midLat_bin, midLon_bin
 
-def date_binning_func(date, group_by= 'year_month'):
+def date_binning_func(date, time, group_by= 'year_month'):
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -249,17 +249,19 @@ def date_binning_func(date, group_by= 'year_month'):
     :param group_by: range of time to bin the data, options are: 'year', 'month' and 'year_month'
     :return:
     """
-    date_bin = []
-    for i in range(0, len(date)):
-        date_string = str(date.iloc[i])
-        if group_by == 'year':
-            date_bin.append(date_string[0:4])
-        elif group_by == 'year_month':
-            date_bin.append(date_string[0:6])
-        elif group_by == 'month':
-            date_bin.append(date_string[4:6])
-
+    date = date.astype(str)
+    time = time.astype(str)
+    date_bin = (date + time)
+    date_bin = date_bin.astype(int)
+    date_bin = pd.to_datetime(date_bin, format='%Y%m%d%H%M%S')
+    if group_by == 'year':
+        date_bin = date_bin.dt.strftime('%Y')
+    elif group_by == 'year_month':
+        date_bin = date_bin.dt.strftime('%Y%m')
+    elif group_by == 'month':
+        date_bin = date_bin.dt.strftime('%m')
     return date_bin
+
 
 
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
@@ -284,7 +286,7 @@ def binning_NBS_func(instrument):
         df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse')
         df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
-        df['date_bin'] = date_binning_func(df['Sampling_date'])
+        df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
         df['Station_location'], df['midLatBin'], df['midLonBin'] = \
             station_binning_func(df['Latitude'], df['Longitude'])
         NBS_data_binned = NB_SS_func(df)
