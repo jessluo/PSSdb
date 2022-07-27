@@ -32,7 +32,7 @@ from ecotaxa_py_client.api import taxonomy_tree_api
 from ecotaxa_py_client.model.taxon_model import TaxonModel
 
 import yaml # requires installation of PyYAML package
-path_to_config_usr=Path('Scripts/Ecotaxa_API_pw.yaml').expanduser()
+path_to_config_usr=Path('scripts/Ecotaxa_API_pw.yaml').expanduser()
   with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
@@ -253,7 +253,7 @@ for hierarchy in df.EcoTaxa_hierarchy: #hierarchy=df.EcoTaxa_hierarchy[0]
 df_hierarchy=pd.merge(df[['ROI_Annotation','EcoTaxa_hierarchy']],df_hierarchy,on='EcoTaxa_hierarchy',how='right')
 df_hierarchy.columns=['Category']+df_hierarchy.columns[1:].tolist()
 df_hierarchy_metadata=pd.DataFrame({'Variables':df_hierarchy.columns,'Variable_types':df_hierarchy.dtypes,'Description':['Region of interest (object) annotation category','Full hierarchy of annotation category in EcoTaxa','Full taxonomic hierarchy of annotation category in World Register of Marine Species (WORMS)','Taxonomic rank of the annotation category in WORMS','Category of annotation category in EcoTaxa (e.g. Living)','Taxonomic domain/kingdom of the annotation category','Taxonomic phylum of the annotation category','Taxonomic class of the annotation category','Taxonomic order of the annotation category','Taxonomic family of the annotation category','Taxonomic genus of the annotation category', 'Functional group of the annotation category','Unique ID of the annotation category in the WORMS database','Reference for the annotation category description','Citation for the annotation category in WORMS']})
-path_to_data=Path(os.getcwd()).expanduser() / 'Data' / 'Plankton_Annotated_Taxonomy.xlsx'
+path_to_data=Path(os.getcwd()).expanduser() / 'raw' / 'plankton_annotated_taxonomy.xlsx'
 with pd.ExcelWriter(str(path_to_data),engine="xlsxwriter") as writer:
     df_hierarchy.to_excel(writer, sheet_name='Data', index=False)
     df_hierarchy_metadata.to_excel(writer, sheet_name='Metadata', index=False)
