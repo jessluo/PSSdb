@@ -31,7 +31,7 @@ def log_bins_func(start, bin_number, power=10):
 
 
 # 2) function to create list of projects. Inputs: instrument
-def proj_id_list_func(instrument, standardized=True,  testing=False):
+def proj_id_list_func(instrument, standardized='No',  testing=False):
     """
     Objective:
     generate a list of the downloaded Ecotaxa projects, and return the path of the files
@@ -52,17 +52,17 @@ def proj_id_list_func(instrument, standardized=True,  testing=False):
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
     # prepare storage based on path stored in the yaml config file and instrument type
-    if standardized == False:
+    if standardized == 'No':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir'] / instrument
-    elif standardized ==True:
+    elif standardized == 'Yes':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument
+    elif standardized == 'binned':
+        path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['binned_subdir']
     # create a list  projects that we have access to, based on project_list_all.xlsx
     path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
     proj_list = pd.read_excel(path_to_proj_id_list)
     if testing == False:
-        id_list = proj_list['Project_ID'].loc[
-            (proj_list['Instrument'] == str(instrument)) &  # instrument type filtered here
-            (proj_list['PSSdb_access'] == True)].tolist()
+        id_list = proj_list['Project_ID'].loc[ (proj_list['Instrument'] == str(instrument)) & (proj_list['PSSdb_access'] == True)].tolist() # instrument type filtered here
     else:
         if instrument == 'IFCB':
             id_list = [3315, 3318, 3326]  # THIS IS THE TEST LIST, USE THIS WHEN DEBUGGING for IFCB
@@ -70,6 +70,7 @@ def proj_id_list_func(instrument, standardized=True,  testing=False):
             id_list = [1]  # ask mathilde about her test projects
         elif instrument == 'UVP':
             id_list = [2]  # ask mathilde about her test projects
+
     return path_to_data, id_list
 
 # 3) Standardize all files:
@@ -94,8 +95,8 @@ def mass_st_func(instrument):
     standardizer_path = glob.glob(str(Path(cfg['raw_dir']).expanduser()) + '/' + '*' + instrument+ '*xlsx')[0]
     config_path = str(Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser())
     path_to_data, ID_list = id_list(instrument, testing=False)
-    for i in ID_list:
-        standardize(config_path, standardizer_path, i)
+    #for i in ID_list:
+        #standardize(config_path, standardizer_path, i)
     if instrument == 'IFCB':# this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
         IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
@@ -105,7 +106,7 @@ def mass_st_func(instrument):
         for i in ID_list:
             standardize(config_path, standardizer_path, i)
 
-    #else:
+    else:
         for i in ID_list:
             standardize(config_path, standardizer_path, i)
 
@@ -141,6 +142,8 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
     data_clean = data_clean[data_clean[lon].notna()]
     data_clean = data_clean.reset_index()
     return data_clean
+
+# include here a creation of a spreadsheet that says which information is missing
 
 #5 biovol_standardizer
 def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere'):
@@ -265,7 +268,8 @@ def date_binning_func(date, time, group_by= 'year_month'):
 
 
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
-# do we want to do the size class limits here?
+# do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
+# merged files of IFCB and zooscan
 def binning_NBS_func(instrument):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
@@ -273,7 +277,7 @@ def binning_NBS_func(instrument):
     :return: tsv files with the same data but binned (would we like to delete the standardized data?)
     """
     import os
-    path_to_data, id_list = proj_id_list_func(instrument, standardized=True, testing=False)#generate path and project ID's
+    path_to_data, id_list = proj_id_list_func(instrument, standardized= 'Yes', testing=False)#generate path and project ID's
     if instrument == 'IFCB':# this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
         IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
@@ -281,34 +285,22 @@ def binning_NBS_func(instrument):
             if element in id_list:
                 id_list.remove(element)
     os.mkdir(str(path_to_data) + '/binned_data/')
-    for i in id_list:
+    column_names = ['midDepthBin', 'date_bin', 'Station_location']
+
+    for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
         df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse')
-        df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
+        #df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
+
         df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
-        df['Station_location'], df['midLatBin'], df['midLonBin'] = \
-            station_binning_func(df['Latitude'], df['Longitude'])
+
+        df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
+
         NBS_data_binned = NB_SS_func(df)
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
         NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
 
-
-
-
-## 7)  MERGER FUNCTION here: one way to make this (especially if it will have to be done globally) is to use as imput
-# the date, lat/lon and depth
-
-def merge_data_func(date, lat, lon, depth):
-    """
-    Objective: find STANDARDIZED, BINNED tsv files from different instruments and stitch them together.
-    :param date: date of interest of the dataset (how close do we want it to be?)
-    :param lat: latitude of the station (station should be +-1 degree from the input)
-    :param lon: longitude of the station (station should be +-1 degree from the input)
-    :param depth: depth range of the data of interest, would have to be located into the one of the
-    preexisting depth bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000]
-    :return: a dataframe that contains all the size classes across instruments
-    """
 
 
 
