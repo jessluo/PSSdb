@@ -1,5 +1,19 @@
 ## Plotting scripts
 
+from funcs_size_spectra import proj_id_list_func
+# get the paths where the binned files are:
+path_to_binned_IFCB, ID_list_IFCB =  proj_id_list_func('IFCB', standardized='binned', testing=False)
+
+path_to_binned_Zooscan, ID_list_Zooscan =  proj_id_list_func('IFCB', standardized='binned', testing=False)
+
+# edit the list of projects, this is hardcoded and was obtained comparing dictionaries with the 'draft_funcs_merge'
+IFCB_list = [2248, 3147, 3289, 3296]
+Zooscan_list = [378]
+
+#read the IFCB tsv's:
+path_to_file = glob(str(path_to_binned_IFCB) + '/' + str(3334) + '*NBSS*')
+binned_data = pd.read_csv(path_to_file[0], sep='\t', header=0, index_col=[0])
+
 
 #1 Plot in one graph the data coming from 2 instruments. for this to work, merge needs to happen BEFORE calculating NBSS
 
@@ -11,7 +25,7 @@
 #plotting of biovolume and NBSS here. this is to see how the data looks like
 
 #first, all data
-plt.plot(stats_biovol_SC['logSize'], stats_biovol_SC['logNBSS']) #def not linear :O
+plt.plot(binned_data['logSize'], binned_data['logNBSS']) #def not linear :O
 
 # NOTE: this can be useful to detect stations with problematic data
 #now, parse by project and by stations:
