@@ -347,20 +347,39 @@ def NB_SS_func(df, dates='date_bin', station= 'Station_location', depths = 'midD
 
     return stats_biovol_SC
 
-# 7)  create a function to remove data based on JO's comments THIS IS WORK IN PROGRESS:
+# 7)  create a function to remove data based on JO's comments and Haentjens THIS IS WORK IN PROGRESS:
 # low threshold will be filtered because they are smaller than the next standardized size spectrum
 # high threshold: obtain the highest size class, then iterate from highest to lowest and remove the large size bins
 # that have less than an (instrument specific) threshold
 # imputs: the data frame, and the column that contains the NBSS
-#def clean_lin_fit(subset_stDepth, logNBSS='logNBSS'):
-    # step 1: if a value is lower than the next one, remove that row
-    #for  i in  range  (1, len(subset_stDepth[logNBSS]):
-        #if subset_stDepth[logNBSS][i-1] < subset_stDepth[logNBSS][i]:
-            #subset_stDepth.drop([i-1])
-        #elif subset_stDepth[logNBSS][i] < subset_stDepth[logNBSS][i+1]:
-            #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
+def clean_lin_fit(df):
+    """
+    Objective: remove size bins based on JO's comments and Haentjens et al (2022)
+    :param df: a binned dataframe with NBSS already calculated
+    :return: a dataset without the bins that contain inaccurate NBSS
+    """
+    # step 1: ' (For flow cytometer) We defined the upper range as the largest size bin that contains at least 100 objects'
+    #reverse_list = list(range(0, len(df))), reverse_list.sort(reverse=True)
+    index_100 = binned_data.index[binned_data['Biovolume_count'] >= 100].tolist()
+    binned_data_filt = binned_data.loc[0:max(index_100)]
+    binned_data_filt = binned_data_filt.reset_index(drop=True)
+    #step 2: if a value is lower than the next one, remove that row, OR following Haentjens:
+    # size bin with the highest cell abundance among the <524 um3 size bins. It is better to do it dynamically
+    # the decreases must be in consecutive bins, since i some of the data there might be oscillations
+    low_bin_index = []
+    for i in range (0, len(binned_data_filt)):
+        if binned_data_filt.loc[i, 'NBSS'] < binned_data_filt.loc[i+1, 'NBSS']:
+            low_bin_index.append(i)
+    min_bin_index = []
+    for i in range(0, len(low_bin_index)):
+        if (low_bin_index[i + 1] - low_bin_index[i]) > 1:
+            min_bin_index.append(low_bin_index[i])
+    binned_data_filt = binned_data_filt.drop(binned_data_filt.index[0:(min(min_bin_index)+1)])
+    binned_data_filt = binned_data_filt.reset_index(drop=True)
+        #elif binned_data_filt.loc[i, 'NBSS'] < binned_data_filt.loc[i+1, 'NBSS']:
+             #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
     #subset_stDepth = subset_stDepth.reset_index(drop=True)
-    #return subset_stDepth
+    return binned_data_filt
 
 
 # 8) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
