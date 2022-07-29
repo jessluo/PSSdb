@@ -1,6 +1,4 @@
 
-
-
 ## 7)  MERGER FUNCTION here: one way to make this (especially if it will have to be done globally) is to use as imput
 # the date only
 #step A: generate a dictionary with dates for the projects
@@ -11,7 +9,7 @@ def corr_proj_func(instrument, variable):
     :param instrument:
     :return:
     """
-    #from funcs_size_spectra import proj_id_list_func
+    from funcs_size_spectra import proj_id_list_func
     path_to_binned, ID_list = proj_id_list_func(instrument, standardized='binned', testing=False)
     if instrument == 'IFCB':# this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
@@ -30,13 +28,16 @@ def corr_proj_func(instrument, variable):
 
 
 
-
+# note: for this function, lists could be obtained for each variable to bin (date, station, depth) and then compare the lists
+#and extract the projects in common 45
 def merge_data_func(binning, variable,  instrument1 = 'IFCB', instrument2 = 'Zooscan'):
     """
     Objective: find STANDARDIZED, BINNED tsv files from different instruments and stitch them together.
     :param date: date of interest of the dataset (how close do we want it to be?)
     :return: a dataframe that contains all the size classes across instruments
     """
+    from glob import glob
+    import pandas as pd
     date_dict_IFCB = corr_proj_func(instrument1, variable)
     date_dict_Zooscan = corr_proj_func(instrument2, variable)
     list_proj_IFCB = []
@@ -52,10 +53,10 @@ def merge_data_func(binning, variable,  instrument1 = 'IFCB', instrument2 = 'Zoo
 
 #another thing that can happen is that i subset the dictionary based on a list of pre defined conditions
 
-new_dict_Zooscan = dict((k, station_dict_Zooscan[k]) for k in proj_Zooscan_dates)# this works, I cut down the stations
+#new_dict_Zooscan = dict((k, station_dict_Zooscan[k]) for k in proj_Zooscan_dates)# this works, I cut down the stations
 # that were sampled in a particular date
-new_dict_IFCB = dict((k, station_dict_IFCB[k]) for k in proj_IFCB_dates)
+#new_dict_IFCB = dict((k, station_dict_IFCB[k]) for k in proj_IFCB_dates)
 
-for key in new_dict_Zooscan:
-    if new_dict_IFCB[3147][0] in new_dict_Zooscan[key]:
-        print(key)
+#for key in new_dict_Zooscan:
+    #if new_dict_IFCB[3147][0] in new_dict_Zooscan[key]:
+        #print(key)
