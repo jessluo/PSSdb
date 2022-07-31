@@ -352,30 +352,44 @@ def NB_SS_func(df, dates='date_bin', station= 'Station_location', depths = 'midD
 # high threshold: obtain the highest size class, then iterate from highest to lowest and remove the large size bins
 # that have less than an (instrument specific) threshold
 # imputs: the data frame, and the column that contains the NBSS
-def clean_lin_fit(df):
+def clean_lin_fit(binned_data, instrument):
     """
     Objective: remove size bins based on JO's comments and Haentjens et al (2022)
     :param df: a binned dataframe with NBSS already calculated
     :return: a dataset without the bins that contain inaccurate NBSS
     """
-    # step 1: ' (For flow cytometer) We defined the upper range as the largest size bin that contains at least 100 objects'
+    # step 1: 'We set the lower boundary of the spectra (bo) to be the operational lower size measured by the
+    # flow cytometer (bo = 0.6 um in ESD) and the upper boundary (bn) as the largest cytobot size bins accross all
+    # NAAMES samples that contained at least 10 particles (bn = 65 um in ESD)'
     #reverse_list = list(range(0, len(df))), reverse_list.sort(reverse=True)
-    index_100 = binned_data.index[binned_data['Biovolume_count'] >= 100].tolist()
-    binned_data_filt = binned_data.loc[0:max(index_100)]
-    binned_data_filt = binned_data_filt.reset_index(drop=True)
-    #step 2: if a value is lower than the next one, remove that row, OR following Haentjens:
-    # size bin with the highest cell abundance among the <524 um3 size bins. It is better to do it dynamically
-    # the decreases must be in consecutive bins, since i some of the data there might be oscillations
-    low_bin_index = []
-    for i in range (0, len(binned_data_filt)):
-        if binned_data_filt.loc[i, 'NBSS'] < binned_data_filt.loc[i+1, 'NBSS']:
-            low_bin_index.append(i)
-    min_bin_index = []
-    for i in range(0, len(low_bin_index)):
-        if (low_bin_index[i + 1] - low_bin_index[i]) > 1:
-            min_bin_index.append(low_bin_index[i])
-    binned_data_filt = binned_data_filt.drop(binned_data_filt.index[0:(min(min_bin_index)+1)])
-    binned_data_filt = binned_data_filt.reset_index(drop=True)
+
+    #upper limit for IFCB:
+    if instrument  == 'IFCB':
+        index_10 = binned_data.index[binned_data['Biovolume_count'] >= 10].tolist()
+        binned_data_filt = binned_data.loc[0:max(index_100)]
+        binned_data_filt = binned_data_filt.reset_index(drop=True)
+    # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
+        index_524_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 524].tolist()
+        count_maxSmBins = max(binned_data_filt.loc[index_524_sizes]['Biovolume_count'])
+        lg524_binList = binned_data_filt.index[binned_data_filt['Biovolume_count'] == count_maxSmBins].tolist()
+        binned_data_filt = binned_data_filt.loc[lg524_binList[0]:len(binned_data_filt)]
+        binned_data_filt = binned_data_filt.reset_index(drop=True)
+    #step 2: if a value is lower than the next one, remove that row, THIS DOES NOT WORK
+    #low_bin_index = []
+    #for i in range (1, len(binned_data_filt)):
+        #if binned_data_filt.loc[i-1, 'NBSS'] < binned_data_filt.loc[i, 'NBSS']:
+            #low_bin_index.append(i)
+    #min_bin_index = []
+    #for i in range(1, len(low_bin_index)):
+        #if (low_bin_index[i] - low_bin_index[i-1]) > 1:
+            #min_bin_index.append(low_bin_index[i])
+    #binned_data_filt = binned_data_filt.drop(binned_data_filt.index[0:(min(min_bin_index)+1)])
+    #binned_data_filt = binned_data_filt.reset_index(drop=True)
+    # for zooscan: select the highest NBSS value following da Rocha Marcolin et al.
+    elif instrument == 'Zooscan':
+        list_max_NBSS = binned_data.NBSS.tolist()
+        binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)]
+        binned_data_filt = binned_data_filt.reset_index(drop=True)
         #elif binned_data_filt.loc[i, 'NBSS'] < binned_data_filt.loc[i+1, 'NBSS']:
              #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
     #subset_stDepth = subset_stDepth.reset_index(drop=True)
