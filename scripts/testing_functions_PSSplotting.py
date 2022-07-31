@@ -11,12 +11,13 @@ path_to_binned_Zooscan, ID_list_Zooscan =  proj_id_list_func('Zooscan', standard
 IFCB_list = [3302, 3309, 3321, 3324, 3325, 3334]
 Zooscan_list = [378]
 
-#read the IFCB tsv's:
-path_to_file = glob(str(path_to_binned_IFCB) + '/' + str(3302) + '*NBSS*')
+#read the IFCB tsv's, clean them and plot them:
+path_to_file = glob(str(path_to_binned_IFCB) + '/' + str(3309) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
 binned_data = pd.read_csv(path_to_file[0], sep='\t', header=0, index_col=[0])
+data_filt = clean_lin_fit(binned_data)
+plt.plot(binned_data_filt['logSize'], binned_data_filt['logNBSS'])
 
-
-
+# read the Zooscan data
 
 #1 Plot in one graph the data coming from 2 instruments. for this to work, merge needs to happen BEFORE calculating NBSS
 
@@ -28,7 +29,7 @@ binned_data = pd.read_csv(path_to_file[0], sep='\t', header=0, index_col=[0])
 #plotting of biovolume and NBSS here. this is to see how the data looks like
 
 #first, all data
-plt.plot(binned_data_filt['logSize'], binned_data_filt['logNBSS']) #def not linear :O
+plt.plot(data_filt['logSize'], data_filt['logNBSS']) #def not linear :O
 
 # NOTE: this can be useful to detect stations with problematic data
 #now, parse by project and by stations:
