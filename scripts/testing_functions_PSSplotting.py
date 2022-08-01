@@ -14,18 +14,55 @@ Zooscan_list = [378]
 #read the IFCB tsv's, clean them and plot them:
 path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + str(3309) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
 binned_data_IFCB = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
-data_filt_IFCB = clean_lin_fit(binned_data_IFCB, instrument='IFCB')
-plt.plot(binned_data_filt['logSize'], binned_data_filt['logNBSS'])
+binned_data_IFCB  = clean_lin_fit(binned_data_IFCB, instrument='IFCB')
+plt.plot(binned_data_IFCB ['logSize'], binned_data_IFCB ['logNBSS'])
+plt.xlabel('log (Biovolume)')
+plt.ylabel('log (NBS)')
+plt.title('IFCB 3309 WITH threshold')
+
+
+#try to make a for loop to read all dataframes at the same time
+path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
+IFCB_list = [str(x) for x in IFCB_list]
+IFCB_dict = {}
+for i in IFCB_list:
+    path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + i + '*NBSS*')
+    IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+    IFCB_dict[i] = clean_lin_fit(IFCB_dict[i], instrument='IFCB')
+    binned_data_Zooscan = pd.read_csv(path_to_Zooscan[0], sep='\t', header=0, index_col=[0])
+    subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == IFCB_dict[i].loc[0, 'Station_location'])]
+    subset_binned_Zooscan = subset_binned_Zooscan.sort_values(by='range_size_bin')
+    subset_binned_Zooscan = subset_binned_Zooscan.reset_index(drop=True)
+    data_filt_Zooscan = clean_lin_fit(subset_binned_Zooscan, instrument='Zooscan')
+    IFCB_dict[i] = pd.concat([IFCB_dict[i], data_filt_Zooscan], axis=0)
+    IFCB_dict[i] = IFCB_dict[i].reset_index(drop=True)
+
+Station_list = []
+for i in IFCB_list:
+    Station_list.append(IFCB_dict[i].loc[0, 'Station_location'])
+    station = (IFCB_dict[i].loc[0, 'Station_location'])
+    IFCB_dict[station] = IFCB_dict.pop(i)
+
+
+fig, ax1 = plt.subplots(1,1)
+for st in Station_list:
+    ax1.plot(IFCB_dict[st]['logSize'], IFCB_dict[st]['logNBSS'], marker='.', label=st)
+ax1.set_ylabel('log (NBS)')
+ax1.set_xlabel('log (Biovolume)')
+ax1.legend()
+ax1.title.set_text('NBSS for IFCB and Zooscan for six stations sampled on  7/2013')
 
 # read the Zooscan data
-path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
 binned_data_Zooscan = pd.read_csv(path_to_Zooscan[0], sep='\t', header=0, index_col=[0])
 #subset zooscan data based on IFCB's station location
-subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == '79.5_66.5')]
+subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == binned_data_IFCB.loc[0, 'Station_location'])]
 subset_binned_Zooscan = subset_binned_Zooscan.sort_values(by='range_size_bin')
 subset_binned_Zooscan= subset_binned_Zooscan.reset_index(drop=True)
 data_filt_Zooscan = clean_lin_fit(subset_binned_Zooscan, instrument='Zooscan')
 plt.plot(data_filt_Zooscan['logSize'], data_filt_Zooscan['logNBSS'])
+plt.xlabel('log (Biovolume)')
+plt.ylabel('log (NBS)')
+plt.title('Zooscan 378, Station 79.5_66.5  WITH threshold')
 
 
 ## MERGE both datasets:
