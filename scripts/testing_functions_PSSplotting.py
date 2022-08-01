@@ -12,13 +12,26 @@ IFCB_list = [3302, 3309, 3321, 3324, 3325, 3334]
 Zooscan_list = [378]
 
 #read the IFCB tsv's, clean them and plot them:
-path_to_file = glob(str(path_to_binned_IFCB) + '/' + str(3309) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
-binned_data = pd.read_csv(path_to_file[0], sep='\t', header=0, index_col=[0])
-data_filt = clean_lin_fit(binned_data)
+path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + str(3309) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
+binned_data_IFCB = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+data_filt_IFCB = clean_lin_fit(binned_data_IFCB, instrument='IFCB')
 plt.plot(binned_data_filt['logSize'], binned_data_filt['logNBSS'])
 
 # read the Zooscan data
+path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
+binned_data_Zooscan = pd.read_csv(path_to_Zooscan[0], sep='\t', header=0, index_col=[0])
+#subset zooscan data based on IFCB's station location
+subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == '79.5_66.5')]
+subset_binned_Zooscan = subset_binned_Zooscan.sort_values(by='range_size_bin')
+subset_binned_Zooscan= subset_binned_Zooscan.reset_index(drop=True)
+data_filt_Zooscan = clean_lin_fit(subset_binned_Zooscan, instrument='Zooscan')
+plt.plot(data_filt_Zooscan['logSize'], data_filt_Zooscan['logNBSS'])
 
+
+## MERGE both datasets:
+merged_data = pd.concat([data_filt_IFCB, data_filt_Zooscan], axis=0)
+merged_data = merged_data.reset_index(drop=True)
+plt.plot(merged_data['logSize'], merged_data['logNBSS'])
 #1 Plot in one graph the data coming from 2 instruments. for this to work, merge needs to happen BEFORE calculating NBSS
 
 
