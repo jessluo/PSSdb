@@ -366,7 +366,7 @@ def clean_lin_fit(binned_data, instrument):
     #upper limit for IFCB:
     if instrument  == 'IFCB':
         index_10 = binned_data.index[binned_data['Biovolume_count'] >= 10].tolist()
-        binned_data_filt = binned_data.loc[0:max(index_100)]
+        binned_data_filt = binned_data.loc[0:max(index_10)]
         binned_data_filt = binned_data_filt.reset_index(drop=True)
     # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
         index_524_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 524].tolist()
