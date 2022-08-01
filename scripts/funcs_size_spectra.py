@@ -167,13 +167,17 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere')
         cfg = yaml.safe_load(config_file)
     path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'])+ '/**/*'+ str(ID)+ '*metadata*')
     metadata = pd.read_csv(path_to_metadata[0], sep='\t')
-    if instrument == 'IFCB':# for IFCB projects, it needs to remove the column that is repeated
+    if instrument == 'IFCB':# for IFCB projects, it needs to remove the column that is repeated. Also, remove bubbles
         if 'summed' in area_type:
             df = df.drop(df.columns[[19]], axis=1)
             df = df[df.Biovolume != 0]
+            df = df[df.Category != 'bubble']
+            df = df.reset_index(drop=True)
         else:
             df = df.drop(df.columns[[20]], axis=1)
             df = df[df.Biovolume != 0]
+            df = df[df.Category != 'bubble']
+            df = df.reset_index(drop=True)
     elif instrument == 'Zooscan':
         if 'exc' in area_type:# this condition might be exclusive for Zooscan only
             ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
