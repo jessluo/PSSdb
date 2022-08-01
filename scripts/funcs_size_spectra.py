@@ -294,7 +294,7 @@ def binning_NBS_func(instrument):
     for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
         df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse')
-        #df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
+        df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
 
         df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
