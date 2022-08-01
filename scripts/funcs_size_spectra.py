@@ -372,12 +372,11 @@ def clean_lin_fit(binned_data, instrument, method = 'MAX'):
         index_10 = binned_data.index[binned_data['Biovolume_count'] >= 10].tolist()
         binned_data_filt = binned_data.loc[0:max(index_10)]
         binned_data_filt = binned_data_filt.reset_index(drop=True)
-    # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
         if method == 'MAX':
             list_max_NBSS = binned_data.NBSS.tolist()
             binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)]
             binned_data_filt = binned_data_filt.reset_index(drop=True)
-        elif method == 'instrument_specific':
+        elif method == 'instrument_specific': # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
             index_524_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 524].tolist()
             count_maxSmBins = max(binned_data_filt.loc[index_524_sizes]['Biovolume_count'])
             lg524_binList = binned_data_filt.index[binned_data_filt['Biovolume_count'] == count_maxSmBins].tolist()
@@ -403,10 +402,10 @@ def clean_lin_fit(binned_data, instrument, method = 'MAX'):
         elif method == 'instrument_specific': #adapted from Haentjens: theoretically, minimum sampled volume of an organism
             #with a WP2 is 4188790 um3 (volume of a sphere with 200 um diameter). So, size bin with the highest cell abundance
             #among the < 4188790
-            index_4188790_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 4188790].tolist()
-            count_maxSmBins = max(binned_data_filt.loc[index_4188790_sizes]['Biovolume_count'])
-            lg4188790_binList = binned_data_filt.index[binned_data_filt['Biovolume_count'] == count_maxSmBins].tolist()
-            binned_data_filt = binned_data_filt.loc[lg4188790_binList[0]:len(binned_data_filt)]
+            index_4188790_sizes = binned_data.index[binned_data['Biovolume_mean'] < 4188790].tolist()
+            count_maxSmBins = max(binned_data.loc[index_4188790_sizes]['Biovolume_count'])
+            lg4188790_binList = binned_data.index[binned_data['Biovolume_count'] == count_maxSmBins].tolist()
+            binned_data_filt = binned_data.loc[lg4188790_binList[0]:len(binned_data)]
             binned_data_filt = binned_data_filt.reset_index(drop=True)
         #elif binned_data_filt.loc[i, 'NBSS'] < binned_data_filt.loc[i+1, 'NBSS']:
              #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
