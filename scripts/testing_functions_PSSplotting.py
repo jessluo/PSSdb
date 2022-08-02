@@ -1,5 +1,5 @@
 ## Plotting scripts
-
+import pandas as pd
 
 from funcs_size_spectra import proj_id_list_func
 # get the paths where the binned files are:
@@ -20,6 +20,52 @@ plt.plot(binned_data_IFCB ['logSize'], binned_data_IFCB ['logNBSS'])
 plt.xlabel('log (Biovolume)')
 plt.ylabel('log (NBS)')
 plt.title('IFCB 3309 with lower threshold defined by instrument specific threshold')
+
+#plot some example IFCB's NBSS with/without bubbles, with/without beads and with/without artefacts
+binning_NBS_func('IFCB', 'artefacts')
+path_to_binned_IFCB, ID_list_IFCB =  proj_id_list_func('IFCB', standardized='binned', testing=False)
+ID_list_IFCB = ['2248', '3147', '3289', '3295', '3296', '3302', '3307', '3309']
+IFCB_dict ={}
+for i in ID_list_IFCB:
+    path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + i + '*NBSS*')
+    IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+    #IFCB_dict[i] = clean_lin_fit(IFCB_dict[i], instrument='IFCB', method= 'MAX')
+
+fig, ax1 = plt.subplots(1,1)
+for i in ID_list_IFCB:
+    ax1.plot(IFCB_dict[i]['logSize'], IFCB_dict[i]['logNBSS'], marker='.', label=i)
+ax1.set_ylabel('log (NBS)')
+ax1.set_xlabel('log (Biovolume)')
+ax1.legend()
+ax1.title.set_text('NBSS for IFCB without bubbles and without artefacts')
+
+#given the similarity of data with and without artefacts, We'll dig deeper into it
+path_to_binned_IFCB, ID_list_IFCB =  proj_id_list_func('IFCB', standardized='Yes', testing=False)
+IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
+for element in IFCB_empty_rows:
+    if element in ID_list_IFCB:
+        ID_list_IFCB.remove(element)
+ID_list_IFCB = [str(x) for x in ID_list_IFCB]
+IFCB_dict = {}
+for i in ID_list_IFCB:
+    path_to_IFCB = glob(str(path_to_binned_IFCB) + '/standardized_export_' + i + '.tsv')
+    IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+
+
+df = IFCB_dict['3343']
+df = proj_bin_func(df, 'IFCB','artefact')
+df_wArt = IFCB_dict['3343']
+df_wArt = proj_bin_func(df_wArt, 'IFCB',  'none')
+IFCB_proj ={}
+IFCB_proj['NoArt'] = df
+IFCB_proj['Art'] = df_wArt
+fig, ax1 = plt.subplots(1,1)
+for i in ['NoArt', 'Art']:
+    ax1.plot(IFCB_proj[i]['logSize'], IFCB_proj[i]['logNBSS'], marker='.', label=i)
+ax1.set_ylabel('log (NBS)')
+ax1.set_xlabel('log (Biovolume)')
+ax1.legend()
+ax1.title.set_text('NBSS for IFCB 3343 with and without artefacts')
 
 
 #try to make a for loop to read all dataframes at the same time
@@ -72,6 +118,94 @@ merged_data = pd.concat([data_filt_IFCB, data_filt_Zooscan], axis=0)
 merged_data = merged_data.reset_index(drop=True)
 plt.plot(merged_data['logSize'], merged_data['logNBSS'])
 #1 Plot in one graph the data coming from 2 instruments. for this to work, merge needs to happen BEFORE calculating NBSS
+
+
+
+### EXPLORING IFCB DATA ####
+# plot number of bubbles per project
+
+#set path, project list, remove projects with empty spaces, and convert list to string
+path_to_binned_IFCB, ID_list_IFCB =  proj_id_list_func('IFCB', standardized='Yes', testing=False)
+IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
+for element in IFCB_empty_rows:
+    if element in ID_list_IFCB:
+        ID_list_IFCB.remove(element)
+ID_list_IFCB = [str(x) for x in ID_list_IFCB]
+
+IFCB_dict = {}
+bubble_count = []
+for i in ID_list_IFCB:
+    path_to_IFCB = glob(str(path_to_binned_IFCB) + '/standardized_export_' + i + '.tsv')
+    IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+    bubbly = IFCB_dict[i][IFCB_dict[i].Category == 'bubble'].Category.value_counts()
+    if len(bubbly) == 0:
+        bubble_count.append(0)
+    else:
+        bubble_count.append(bubbly['bubble'])
+
+plt.bar(ID_list_IFCB, bubble_count)
+plt.ylabel('# of bubbles')
+plt.xlabel('IFCB project ID')
+
+
+# number of beads per time, couldn't do this for all projects, so need to subset every
+
+df_test['freq'] = df_test.groupby(['Category'])['date_bin'].transform(len)
+plt.hist(x=df_test.loc[df_test['Category'] == 'bead'].date_bin, bins = 78) #bins = 78
+
+# reduce dataframe and get counts of beads without changing time axis
+col_list = ['date_bin', 'Category']
+bead_count = []
+for proj in ID_list_IFCB:
+    IFCB_dict[proj]['date_bin'] = date_binning_func(IFCB_dict[proj]['Sampling_date'], IFCB_dict[proj]['Sampling_time'], group_by = 'None')
+    IFCB_dict[proj] = IFCB_dict[proj][col_list]
+    IFCB_dict[proj]['freq'] = IFCB_dict[proj].groupby(['Category'])['date_bin'].transform(len)
+    beady = IFCB_dict[proj][IFCB_dict[proj].Category == 'bead'].Category.value_counts()
+    if len(beady) == 0:
+        bead_count.append(0)
+    else:
+        bead_count.append(beady['bead'])
+
+# remove from IFCB projects the ones that dont have beads:
+for n, p in enumerate(ID_list_IFCB):
+    if bead_count[n] == 0:
+        ID_list_IFCB.remove(p)
+
+# try to do a subplot for each project NONE OF THIS WORKED
+fig, ax_arr = plt.subplots(5, 7)
+for n, i in enumerate(ID_list_IFCB):
+    to_graph = IFCB_dict[i]
+    ax_arr[n].hist(x=to_graph.loc[to_graph['Category'] == 'bead'].date_bin, bins=5)
+    ax_arr[n].set_title(n)
+    ax_arr[n].set_ylim([0, max(to_graph.freq)])
+
+fig, ax_arr = plt.subplots(5, 7)
+for n, i in enumerate(ID_list_IFCB):
+    to_graph = IFCB_dict[i]
+    for i in range (5):
+        for j in range (7):
+            to_graph.loc[to_graph['Category'] == 'bead'].date_bin.hist(ax=ax_arr[i,j])
+
+
+to_graph = IFCB_dict['3296']
+to_graph.loc[to_graph['Category'] == 'bead'].date_bin.hist()
+plt.ylabel('# of beads')
+plt.xlabel('time')
+plt.title(' IFCB #3296')
+
+#plot all the time
+beads_all_time = pd.DataFrame()
+for i in ID_list_IFCB:
+    to_graph = IFCB_dict[i]
+    beads_all_time = pd.concat([beads_all_time, to_graph], axis=0)
+
+beads_all_time.loc[ beads_all_time['Category'] == 'bead'].date_bin.hist( bins= 200)
+plt.ylabel('# of beads')
+plt.xlabel('time')
+plt.title('all Tara Oceans projects')
+
+
+
 
 
 #1) Check the (i) number of beads (ii)  and number of bubbles per time in
