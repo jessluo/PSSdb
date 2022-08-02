@@ -146,7 +146,7 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
 # include here a creation of a spreadsheet that says which information is missing
 
 #5 biovol_standardizer
-def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere'):
+def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere', remove_cat='none'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
     the volume of an ellipsoid OR a sphere. Also, determine which area will be used to calculate the biovolume.
@@ -178,6 +178,16 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere')
             df = df[df.Biovolume != 0]
             df = df[df.Category != 'bubble']
             df = df.reset_index(drop=True)
+    if instrument == 'IFCB':
+        if remove_cat == 'beads':
+            df = df[df['Category'].str.contains("bead") == False]
+            df = df.reset_index(drop=True)
+        if remove_cat == 'artefact':
+            df = df[df['Category'].str.contains('artefact') == False]
+            df = df.reset_index(drop=True)
+        elif remove_cat == 'none':
+            df = df
+
     elif instrument == 'Zooscan':
         if 'exc' in area_type:# this condition might be exclusive for Zooscan only
             ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
@@ -267,6 +277,8 @@ def date_binning_func(date, time, group_by= 'year_month'):
         date_bin = date_bin.dt.strftime('%Y%m')
     elif group_by == 'month':
         date_bin = date_bin.dt.strftime('%m')
+    elif group_by == 'None':
+        date_bin == date_bin
     return date_bin
 
 
@@ -274,7 +286,7 @@ def date_binning_func(date, time, group_by= 'year_month'):
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
 # do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
 # merged files of IFCB and zooscan
-def binning_NBS_func(instrument):
+def binning_NBS_func(instrument, removecat):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
@@ -293,7 +305,7 @@ def binning_NBS_func(instrument):
 
     for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
-        df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse')
+        df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
         df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
 
@@ -306,6 +318,20 @@ def binning_NBS_func(instrument):
         NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
 
 
+def proj_bin_func(df, instrument, removecat):
+    """
+    Objective: same as binning_NBS_func but for a single dataframe
+    :param df: a standardized dataframe
+    :param removecat: remove a specific category, currently restricted to IFCB bubbles, artefacts or beads
+    :return: a binned dataframe with NBS
+    """
+    df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
+    df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
+    df['midDepthBin'] = depth_binning_func(df['Depth_max'])
+    df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
+    df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
+    NBS_data_binned = NB_SS_func(df)
+    return NBS_data_binned
 
 
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
