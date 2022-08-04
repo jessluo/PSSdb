@@ -69,35 +69,42 @@ ax1.title.set_text('NBSS for IFCB 3343 with and without artefacts')
 
 
 #try to make a for loop to read all dataframes at the same time
-path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
-IFCB_list_lgsample = [str(x) for x in IFCB_list_lgsample]
-IFCB_dict = {}
-for i in IFCB_list_lgsample:
-    path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + i + '*NBSS*')
-    IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
-    IFCB_dict[i] = clean_lin_fit(IFCB_dict[i], instrument='IFCB', method= 'MAX')
-    binned_data_Zooscan = pd.read_csv(path_to_Zooscan[0], sep='\t', header=0, index_col=[0])
-    subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == IFCB_dict[i].loc[0, 'Station_location'])]
-    subset_binned_Zooscan = subset_binned_Zooscan.sort_values(by='range_size_bin')
-    subset_binned_Zooscan = subset_binned_Zooscan.reset_index(drop=True)
-    data_filt_Zooscan = clean_lin_fit(subset_binned_Zooscan, instrument='Zooscan', method= 'instrument_specific')
-    IFCB_dict[i] = pd.concat([IFCB_dict[i], data_filt_Zooscan], axis=0)
-    IFCB_dict[i] = IFCB_dict[i].reset_index(drop=True)
+def stitching_func(IFCB_proj_type= 'large_sample', method1= 'MAX', method2 = 'MAX'):
+    path_to_binned_IFCB, ID_list_IFCB = proj_id_list_func('IFCB', standardized='binned', testing=False)
+    path_to_binned_Zooscan, ID_list_Zooscan = proj_id_list_func('Zooscan', standardized='binned', testing=False)
 
-Station_list = []
-for i in IFCB_list_lgsample:
-    Station_list.append(IFCB_dict[i].loc[0, 'Station_location'])
-    station = (IFCB_dict[i].loc[0, 'Station_location'])
-    IFCB_dict[station] = IFCB_dict.pop(i)
+    if IFCB_proj_type == 'large_sample':
+        IFCB_list= [3302, 3309, 3321, 3324, 3325, 3334]
+    elif IFCB_proj_type == 'small_sample':
+        IFCB_list= [3147, 2248, 3289, 3296]
+    IFCB_list= [str(x) for x in IFCB_list]
+    path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
+    IFCB_list= [str(x) for x in IFCB_list]
+    IFCB_dict = {}
+    for i in IFCB_list:
+        path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + i + '*NBSS*')
+        IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+        IFCB_dict[i] = clean_lin_fit(IFCB_dict[i], instrument='IFCB', method= method1)
+        binned_data_Zooscan = pd.read_csv(path_to_Zooscan[0], sep='\t', header=0, index_col=[0])
+        subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == IFCB_dict[i].loc[0, 'Station_location'])]
+        subset_binned_Zooscan = subset_binned_Zooscan.sort_values(by='range_size_bin')
+        subset_binned_Zooscan = subset_binned_Zooscan.reset_index(drop=True)
+        data_filt_Zooscan = clean_lin_fit(subset_binned_Zooscan, instrument='Zooscan', method= method2)
+        IFCB_dict[i] = pd.concat([IFCB_dict[i], data_filt_Zooscan], axis=0)
+        IFCB_dict[i] = IFCB_dict[i].reset_index(drop=True)
+    Station_list = []
+    for i in IFCB_list:
+        Station_list.append(IFCB_dict[i].loc[0, 'Station_location'])
+        station = (IFCB_dict[i].loc[0, 'Station_location'])
+        IFCB_dict[station] = IFCB_dict.pop(i)
 
-
-fig, ax1 = plt.subplots(1,1)
-for st in Station_list:
-    ax1.plot(IFCB_dict[st]['logSize'], IFCB_dict[st]['logNBSS'], marker='.', label=st)
-ax1.set_ylabel('log (NBS)')
-ax1.set_xlabel('log (Biovolume)')
-ax1.legend()
-ax1.title.set_text('NBSS for IFCB (Max) and Zooscan (isntrument) for six stations sampled on  7/2013')
+    fig, ax1 = plt.subplots(1,1)
+    for st in Station_list:
+        ax1.plot(IFCB_dict[st]['logSize'], IFCB_dict[st]['logNBSS'], marker='.', label=st)
+    ax1.set_ylabel('log (NBS)')
+    ax1.set_xlabel('log (Biovolume)')
+    ax1.legend()
+    ax1.title.set_text('NBSS for IFCB ' + method1 + ' and Zooscan ' + method2  + ' for ' + IFCB_proj_type)
 
 # read the Zooscan data
 path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*')
