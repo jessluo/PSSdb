@@ -260,15 +260,16 @@ for i in ID:
     results_SS_all = pd.concat([results_SS_all , results_SS], axis=0)
 
 #use these to define names of columns and test each step of the functions
-station = 'Station_ID'
+station = 'Station_location'
 depths = 'midDepthBin'
 size_range = 'range_size_bin'
 sizeClasses = 'sizeClasses'
-biovolume = 'biovol_um3'
+biovolume = 'Biovolume'
 lat = 'midLatBin'
 lon = 'midLonBin'
-project_ID = 'proj_ID'
-
+project_ID = 'Project_ID'
+vol_filtered='Volume_analyzed'
+dates='date_bin'
 
 # histrogram to show the number of samples per size bin in all of the IFCB projects
 plt.hist(x=stats_biovol_SC['biovol_um3_count'], bins= 5000)
