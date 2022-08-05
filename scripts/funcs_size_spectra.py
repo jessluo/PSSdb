@@ -289,7 +289,7 @@ def date_binning_func(date, time, group_by= 'year_month'):
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
 # do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
 # merged files of IFCB and zooscan
-def binning_NBS_func(instrument, removecat, no_depth = 'yes'):
+def binning_NBS_func(instrument, removecat, ignore_depth = 'no'):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
@@ -308,21 +308,13 @@ def binning_NBS_func(instrument, removecat, no_depth = 'yes'):
 
     for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
-        df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
-        df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
-        if no_depth == 'no':
-            df['midDepthBin'] = depth_binning_func(df['Depth_max'])
-            df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
-            df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
-        elif no_depth == 'yes':
-            df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
-            df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'],df['Longitude'])
-        NBS_data_binned = NB_SS_func(df, ignore_depth= no_depth)
+        df = proj_bin_func(df, instrument, removecat, ignore_depth = ignore_depth)
+        NBS_data_binned = NB_SS_func(df, ignore_depth= ignore_depth )
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
         NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
 
 
-def proj_bin_func(df, instrument, removecat):
+def proj_bin_func(df, instrument, removecat, ignore_depth = 'no'):
     """
     Objective: same as binning_NBS_func but for a single dataframe
     :param df: a standardized dataframe
@@ -331,11 +323,11 @@ def proj_bin_func(df, instrument, removecat):
     """
     df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
     df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
-    df['midDepthBin'] = depth_binning_func(df['Depth_max'])
     df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
     df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
-    NBS_data_binned = NB_SS_func(df)
-    return NBS_data_binned
+    if ignore_depth == 'no':
+        df['midDepthBin'] = depth_binning_func(df['Depth_max'])
+    return df
 
 
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
@@ -353,50 +345,29 @@ def NB_SS_func(df, ignore_depth = 'no', dates='date_bin', station= 'Station_loca
         # create a dataframe with summary statistics for each station, depth bin and size class
         # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
         # group data by bins
-        stats_biovol_SC = df[
-            [dates, station, depths, sizeClasses, size_range,  lat, lon, project_ID, vol_filtered,  biovolume]] \
-            .groupby([dates, station, depths, sizeClasses, size_range, lat, lon, project_ID, vol_filtered]).describe()
-        # reset index and rename columns to facilitate further calculations
-        stats_biovol_SC = stats_biovol_SC.reset_index()
-        stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
-        # add column of summed biovolume per size class to the stats_biovol_SC dataframe
-        sum_biovol_SC = df.groupby([dates, station, depths, sizeClasses]).agg({biovolume: ['sum']}) # [biovolume].sum()
-        # reset index and rename columns to facilitate further calculations
-        sum_biovol_SC = sum_biovol_SC.reset_index()
-        #sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
-        sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['Biovolume'] != 0]  # remove bins that have zero values
-        sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
-        stats_biovol_SC['sum_biovol'] = sum_biovol_SC['Biovolume']
+        NBS_biovol_df = df.groupby([dates, station, sizeClasses]).agg(
+            {depths:'first', size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
+             biovolume:['sum', 'count', 'mean'] }).reset_index()
+
+  # remove bins that have zero values
         # standardize by volume sample
-        stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'] / (stats_biovol_SC[vol_filtered])) / stats_biovol_SC[size_range]
     elif ignore_depth == 'yes':
-        stats_biovol_SC = df[
-            [dates, station,  sizeClasses, size_range, lat, lon, project_ID, vol_filtered, biovolume]] \
-            .groupby([dates, station,  sizeClasses, size_range, lat, lon, project_ID, vol_filtered]).describe()
-        # reset index and rename columns to facilitate further calculations
-        stats_biovol_SC = stats_biovol_SC.reset_index()
-        stats_biovol_SC.columns = stats_biovol_SC.columns.map('_'.join).str.strip('_')
-        # add column of summed biovolume per size class to the stats_biovol_SC dataframe
-        sum_biovol_SC = df.groupby([dates, station, sizeClasses]).agg({biovolume: ['sum']}) #[biovolume].sum()
-        # reset index and rename columns to facilitate further calculations
-        sum_biovol_SC = sum_biovol_SC.reset_index()
-        # sum_biovol_SC.columns = sum_biovol_SC.columns.map('_'.join).str.strip('_')
-        sum_biovol_SC = sum_biovol_SC[sum_biovol_SC['Biovolume'] != 0]  # remove bins that have zero values
-        sum_biovol_SC = sum_biovol_SC.reset_index(drop=True)
-        stats_biovol_SC['sum_biovol'] = sum_biovol_SC['Biovolume']
-        # standardize by volume sample
-        stats_biovol_SC['NBSS'] = (stats_biovol_SC['sum_biovol'] / (stats_biovol_SC[vol_filtered])) / stats_biovol_SC[size_range]
+        NBS_biovol_df = df.groupby([dates, station, sizeClasses]).agg(
+            {size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
+             biovolume:['sum', 'count' , 'mean'] }).reset_index()
 
-    #include function to clean data here
-    # ( based on Buonassisi and Diersen's (2010) cut of undersampled size bins with 10 particles per L= 10 000 particles/m3)
-    #stats_biovol_SC = stats_biovol_SC[stats_biovol_SC['NBSS'] > 10000]
-    #stats_biovol_SC = stats_biovol_SC.reset_index(drop=True)
-
+    NBS_biovol_df.columns = NBS_biovol_df.columns.map('_'.join).str.removesuffix("first")
+    NBS_biovol_df.columns = NBS_biovol_df.columns.str.removesuffix("_")
+    NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['Biovolume_count'] != 0]
+    NBS_biovol_df['NBSS'] = (NBS_biovol_df['Biovolume_sum'] / (NBS_biovol_df[vol_filtered])) / NBS_biovol_df[
+        size_range]
     # create two more columns with the parameters of normalized size spectra,:
-    stats_biovol_SC['logNBSS'] = np.log(stats_biovol_SC['NBSS'])
-    stats_biovol_SC['logSize'] = np.log(stats_biovol_SC['range_size_bin'])
+    NBS_biovol_df['logNBSS'] = np.log(NBS_biovol_df['NBSS'])
+    NBS_biovol_df['logSize'] = np.log(NBS_biovol_df[size_range])
 
-    return stats_biovol_SC
+    return NBS_biovol_df
+
+
 
 # 7)  create a function to remove data based on JO's comments and Haentjens THIS IS WORK IN PROGRESS:
 # low threshold will be filtered because they are smaller than the next standardized size spectrum
@@ -459,6 +430,44 @@ def clean_lin_fit(binned_data, instrument, method = 'MAX'):
     #subset_stDepth = subset_stDepth.reset_index(drop=True)
     return binned_data_filt
 
+
+
+def stitching_func(IFCB_proj_type= 'large_sample', method1= 'MAX', method2 = 'MAX'):
+    path_to_binned_IFCB, ID_list_IFCB = proj_id_list_func('IFCB', standardized='binned', testing=False)
+    path_to_binned_Zooscan, ID_list_Zooscan = proj_id_list_func('Zooscan', standardized='binned', testing=False)
+
+    if IFCB_proj_type == 'large_sample':
+        IFCB_list= [3302, 3309, 3321, 3325, 3334] # this should also handle proj 3324 (that project contains two stations)
+    elif IFCB_proj_type == 'small_sample':
+        IFCB_list= [3147, 2248, 3289, 3296]
+    IFCB_list= [str(x) for x in IFCB_list]
+    path_to_Zooscan = glob(str(path_to_binned_Zooscan) + '/' + str(378) + '*NBSS*') # for 3309, there is an issue in a single point where comparing NBSS between size bins does not work for filtering the shorter side of the spectrum
+    IFCB_list= [str(x) for x in IFCB_list]
+    IFCB_dict = {}
+    for i in IFCB_list:
+        path_to_IFCB = glob(str(path_to_binned_IFCB) + '/' + i + '*NBSS*')
+        IFCB_dict[i] = pd.read_csv(path_to_IFCB[0], sep='\t', header=0, index_col=[0])
+        IFCB_dict[i] = clean_lin_fit(IFCB_dict[i], instrument='IFCB', method= method1)
+        binned_data_Zooscan = pd.read_csv(path_to_Zooscan[0], sep='\t', header=0, index_col=[0])
+        subset_binned_Zooscan = binned_data_Zooscan.loc[(binned_data_Zooscan['Station_location'] == IFCB_dict[i].loc[0, 'Station_location'])]
+        subset_binned_Zooscan = subset_binned_Zooscan.sort_values(by='range_size_bin')
+        subset_binned_Zooscan = subset_binned_Zooscan.reset_index(drop=True)
+        data_filt_Zooscan = clean_lin_fit(subset_binned_Zooscan, instrument='Zooscan', method= method2)
+        IFCB_dict[i] = pd.concat([IFCB_dict[i], data_filt_Zooscan], axis=0)
+        IFCB_dict[i] = IFCB_dict[i].reset_index(drop=True)
+    Station_list = []
+    for i in IFCB_list:
+        Station_list.append(IFCB_dict[i].loc[0, 'Station_location'])
+        station = (IFCB_dict[i].loc[0, 'Station_location'])
+        IFCB_dict[station] = IFCB_dict.pop(i)
+
+    fig, ax1 = plt.subplots(1,1)
+    for st in Station_list:
+        ax1.plot(IFCB_dict[st]['logSize'], IFCB_dict[st]['logNBSS'], marker='.', label=st)
+    ax1.set_ylabel('log (NBS)')
+    ax1.set_xlabel('log (Biovolume)')
+    ax1.legend()
+    ax1.title.set_text('NBSS for IFCB ' + method1 + ' and Zooscan ' + method2  + ' for ' + IFCB_proj_type)
 
 # 8) perform linear regressions. Imput: a dataframe with biovolume and NB_SS
 # (this can be modified based on Mathilde's comment
