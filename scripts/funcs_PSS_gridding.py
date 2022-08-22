@@ -16,18 +16,7 @@ from scipy.stats import linregress
 
 # functions here
 
-#1) function to create size bins
-def log_bins_func(start, bin_number, power=10):
-    import numpy as np
-    # start: lower size limit of the entire series
-    # bin_number: a high enough value to contain all objects, maybe should choose something to be able to integrate blue whales == largest marine living object
-    iter = range(0, bin_number)
-    limits_list = [start]
-    for i in iter:
-        y = limits_list[i]
-        x = pow(power, (np.log10(y) + np.log10(pow(2, 0.25))))
-        limits_list.append(x)
-    return limits_list
+
 
 
 # 2) function to create list of projects. Inputs: instrument
@@ -208,6 +197,20 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere',
 #6) data binning
     # by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
 # of depth bins. NOTE: separate this into three functions
+
+#1) function to create size bins
+def log_bins_func(start, bin_number, power=10):
+    import numpy as np
+    # start: lower size limit of the entire series
+    # bin_number: a high enough value to contain all objects, maybe should choose something to be able to integrate blue whales == largest marine living object
+    iter = range(0, bin_number)
+    limits_list = [start]
+    for i in iter:
+        y = limits_list[i]
+        x = pow(power, (np.log10(y) + np.log10(pow(2, 0.25))))
+        limits_list.append(x)
+    return limits_list
+
     #6.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
     #returns two lists : the sizeClasses bins (categorical) and range_size_bins (float)
 def size_binning_func(biovolume, N_log_bins=200):
@@ -285,11 +288,25 @@ def date_binning_func(date, time, group_by= 'year_month'):
     return date_bin
 
 
+def bin_func(df, instrument, removecat, ignore_depth = 'no'):
+    """
+    Objective: same as binning_NBS_func but for a single dataframe
+    :param df: a standardized dataframe
+    :param removecat: remove a specific category, currently restricted to IFCB bubbles, artefacts or beads
+    :return: a binned dataframe with NBS
+    """
+    df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
+    df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
+    df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
+    df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
+    if ignore_depth == 'no':
+        df['midDepthBin'] = depth_binning_func(df['Depth_max'])
+    return df
 
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
 # do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
 # merged files of IFCB and zooscan
-def binning_NBS_func(instrument, removecat, ignore_depth = 'no'):
+def proj_NBS_func(instrument, removecat, ignore_depth = 'no'):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
@@ -308,26 +325,12 @@ def binning_NBS_func(instrument, removecat, ignore_depth = 'no'):
 
     for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
-        df = proj_bin_func(df, instrument, removecat, ignore_depth = ignore_depth)
+        df = bin_func(df, instrument, removecat, ignore_depth = ignore_depth)
         NBS_data_binned = NB_SS_func(df, ignore_depth= ignore_depth )
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
         NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
 
 
-def proj_bin_func(df, instrument, removecat, ignore_depth = 'no'):
-    """
-    Objective: same as binning_NBS_func but for a single dataframe
-    :param df: a standardized dataframe
-    :param removecat: remove a specific category, currently restricted to IFCB bubbles, artefacts or beads
-    :return: a binned dataframe with NBS
-    """
-    df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
-    df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
-    df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
-    df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
-    if ignore_depth == 'no':
-        df['midDepthBin'] = depth_binning_func(df['Depth_max'])
-    return df
 
 
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
