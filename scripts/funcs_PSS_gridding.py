@@ -20,7 +20,7 @@ from scipy.stats import linregress
 
 
 # 2) function to create list of projects. Inputs: instrument
-def proj_id_list_func(instrument, standardized='No',  testing=False):
+def proj_id_list_func(instrument, standardized='no',  testing=False):
     """
     Objective:
     generate a list of the downloaded Ecotaxa projects, and return the path of the files
@@ -41,9 +41,9 @@ def proj_id_list_func(instrument, standardized='No',  testing=False):
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
     # prepare storage based on path stored in the yaml config file and instrument type
-    if standardized == 'No':
+    if standardized == 'no':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir'] / instrument
-    elif standardized == 'Yes':
+    elif standardized == 'yes':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument
     elif standardized == 'binned':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['binned_subdir']
@@ -264,7 +264,7 @@ def station_binning_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
 
     return Station_ID, midLat_bin, midLon_bin
 
-def date_binning_func(date, time, group_by= 'year_month'):
+def date_binning_func(date, time, group_by= 'yyyymm'):
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -277,43 +277,64 @@ def date_binning_func(date, time, group_by= 'year_month'):
     date_bin = (date + time)
     date_bin = date_bin.astype(int)
     date_bin = pd.to_datetime(date_bin, format='%Y%m%d%H%M%S')
-    if group_by == 'year':
+    if group_by == 'yyyy':
         date_bin = date_bin.dt.strftime('%Y')
-    elif group_by == 'year_month':
+    elif group_by == 'yyyymm':
         date_bin = date_bin.dt.strftime('%Y%m')
-    elif group_by == 'month':
+    elif group_by == 'mm':
         date_bin = date_bin.dt.strftime('%m')
     elif group_by == 'None':
         date_bin == date_bin
     return date_bin
 
 
-def bin_func(df, instrument, removecat, ignore_depth = 'no'):
+def bin_func(df, instrument, removecat, area_type = 'object_area', geom_shape = 'ellipse', date_group = 'yyyymm',   ignore_depth = 'no'):
     """
     Objective: same as binning_NBS_func but for a single dataframe
     :param df: a standardized dataframe
     :param removecat: remove a specific category, currently restricted to IFCB bubbles, artefacts or beads
     :return: a binned dataframe with NBS
     """
-    df = biovol_func(df, instrument= instrument, area_type= 'object_area', geom_shape = 'ellipse', remove_cat=removecat)
+    df = biovol_func(df, instrument= instrument, area_type= area_type, geom_shape = geom_shape, remove_cat=removecat)
     df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
-    df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'])
+    df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], group_by =  date_group)
     df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
+    metadata_bins = pd.DataFrame({'Variables':['Biovolume', 'sizeClasses', 'range_size_bin', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
+                                 'Variable_types': ['float64', 'object', 'float64', 'int64', 'object', 'float64', 'float64'],
+                                 'Units/Values/Timezone': ['cubic_micrometer', 'cubic_micrometer','cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree'],
+                                 'Description': ['Biovolume calculated following' + geom_shape + 'projection based on' + area_type ,
+                                                 'minimum and maximum value of the size bin',
+                                                 'difference between max and min value of a size bin',
+                                                 'binned date information',
+                                                 'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                                 'latitude of the center point of the 1x1 degree cell',
+                                                 'longitude of the center point of the 1x1 degree cell']})
     if ignore_depth == 'no':
         df['midDepthBin'] = depth_binning_func(df['Depth_max'])
-    return df
+        metadata_bins = pd.DataFrame({'Variables':['Biovolume', 'sizeClasses', 'range_size_bin', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'midDepthBin'],
+                                 'Variable_types': ['float64', 'object', 'float64', 'int64', 'object', 'float64', 'float64', 'float64'],
+                                 'Units/Values/Timezone': ['cubic_micrometer', 'cubic_micrometer','cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree', 'meters'],
+                                 'Description': ['Biovolume calculated following' + geom_shape + 'projection based on' + area_type ,
+                                                 'minimum and maximum value of the size bin',
+                                                 'difference between max and min value of a size bin',
+                                                 'binned date information',
+                                                 'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                                 'latitude of the center point of the 1x1 degree cell',
+                                                 'longitude of the center point of the 1x1 degree cell',
+                                                 'middle point within a depth bin']})
+    return df, metadata_bins
 
 #6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
 # do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
 # merged files of IFCB and zooscan
-def proj_NBS_func(instrument, removecat, ignore_depth = 'no'):
+def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'object_area', geom_shape = 'ellipse', ignore_depth = 'no'):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
     :return: tsv files with the same data but binned (would we like to delete the standardized data?)
     """
     import os
-    path_to_data, id_list = proj_id_list_func(instrument, standardized= 'Yes', testing=False)#generate path and project ID's
+    path_to_data, id_list = proj_id_list_func(instrument, standardized= 'yes', testing=False)#generate path and project ID's
     if instrument == 'IFCB':# this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
         IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
@@ -321,15 +342,34 @@ def proj_NBS_func(instrument, removecat, ignore_depth = 'no'):
             if element in id_list:
                 id_list.remove(element)
     os.mkdir(str(path_to_data) + '/binned_data/')
-    column_names = ['midDepthBin', 'date_bin', 'Station_location']
+
 
     for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
-        df = bin_func(df, instrument, removecat, ignore_depth = ignore_depth)
+        # bin standardized data and obtain the metadata of the binned columns
+        df, metadata_bins = bin_func(df, instrument, removecat, area_type = area_type, geom_shape = geom_shape, date_group = time_grouping,  ignore_depth = ignore_depth)
+        path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+        # open the metadata of the standardized files
+        with open(path_to_config, 'r') as config_file:
+            cfg = yaml.safe_load(config_file)
+        path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']) + '/**/*' + str(i) + '*metadata*')
+        metadata_std = pd.read_csv(path_to_metadata[0], sep='\t', header=0, index_col=[0])
+        #remove old biovolume descriptions in the metadata file
+        metadata_std = metadata_std[ metadata_std['Variables'].str.contains('Biovolume')== False]
+        #concatenate metadata files to generate binned metadata
+        metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
         NBS_data_binned = NB_SS_func(df, ignore_depth= ignore_depth )
-        df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
-        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
+        #generate metadata for the NBS files
+        Variables = NBS_data_binned.columns.to_list()
+        Variable_types = NBS_data_binned.dtypes.to_list()
+        Units_Values = [time_grouping, 'lat_lon', 'cubic micrometers', 'cubic micrometers', 'degree', 'degree', '', 'cubic decimeters', 'cubic micrometers', '', 'cubic micrometers','counts/ cubic decimeters', 'log(counts/ cubic decimeters)', 'log (cubic micrometers)']
+        Description = ['binned date information','string that serves as an identifier of a single cell of a  1x1 degree spatial grid','minimum and maximum value of the size bin, calculated from biovolume obtained using ' + area_type + ' and using a projection of ' + geom_shape,'difference between max and min value of a size bin','latitude of the center point of the 1x1 degree cell','longitude of the center point of the 1x1 degree cell','Project ID in Ecotaxa','Volume analyzed (not accounting for sample dilution and/or fractionation)','Sum of the biovolume of individual objects classified into a biovolume based size bin','number of objects assigned into the size bin','mean biovolume for each size bin','Normalized biomass size spectra based on biovolume','logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis','logarithmic transformation of the median of a size bin, use as x axis when performing size spectra analysis']
+        NBS_metadata = pd.DataFrame({'Variables': Variables, 'Variable_types': Variable_types,'Units_Values': Units_Values,'Description': Description})
 
+        df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
+        metadata_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned_metadata.csv',  sep = '\t')
+        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
+        NBS_metadata.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS_metadata.csv', sep='\t')
 
 
 
@@ -348,7 +388,7 @@ def NB_SS_func(df, ignore_depth = 'no', dates='date_bin', station= 'Station_loca
         # create a dataframe with summary statistics for each station, depth bin and size class
         # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
         # group data by bins
-        NBS_biovol_df = df.groupby([dates, station, sizeClasses]).agg(
+        NBS_biovol_df = df.groupby([dates, station, sizeClasses, depths]).agg(
             {depths:'first', size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
              biovolume:['sum', 'count', 'mean'] }).reset_index()
 
