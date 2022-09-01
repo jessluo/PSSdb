@@ -216,10 +216,12 @@ def log_bins_func(start, bin_number, power=10):
 def size_binning_func(biovolume, N_log_bins=200):
     import numpy as np
     PD_SizeBins_um3 = log_bins_func((min(biovolume)), N_log_bins)  # number of bins work for this data
-    SizeBins_um3 = np.array(PD_SizeBins_um3)
+    PD_SizeBins_um3_crop = [val for val in PD_SizeBins_um3 if val <= max(biovolume)]# crop the list of logbins
+    PD_SizeBins_um3_crop.append(PD_SizeBins_um3[len(PD_SizeBins_um3_crop)+1]) # add one more log bin to make sure the
+    SizeBins_um3 = np.array(PD_SizeBins_um3_crop)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume
-    sizeClasses= pd.cut(x=biovolume, bins=SizeBins_um3, include_lowest=True)# size classes defined by biovolume
+    sizeClasses_df= pd.cut(x=biovolume, bins=SizeBins_um3, include_lowest=True)# size classes defined by biovolume
     # obtain the size of each size class bin and append it to the stats dataframe
     # unfortunately the Interval type produced by pd.cut is hard to work with. So they need to be modified
     range_size_bin = []
@@ -324,53 +326,17 @@ def bin_func(df, instrument, removecat, area_type = 'object_area', geom_shape = 
                                                  'middle point within a depth bin']})
     return df, metadata_bins
 
-#6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
-# do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
-# merged files of IFCB and zooscan
-def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'object_area', geom_shape = 'ellipse', ignore_depth = 'no'):
+# NEW FUNCTION: parse datasets after they have been binned, by lat/lon, time and depth.
+
+def parse_bindf_func():
     """
-    Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
-    :param instrument: the device used for image adcquisition. important since the path will change
-    :return: tsv files with the same data but binned (would we like to delete the standardized data?)
+    Objective: parse out any df that come from files that include multiple stations, dates and depths
+    :return: several datasets (1 for each predetermined division)
     """
-    import os
-    path_to_data, id_list = proj_id_list_func(instrument, standardized= 'yes', testing=False)#generate path and project ID's
-    if instrument == 'IFCB':# this removal is only for testing,
-        #since the standardizer should be able to deal with projects with empty rows
-        IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
-        for element in IFCB_empty_rows:
-            if element in id_list:
-                id_list.remove(element)
-    os.mkdir(str(path_to_data) + '/binned_data/')
-
-
-    for n, i in enumerate(id_list):
-        df = read_func(path_to_data, i)# get a dataframe for each project
-        # bin standardized data and obtain the metadata of the binned columns
-        df, metadata_bins = bin_func(df, instrument, removecat, area_type = area_type, geom_shape = geom_shape, date_group = time_grouping,  ignore_depth = ignore_depth)
-        path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
-        # open the metadata of the standardized files
-        with open(path_to_config, 'r') as config_file:
-            cfg = yaml.safe_load(config_file)
-        path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']) + '/**/*' + str(i) + '*metadata*')
-        metadata_std = pd.read_csv(path_to_metadata[0], sep='\t', header=0, index_col=[0])
-        #remove old biovolume descriptions in the metadata file
-        metadata_std = metadata_std[ metadata_std['Variables'].str.contains('Biovolume')== False]
-        #concatenate metadata files to generate binned metadata
-        metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
-        NBS_data_binned = NB_SS_func(df, ignore_depth= ignore_depth )
-        #generate metadata for the NBS files
-        Variables = NBS_data_binned.columns.to_list()
-        Variable_types = NBS_data_binned.dtypes.to_list()
-        Units_Values = [time_grouping, 'lat_lon', 'cubic micrometers', 'cubic micrometers', 'degree', 'degree', '', 'cubic decimeters', 'cubic micrometers', '', 'cubic micrometers','counts/ cubic decimeters', 'log(counts/ cubic decimeters)', 'log (cubic micrometers)']
-        Description = ['binned date information','string that serves as an identifier of a single cell of a  1x1 degree spatial grid','minimum and maximum value of the size bin, calculated from biovolume obtained using ' + area_type + ' and using a projection of ' + geom_shape,'difference between max and min value of a size bin','latitude of the center point of the 1x1 degree cell','longitude of the center point of the 1x1 degree cell','Project ID in Ecotaxa','Volume analyzed (not accounting for sample dilution and/or fractionation)','Sum of the biovolume of individual objects classified into a biovolume based size bin','number of objects assigned into the size bin','mean biovolume for each size bin','Normalized biomass size spectra based on biovolume','logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis','logarithmic transformation of the median of a size bin, use as x axis when performing size spectra analysis']
-        NBS_metadata = pd.DataFrame({'Variables': Variables, 'Variable_types': Variable_types,'Units_Values': Units_Values,'Description': Description})
-
-        df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
-        metadata_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned_metadata.csv',  sep = '\t')
-        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
-        NBS_metadata.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS_metadata.csv', sep='\t')
-
+    for i in df_dict:
+        df_dict[i].to_csv('dataframe_id_' + str(i) + '.csv') # this is to save the csv files. likely route will be to
+        # 1) parse datasets (using .unique categories) and include them in a dictionary of dataframes
+        # 2) use these values to save each dataframe in a dictionary. File name should include station, date, instrument
 
 
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
@@ -410,6 +376,61 @@ def NB_SS_func(df, ignore_depth = 'no', dates='date_bin', station= 'Station_loca
 
     return NBS_biovol_df
 
+#6) open files as dataframes and bin them by location and depth, incorporates all binning functions (6.1-6.3) :
+# do we want to do the size class limits here? 7/27/2022: silenced the binning since we want to do that with the
+# merged files of IFCB and zooscan
+def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'object_area', geom_shape = 'ellipse', ignore_depth = 'no'):
+    """
+    Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
+    :param instrument: the device used for image adcquisition. important since the path will change
+    :return: tsv files with the same data but binned (would we like to delete the standardized data?)
+    """
+    import os
+    import shutil
+    path_to_data, id_list = proj_id_list_func(instrument, standardized= 'yes', testing=False)#generate path and project ID's
+    if instrument == 'IFCB':# this removal is only for testing,
+        #since the standardizer should be able to deal with projects with empty rows
+        IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
+        for element in IFCB_empty_rows:
+            if element in id_list:
+                id_list.remove(element)
+    dirpath = str(path_to_data) + '/binned_data/'
+    if dirpath.exists() and dirpath.is_dir():
+        shutil.rmtree(dirpath)
+    os.mkdir(dirpath)
+
+
+    for n, i in enumerate(id_list):
+        df = read_func(path_to_data, i)# get a dataframe for each project
+        # bin standardized data and obtain the metadata of the binned columns
+        df, metadata_bins = bin_func(df, instrument, removecat, area_type = area_type, geom_shape = geom_shape, date_group = time_grouping,  ignore_depth = ignore_depth)
+        path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+        # open the metadata of the standardized files
+        with open(path_to_config, 'r') as config_file:
+            cfg = yaml.safe_load(config_file)
+        path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']) + '/**/*' + str(i) + '*metadata*')
+        metadata_std = pd.read_csv(path_to_metadata[0], sep='\t', header=0, index_col=[0])
+        #remove old biovolume descriptions in the metadata file
+        metadata_std = metadata_std[ metadata_std['Variables'].str.contains('Biovolume')== False]
+        #concatenate metadata files to generate binned metadata
+        metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
+        NBS_data_binned = NB_SS_func(df, ignore_depth= ignore_depth )
+        #generate metadata for the NBS files
+        Variables = NBS_data_binned.columns.to_list()
+        Variable_types = NBS_data_binned.dtypes.to_list()
+        Units_Values = [time_grouping, 'lat_lon', 'cubic micrometers', 'cubic micrometers', 'degree', 'degree', '', 'cubic decimeters', 'cubic micrometers', '', 'cubic micrometers','counts/ cubic decimeters', 'log(counts/ cubic decimeters)', 'log (cubic micrometers)']
+        Description = ['binned date information','string that serves as an identifier of a single cell of a  1x1 degree spatial grid','minimum and maximum value of the size bin, calculated from biovolume obtained using ' + area_type + ' and using a projection of ' + geom_shape,'difference between max and min value of a size bin','latitude of the center point of the 1x1 degree cell','longitude of the center point of the 1x1 degree cell','Project ID in Ecotaxa','Volume analyzed (not accounting for sample dilution and/or fractionation)','Sum of the biovolume of individual objects classified into a biovolume based size bin','number of objects assigned into the size bin','mean biovolume for each size bin','Normalized biomass size spectra based on biovolume','logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis','logarithmic transformation of the median of a size bin, use as x axis when performing size spectra analysis']
+        NBS_metadata = pd.DataFrame({'Variables': Variables, 'Variable_types': Variable_types,'Units_Values': Units_Values,'Description': Description})
+
+        df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
+        metadata_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned_metadata.csv',  sep = '\t')
+        NBS_data_binned.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS.csv', sep='\t')
+        NBS_metadata.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_' + instrument + '_NBSS_metadata.csv', sep='\t')
+
+
+
+
+
 
 
 # 7)  create a function to remove data based on JO's comments and Haentjens THIS IS WORK IN PROGRESS:
@@ -428,15 +449,11 @@ def clean_lin_fit(binned_data, instrument, method = 'MAX'):
     # NAAMES samples that contained at least 10 particles (bn = 65 um in ESD)'
     #reverse_list = list(range(0, len(df))), reverse_list.sort(reverse=True)
 
-    #upper limit for IFCB: the largest size bin with at least 10 cells
-    if instrument  == 'IFCB':
-        index_10 = binned_data.index[binned_data['Biovolume_count'] >= 10].tolist()
-        binned_data_filt = binned_data.loc[0:max(index_10)]
-        binned_data_filt = binned_data_filt.reset_index(drop=True)
-        if method == 'MAX':
-            list_max_NBSS = binned_data.NBSS.tolist()
-            binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)]
-            binned_data_filt = binned_data_filt.reset_index(drop=True)
+    #lower limit: max NBSS
+
+    list_max_NBSS = binned_data.NBSS.tolist()
+    binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)] #a ask if its better to just remove all data
+    binned_data_filt = binned_data_filt.reset_index(drop=True)
         elif method == 'instrument_specific': # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
             index_524_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 524].tolist()
             count_maxSmBins = max(binned_data_filt.loc[index_524_sizes]['Biovolume_count'])
