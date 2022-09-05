@@ -134,8 +134,8 @@ def clean_df_func(df, esd='ESD', lat= 'Latitude', lon= 'Longitude', cat='Categor
 
 # include here a creation of a spreadsheet that says which information is missing
 
-#5 biovol_standardizer
-def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere', remove_cat='none'):
+#5 biovol_standardizer. this is the old way of querying the metadata. As of 9/5, use biovol_area_func
+def biovol_func(df, instrument, area_type= 'object_area', remove_cat='none'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
     the volume of an ellipsoid OR a sphere. Also, determine which area will be used to calculate the biovolume.
@@ -167,6 +167,11 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere',
             df = df[df.Biovolume != 0]
             df = df[df.Category != 'bubble']
             df = df.reset_index(drop=True)
+            if 'summed' in area_type:
+                ind = metadata.loc[metadata['Description'].str.contains('summed')].index[0]
+            else:
+                ind = metadata.loc[(metadata['Description'].str.contains('object_area') == True) &
+                                   (metadata['Description'].str.contains('summed') == False)].index[0]
     if instrument == 'IFCB':
         if remove_cat == 'beads':
             df = df[df['Category'].str.contains("bead") == False]
@@ -176,6 +181,11 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere',
             df = df.reset_index(drop=True)
         elif remove_cat == 'none':
             df = df
+            if 'summed' in area_type:
+                ind = metadata.loc[metadata['Description'].str.contains('summed')].index[0]
+            else:
+                ind = metadata.loc[(metadata['Description'].str.contains('object_area') == True) &
+                                   (metadata['Description'].str.contains('summed') == False)].index[0]
 
     elif instrument == 'Zooscan':
         df = df[df['Category'].str.contains('artefact') == False]
@@ -186,14 +196,15 @@ def biovol_func(df, instrument, area_type= 'object_area', geom_shape = 'sphere',
         else:
             ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
                            (metadata['Description'].str.contains('exc')== False)].index[0]
-        for i in range(0, len(df)):
-            r = m.sqrt((df.iloc[i, [ind]]/m.pi))
-            df.loc[i, 'ESD'] = r*2
-            if geom_shape =='sphere':
-                df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
-            elif geom_shape == 'ellipse':
-                df.loc[i, 'Biovolume'] = (4/3) * m.pi * ((r/2) * (df.loc[i, 'Minor_axis']/2) * (df.loc[i, 'Minor_axis']/2))
+    for i in range(0, len(df)):
+        r = m.sqrt((df.iloc[i, [ind]]/m.pi))
+        #df.loc[i, 'ESD'] = r*2
+        df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
+
     return df
+
+
+
 #6) data binning
     # by depth, size, lat/lon and size, input: a dataframe, lat/lon increments that define the stations, and a list
 # of depth bins. NOTE: separate this into three functions
@@ -290,14 +301,14 @@ def date_binning_func(date, time, group_by= 'yyyymm'):
     return date_bin
 
 
-def bin_func(df, instrument, removecat, area_type = 'object_area', geom_shape = 'ellipse', date_group = 'yyyymm',   ignore_depth = 'no'):
+def bin_func(df, instrument, removecat, area_type = 'object_area', date_group = 'yyyymm',   ignore_depth = 'no'):
     """
     Objective: same as binning_NBS_func but for a single dataframe
     :param df: a standardized dataframe
     :param removecat: remove a specific category, currently restricted to IFCB bubbles, artefacts or beads
     :return: a binned dataframe with NBS
     """
-    df = biovol_func(df, instrument= instrument, area_type= area_type, geom_shape = geom_shape, remove_cat=removecat)
+    df = biovol_func(df, instrument= instrument, area_type= area_type, remove_cat=removecat)
     df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
     df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], group_by =  date_group)
     df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
