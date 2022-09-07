@@ -191,10 +191,7 @@ def biovol_func(df, instrument, area_type= 'object_area', remove_cat='none'):
         df = df[df['Category'].str.contains('artefact') == False]
         df = df[df['Category'].str.contains('detritus') == False]
         df = df.reset_index(drop=True)
-        if 'exc' in area_type:# this condition might be exclusive for Zooscan only
-            ind = metadata.loc[metadata['Description'].str.contains('exc')].index[0]
-        else:
-            ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
+        ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
                            (metadata['Description'].str.contains('exc')== False)].index[0]
     for i in range(0, len(df)):
         r = m.sqrt((df.iloc[i, [ind]]/m.pi))
@@ -232,7 +229,7 @@ def size_binning_func(biovolume, N_log_bins=200):
     SizeBins_um3 = np.array(PD_SizeBins_um3_crop)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume
-    sizeClasses_df= pd.cut(x=biovolume, bins=SizeBins_um3, include_lowest=True)# size classes defined by biovolume
+    sizeClasses= pd.cut(x=biovolume, bins=SizeBins_um3, include_lowest=True)# size classes defined by biovolume
     # obtain the size of each size class bin and append it to the stats dataframe
     # unfortunately the Interval type produced by pd.cut is hard to work with. So they need to be modified
     range_size_bin = []
@@ -310,12 +307,13 @@ def bin_func(df, instrument, removecat, area_type = 'object_area', date_group = 
     """
     df = biovol_func(df, instrument= instrument, area_type= area_type, remove_cat=removecat)
     df['sizeClasses'], df['range_size_bin'] = size_binning_func(df['Biovolume'])
+    df = df.groupby('sizeClasses', as_index=False).max() # ask this to Jessica and Mathilde
     df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], group_by =  date_group)
     df['Station_location'], df['midLatBin'], df['midLonBin'] = station_binning_func(df['Latitude'], df['Longitude'])
     metadata_bins = pd.DataFrame({'Variables':['Biovolume', 'sizeClasses', 'range_size_bin', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
                                  'Variable_types': ['float64', 'object', 'float64', 'int64', 'object', 'float64', 'float64'],
                                  'Units/Values/Timezone': ['cubic_micrometer', 'cubic_micrometer','cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree'],
-                                 'Description': ['Biovolume calculated following' + geom_shape + 'projection based on' + area_type ,
+                                 'Description': ['Biovolume calculated as a spherical projection of ' + area_type ,
                                                  'minimum and maximum value of the size bin',
                                                  'difference between max and min value of a size bin',
                                                  'binned date information',
@@ -327,7 +325,7 @@ def bin_func(df, instrument, removecat, area_type = 'object_area', date_group = 
         metadata_bins = pd.DataFrame({'Variables':['Biovolume', 'sizeClasses', 'range_size_bin', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'midDepthBin'],
                                  'Variable_types': ['float64', 'object', 'float64', 'int64', 'object', 'float64', 'float64', 'float64'],
                                  'Units/Values/Timezone': ['cubic_micrometer', 'cubic_micrometer','cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree', 'meters'],
-                                 'Description': ['Biovolume calculated following' + geom_shape + 'projection based on' + area_type ,
+                                 'Description': ['Biovolume calculated as a spherical projection of ' + area_type ,
                                                  'minimum and maximum value of the size bin',
                                                  'difference between max and min value of a size bin',
                                                  'binned date information',
@@ -339,13 +337,38 @@ def bin_func(df, instrument, removecat, area_type = 'object_area', date_group = 
 
 # NEW FUNCTION: parse datasets after they have been binned, by lat/lon, time and depth.
 
-def parse_bindf_func():
+def parse_bindf_func(df, instrument, parse_by = ['Station_location', 'date_bin', 'midDepthBin']):
     """
     Objective: parse out any df that come from files that include multiple stations, dates and depths
+    :param df: a standardized, binned dataframe
+    :param parse_by: list of columns that will be used to parse the dataframe
+    :param instrument: string with the name of the instrument to be processed
     :return: several datasets (1 for each predetermined division)
     """
-    for i in df_dict:
-        df_dict[i].to_csv('dataframe_id_' + str(i) + '.csv') # this is to save the csv files. likely route will be to
+    path_to_data, id_list = proj_id_list_func(instrument, standardized='yes', testing=False)
+
+    if 'midDepthBin' in parse_by:
+
+        for st in set(df[parse_by[0]]):
+            df_subset = df[df[parse_by[0]]== st].reset_index()
+
+            for t in set(df_subset[parse_by[1]]):
+                df_subset = df_subset[df_subset[parse_by[1]] == t].reset_index()
+
+                for d in set(df_subset[parse_by[2]]):
+                    df_subset = df_subset[df_subset[parse_by[2]] == d].reset_index()
+                    df_subset = df_subset.reset_index()
+                    df_subset.to_csv(str(path_to_data) + '/binned_data/' + str(df_subset.iloc[0].Project_ID) + '_' + instrument + '_' + str(st) + '_' + str(t) + '_' + str(d) + '_binned.csv', sep='\t')
+
+    else:
+        for st in set(df[parse_by[0]]):
+            df_subset = df[df[parse_by[0]] == st].reset_index()
+
+            for t in set(df_subset[parse_by[1]]):
+                df_subset = df_subset[df_subset[parse_by[1]] == t].reset_index()
+                df_subset = df_subset.reset_index()
+                df_subset.to_csv(str(path_to_data) + '/binned_data/' + str(df_subset.iloc[0].Project_ID) + '_' + instrument + '_' + str(st) + '_' + str(t) +  '_binned.csv', sep='\t')
+
         # 1) parse datasets (using .unique categories) and include them in a dictionary of dataframes
         # 2) use these values to save each dataframe in a dictionary. File name should include station, date, instrument
 
@@ -368,6 +391,7 @@ def NB_SS_func(df, ignore_depth = 'no', dates='date_bin', station= 'Station_loca
         NBS_biovol_df = df.groupby([dates, station, sizeClasses, depths]).agg(
             {depths:'first', size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
              biovolume:['sum', 'count', 'mean'] }).reset_index()
+
 
   # remove bins that have zero values
         # standardize by volume sample
@@ -449,7 +473,7 @@ def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'o
 # high threshold: obtain the highest size class, then iterate from highest to lowest and remove the large size bins
 # that have less than an (instrument specific) threshold
 # imputs: the data frame, and the column that contains the NBSS
-def clean_lin_fit(binned_data, instrument, method = 'MAX'):
+def clean_lin_fit(binned_data):
     """
     Objective: remove size bins based on JO's comments and Haentjens et al (2022)
     :param df: a binned dataframe with NBSS already calculated
@@ -465,12 +489,12 @@ def clean_lin_fit(binned_data, instrument, method = 'MAX'):
     list_max_NBSS = binned_data.NBSS.tolist()
     binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)] #a ask if its better to just remove all data
     binned_data_filt = binned_data_filt.reset_index(drop=True)
-        elif method == 'instrument_specific': # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
-            index_524_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 524].tolist()
-            count_maxSmBins = max(binned_data_filt.loc[index_524_sizes]['Biovolume_count'])
-            lg524_binList = binned_data_filt.index[binned_data_filt['Biovolume_count'] == count_maxSmBins].tolist()
-            binned_data_filt = binned_data_filt.loc[lg524_binList[0]:len(binned_data_filt)]
-            binned_data_filt = binned_data_filt.reset_index(drop=True)
+        #elif method == 'instrument_specific': # lower limit for IFCB following Haentjens: size bin with the highest cell abundance among the <524 um3 size bins.
+            #index_524_sizes = binned_data_filt.index[binned_data_filt['Biovolume_mean'] < 524].tolist()
+            #count_maxSmBins = max(binned_data_filt.loc[index_524_sizes]['Biovolume_count'])
+            #lg524_binList = binned_data_filt.index[binned_data_filt['Biovolume_count'] == count_maxSmBins].tolist()
+            #binned_data_filt = binned_data_filt.loc[lg524_binList[0]:len(binned_data_filt)]
+            #binned_data_filt = binned_data_filt.reset_index(drop=True)
     #step 2: if a value is lower than the next one, remove that row, THIS DOES NOT WORK
     #low_bin_index = []
     #for i in range (1, len(binned_data_filt)):
@@ -483,19 +507,19 @@ def clean_lin_fit(binned_data, instrument, method = 'MAX'):
     #binned_data_filt = binned_data_filt.drop(binned_data_filt.index[0:(min(min_bin_index)+1)])
     #binned_data_filt = binned_data_filt.reset_index(drop=True)
     # for zooscan:
-    elif instrument == 'Zooscan':
-        if method == 'MAX': # select the highest NBSS value following da Rocha Marcolin et al.
-            list_max_NBSS = binned_data.NBSS.tolist()
-            binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)]
-            binned_data_filt = binned_data_filt.reset_index(drop=True)
-        elif method == 'instrument_specific': #adapted from Haentjens: theoretically, minimum sampled volume of an organism
+    #elif instrument == 'Zooscan':
+        #if method == 'MAX': # select the highest NBSS value following da Rocha Marcolin et al.
+            #list_max_NBSS = binned_data.NBSS.tolist()
+            #binned_data_filt = binned_data.loc[list_max_NBSS.index(max(list_max_NBSS)):len(binned_data)]
+            #binned_data_filt = binned_data_filt.reset_index(drop=True)
+       # elif method == 'instrument_specific': #adapted from Haentjens: theoretically, minimum sampled volume of an organism
             #with a WP2 is 4188790 um3 (volume of a sphere with 200 um diameter). So, size bin with the highest cell abundance
             #among the < 4188790
-            index_4188790_sizes = binned_data.index[binned_data['Biovolume_mean'] < 4188790].tolist()
-            count_maxSmBins = max(binned_data.loc[index_4188790_sizes]['Biovolume_count'])
-            lg4188790_binList = binned_data.index[binned_data['Biovolume_count'] == count_maxSmBins].tolist()
-            binned_data_filt = binned_data.loc[lg4188790_binList[0]:len(binned_data)]
-            binned_data_filt = binned_data_filt.reset_index(drop=True)
+            #index_4188790_sizes = binned_data.index[binned_data['Biovolume_mean'] < 4188790].tolist()
+            #count_maxSmBins = max(binned_data.loc[index_4188790_sizes]['Biovolume_count'])
+            #lg4188790_binList = binned_data.index[binned_data['Biovolume_count'] == count_maxSmBins].tolist()
+            #binned_data_filt = binned_data.loc[lg4188790_binList[0]:len(binned_data)]
+            #binned_data_filt = binned_data_filt.reset_index(drop=True)
         #elif binned_data_filt.loc[i, 'NBSS'] < binned_data_filt.loc[i+1, 'NBSS']:
              #subset_stDepth.drop(subset_stDepth.index[i:len(subset_stDepth[logNBSS]])
     #subset_stDepth = subset_stDepth.reset_index(drop=True)
