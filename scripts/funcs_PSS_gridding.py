@@ -225,7 +225,7 @@ def log_bins_func(start, bin_number, power=10):
 
     #6.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
     #returns two lists : the sizeClasses bins (categorical) and range_size_bins (float)
-def size_binning_func(df):
+def size_binning_func(df_subset):
     """
     Objective: bin the dataframes (parsed by stations and/or dates and/or depths)
     :param biovolume: column of a dataframe that contains the biovolume (in cubic micrometers)
@@ -241,13 +241,12 @@ def size_binning_func(df):
     bins_df = pd.read_csv(path_to_bins, sep='\t')
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume, append bin range and bin class to the dataframe
-    sizeClasses= pd.cut(x=df['Biovolume'], bins=bins_df['biovol_um3'], include_lowest=True)# size classes defined by biovolume
-    df['sizeClasses'] = sizeClasses
+    df_subset.loc[:, 'sizeClasses']= pd.cut(x=df_subset['Biovolume'], bins=bins_df['biovol_um3'], include_lowest=True)# size classes defined by biovolume
     range_size_bin = []
-    for i in range(0, len(sizeClasses)):
-        range_size_bin.append(sizeClasses[i].length)
-    df['range_size_bin'] = range_size_bin
-    bins = df['sizeClasses'].unique()
+    for i in range(0, len(df_subset['sizeClasses'])):
+        range_size_bin.append(df_subset.loc[i, 'sizeClasses'].length)
+    df_subset.loc[:, 'range_size_bin'] = range_size_bin
+    bins = df_subset['sizeClasses'].unique()
     bin_width = []# list that will contain the width of each size_bin
     for i in range(0, len(bins.categories)):
         bin_width.append(bins.categories[i].length)
@@ -257,7 +256,8 @@ def size_binning_func(df):
     # obtain the size of each size class bin and append it to the stats dataframe
     # unfortunately the Interval type produced by pd.cut is hard to work with. So they need to be modified
 
-    return df, df_bins
+    return df_subset, df_bins
+
    # 6.2 by depth. Inputs: a column of the dataframe with depth data, and a list of depth bins
 def depth_binning_func(depth='Depth_min', depth_bins=[0, 25, 50, 100, 200, 500, 1000, 3000, 8000]):
     # create depth bins based on Jessica's suggestion (Jessica's suggestions as default)
@@ -376,57 +376,25 @@ def read_all_binned_func (instruments = ['IFCB', 'Zooscan']):
 
 
 
-def parse_func(df, parse_by = ['Station_location', 'date_bin', 'midDepthBin']):
+def parse_NBS_func(df, parse_by = ['Station_location', 'date_bin', 'midDepthBin']):
     """
     Objective: parse out any df that come from files that include multiple stations, dates and depths.
     dataframe needs to be already binned.
     :param df: a standardized, binned dataframe
     :param parse_by: list of columns that will be use][-=d to parse the dataframe
-    :return: several datasets (1 for each predetermined division)
+    :return: a binned, tresholded NBS dataframe
     """
     NBSS_binned_all = pd.DataFrame()
+    for st in set(df[parse_by[0]]):
+        df_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
+        df_binned, df_bins = size_binning_func(df_subset)  # create size bins
+        NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='yes', dates='date_bin', station='Station_location',
+                               depths='midDepthBin', size_range='range_size_bin', sizeClasses='sizeClasses',
+                               biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
+                               project_ID='Project_ID', vol_filtered='Volume_analyzed')  # calculate NBSS
+        NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
 
-    if 'midDepthBin' in parse_by:
-
-        for st in set(df[parse_by[0]]):
-            df_subset = df[df[parse_by[0]]== st].reset_index()
-
-            for t in set(df_subset[parse_by[1]]):
-                df_subset = df_subset[df_subset[parse_by[1]] == t].reset_index()
-
-                for d in set(df_subset[parse_by[2]]):
-                    df_subset = df_subset[df_subset[parse_by[2]] == d].reset_index()
-                    df_subset = df_subset.reset_index()
-                    df_subset['sizeClasses'], df_subset['range_size_bin'] = size_binning_func(df_subset['Biovolume'])# create size bins
-                    NBS_biovol_df = NB_SS_func(df_subset, ignore_depth='no', dates='date_bin', station='Station_location',
-                                                depths='midDepthBin', size_range='range_size_bin', sizeClasses='sizeClasses',
-                                                biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
-                                                project_ID='Project_ID', vol_filtered='Volume_analyzed') # calculate NBSS
-                    NBSS_binned_all.append(NBS_biovol_df)
-
-                    #treshold here
-                    #merge all the subsetted files
-                    #df_subset.to_csv(str(path_to_data) + '/binned_data/' + str(df_subset.iloc[0].Project_ID) + '_' + instrument + '_' + str(st) + '_' + str(t) + '_' + str(d) + '_binned.csv', sep='\t')
-
-    else:
-        for st in set(df[parse_by[0]]):
-            df_subset = df[df[parse_by[0]] == st].reset_index()
-
-            for t in set(df_subset[parse_by[1]]):
-                df_subset = df_subset[df_subset[parse_by[1]] == t].reset_index()
-                df_subset = df_subset.reset_index()
-                df_subset['sizeClasses'], df_subset['range_size_bin'] = size_binning_func(
-                    df_subset['Biovolume'])  # create size bins
-                NBS_biovol_df = NB_SS_func(df_subset, ignore_depth='no', dates='date_bin', station='Station_location',
-                                           depths='midDepthBin', size_range='range_size_bin', sizeClasses='sizeClasses',
-                                           biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
-                                           project_ID='Project_ID', vol_filtered='Volume_analyzed')  # calculate NBSS
-                NBSS_binned_all.append(NBS_biovol_df)
-                #df_subset.to_csv(str(path_to_data) + '/binned_data/' + str(df_subset.iloc[0].Project_ID) + '_' + instrument + '_' + str(st) + '_' + str(t) +  '_binned.csv', sep='\t')
-
-        # 1) parse datasets (using .unique categories) and include them in a dictionary of dataframes
-        # 2) use these values to save each dataframe in a dictionary. File name should include station, date, instrument
-
+    return NBSS_binned_all
 
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
 # inputs: a dataframe and the volume sampled of each (in cubic meters). other inputs are the column names
@@ -477,7 +445,7 @@ def NB_SS_func(df, df_bins, ignore_depth = 'no', dates='date_bin', station= 'Sta
     return NBS_binned_thres
 
 ##  CONTINUE HERE
-def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'object_area', geom_shape = 'ellipse', ignore_depth = 'no'):
+def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'object_area', ignore_depth = 'no'):
     """
     Objective: read into the standardized tsv files and bin the data by size (biovolume), station and depth
     :param instrument: the device used for image adcquisition. important since the path will change
@@ -493,15 +461,14 @@ def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'o
             if element in id_list:
                 id_list.remove(element)
     dirpath = str(path_to_data) + '/binned_data/'
-    if dirpath.exists() and dirpath.is_dir():
+    if os.path.exists(dirpath) and os.path.isdir(dirpath):
         shutil.rmtree(dirpath)
     os.mkdir(dirpath)
-
 
     for n, i in enumerate(id_list):
         df = read_func(path_to_data, i)# get a dataframe for each project
         # bin standardized data and obtain the metadata of the binned columns
-        df, metadata_bins = bin_func(df, instrument, removecat, area_type = area_type, geom_shape = geom_shape, date_group = time_grouping,  ignore_depth = ignore_depth)
+        df, metadata_bins = bin_func(df, instrument, removecat, area_type = area_type, date_group = time_grouping,  ignore_depth = ignore_depth)
         path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
         # open the metadata of the standardized files
         with open(path_to_config, 'r') as config_file:
@@ -512,12 +479,17 @@ def proj_NBS_func(instrument, removecat, time_grouping= 'yyyymm', area_type = 'o
         metadata_std = metadata_std[ metadata_std['Variables'].str.contains('Biovolume')== False]
         #concatenate metadata files to generate binned metadata
         metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
-        NBS_data_binned = NB_SS_func(df, ignore_depth= ignore_depth )
+        # and generate the NBSS WITH THRESHOLDING INCLUDED
+        if ignore_depth == 'no':
+            NBS_data_binned = parse_NBS_func(df, parse_by=['Station_location', 'date_bin', 'midDepthBin'])
+        else:
+            NBS_data_binned = parse_NBS_func(df, parse_by=['Station_location', 'date_bin'])
+
         #generate metadata for the NBS files
         Variables = NBS_data_binned.columns.to_list()
         Variable_types = NBS_data_binned.dtypes.to_list()
         Units_Values = [time_grouping, 'lat_lon', 'cubic micrometers', 'cubic micrometers', 'degree', 'degree', '', 'cubic decimeters', 'cubic micrometers', '', 'cubic micrometers','counts/ cubic decimeters', 'log(counts/ cubic decimeters)', 'log (cubic micrometers)']
-        Description = ['binned date information','string that serves as an identifier of a single cell of a  1x1 degree spatial grid','minimum and maximum value of the size bin, calculated from biovolume obtained using ' + area_type + ' and using a projection of ' + geom_shape,'difference between max and min value of a size bin','latitude of the center point of the 1x1 degree cell','longitude of the center point of the 1x1 degree cell','Project ID in Ecotaxa','Volume analyzed (not accounting for sample dilution and/or fractionation)','Sum of the biovolume of individual objects classified into a biovolume based size bin','number of objects assigned into the size bin','mean biovolume for each size bin','Normalized biomass size spectra based on biovolume','logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis','logarithmic transformation of the median of a size bin, use as x axis when performing size spectra analysis']
+        Description = ['binned date information','string that serves as an identifier of a single cell of a  1x1 degree spatial grid','minimum and maximum value of the size bin, calculated from biovolume obtained using ' + area_type + ' and using a projection of a sphere','difference between max and min value of a size bin','latitude of the center point of the 1x1 degree cell','longitude of the center point of the 1x1 degree cell','Project ID in Ecotaxa','Volume analyzed (not accounting for sample dilution and/or fractionation)','Sum of the biovolume of individual objects classified into a biovolume based size bin','number of objects assigned into the size bin','mean biovolume for each size bin','Normalized biomass size spectra based on biovolume','logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis','logarithmic transformation of the median of a size bin, use as x axis when performing size spectra analysis']
         NBS_metadata = pd.DataFrame({'Variables': Variables, 'Variable_types': Variable_types,'Units_Values': Units_Values,'Description': Description})
 
         df.to_csv(str(path_to_data) + '/binned_data/' + str(i) + '_'+ instrument + '_binned.csv',  sep = '\t')
