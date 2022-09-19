@@ -10,6 +10,9 @@ git_dir : '~/GIT/PSSdb/'
 #raw subdirectory
 raw_dir : '~/GIT/PSSdb/raw/'
 
+#IFCB dashboard directory:
+IFCB_dir : '~/GIT/PSSdb/raw/IFCB_dashboard_downloads/'
+
 # API download Storage sub-direcotry (API/Instrument)
 dataset_subdir : 'raw/API'
 
