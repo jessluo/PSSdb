@@ -3,11 +3,7 @@
 
 #1) read the .hdr files and extract the valuable information (sampling date and volume filtered)
 
-#OR better use web crawl
-
-import urllib3
-
-# BUT leave this for later, first focus on getting NBSS from caloos
+# focus on getting NBSS from caloos
 
 import pandas as pd
 import yaml
