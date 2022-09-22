@@ -20,7 +20,7 @@ dataset_subdir : 'raw/API'
 standardized_subdir : 'raw/raw_standardized'
 
 #binned datasets storage sub-subdirectory
-binned_subdir : 'binned_data'
+gridded_subdir : 'gridded_data'
 
 # Path to project_list_all.xlsx
 proj_list : 'raw/project_list_all.xlsx'
