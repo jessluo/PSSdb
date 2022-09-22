@@ -1,5 +1,6 @@
+# Objective: This script uses web crawling library to retrieve IFCB metadata from an online dashboard
 
-
+from pathlib import Path
 # Module for web crawling with javascript inputs
 # Selenium for web scraping: https://stackoverflow.com/questions/29385156/invoking-onclick-event-with-beautifulsoup-python
 # Download chromedriver at:https://chromedriver.chromium.org/downloads
@@ -8,7 +9,7 @@ from selenium import webdriver # Use: pip3 install -U selenium
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager # Use: pip3 install webdriver-manager
 from selenium.webdriver.chrome.options import Options
-chromedriver = '/Users/dugennem/Downloads/chromedriver' # Local path to the chromedriver. Note: Deprecated
+chromedriver = '{}/Downloads/chromedriver'.format(str(Path.home())) # Local path to the chromedriver. Note: Deprecated
 options=Options()
 options.add_argument("--headless") # Use this to keep the browser session closed
 
