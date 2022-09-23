@@ -40,7 +40,7 @@ def read_func(path_to_data, ID):
     """
     import pandas as pd
     from glob import glob
-    search_pattern = path_to_data / ("*" + str(ID) + "*.tsv")
+    search_pattern = path_to_data / ("*" + str(ID) + "*.tsv") #'[^metadata]'
     filename = glob(str(search_pattern))
     filename = [x for x in filename if 'metadata' not in x]
     df = pd.read_csv(filename[0], sep='\t',  header=0, index_col=[0]) #
