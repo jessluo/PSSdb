@@ -24,7 +24,7 @@ url = "https://ifcb.caloos.org/timeline?dataset=santa-cruz-municipal-wharf&bin=D
 
 with webdriver.Chrome(chromedriver, options=options,keep_alive=False) as driver:
     driver.get(url)
-    time.sleep(3) # Time needed for the webpage to be fully loaded, in seconds
+    time.sleep(60) # Time needed for the webpage to be fully loaded, in seconds
     vol_analyzed=float(re.sub("[^\d\.]", "",driver.find_element(by='id', value='stat-ml-analyzed').text)) if len(driver.find_element(by='id', value='stat-ml-analyzed').text)>0 else pd.NA
     depth = float(re.sub("[^\d\.]", "", driver.find_element(by='id', value='stat-depth').text)) if len(driver.find_element(by='id', value='stat-depth').text)>0 else pd.NA
     Latitude = float(driver.find_element(by='id', value='stat-lat').text) if len(driver.find_element(by='id', value='stat-lat').text)>0 else pd.NA
