@@ -91,7 +91,7 @@ for i in range (len(subset_file_info)):
     #generate features files
     features_filename = pathname + str(subset_file_info.loc[i, 'pid']) + '_features.csv'
     features_df = df_from_url(features_filename)
-    for c in ['texture', 'Wedge', 'Ring', 'HOG']:
+    for c in ['texture', 'Wedge', 'Ring', 'HOG', 'moment_invariant']:
         features_df = features_df[features_df.columns.drop(list(features_df.filter(regex=c)))]
     url = metadata_link + dataset_name +'&bin='+ str(subset_file_info.loc[i, 'pid'])
     with webdriver.Chrome(chromedriver, options=options, keep_alive=False) as driver:
