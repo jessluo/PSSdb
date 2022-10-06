@@ -110,19 +110,19 @@ for i in range (len(subset_file_info)):
     #now generate dataframe for the class scores
     class_filename = pathname + str(subset_file_info.loc[i, 'pid']) + '_class_scores.csv'
     class_df = df_from_url(class_filename)
-
-    class_df.iloc[1, 2:len(class_df.columns)]= class_df.iloc[1, 2:len(class_df.columns)].astype(float)
-    scores = class_df.iloc[1, 2:len(class_df.columns)].astype(float)
-    for col in class_df.columns:
-        if class_df.loc[1, col] == max (class_df.iloc[1, 2:len(class_df.columns)]):
-            print('yes')
-        else:
-            print('no')
+    #class_df = class_df.drop(columns = 'pid')
+    # create column with taxonomic category based on class score
+    for r in class_df.index.values:
+        #class_df.iloc[r, 2:len(class_df.columns)]= class_df.iloc[r, 2:len(class_df.columns)].astype(float)
+        scores = class_df.iloc[r-1, 2:len(class_df.columns)].astype(float)
+        for col in class_df.columns:
+            if class_df.loc[r, col] == str(max(scores)):
+                features_df.loc[r, 'class'] = col
 
             ## continue trying to get the class for each ROI
 
 
-
-
-    df.to_csv(localpath + '/' +str(subset_file_info.loc[0, 'pid']) + t, sep='\t')
-
+    features_df.to_csv(localpath + '/' +str(subset_file_info.loc[0, 'pid']) + '_features.csv', sep='\t')
+    class_df.to_csv(localpath + '/' +str(subset_file_info.loc[0, 'pid']) + '_class_scores.csv', sep='\t')
+    print(str(subset_file_info.loc[0, 'pid']) + ' download done ')
+#test = 'D20150910T212605_IFCB104'
