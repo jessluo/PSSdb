@@ -586,14 +586,15 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
     if project_id not in df_standardizer.index:
         print('Project ID is not included in standardizer. Quitting')
         return
-        if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','IFCB','UVP5HD','UVP5SD','UVP5Z','UVP6']:
+    if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','IFCB','UVP']:
             print('Standardization only applies to Zooscan, IFCB, and UVP projects. Quitting')
             return
 
     # Retrieve fields to standardize in standardizer (indicated by variable_field)
-    columns_for_description=dict(zip([item.split(':',1)[0].capitalize() for item in df_standardizer.loc[project_id]['Sampling_description'].split(';')],[eval(re.sub(r'(\w+)', r'"\1"',item.split(':',1)[1])) for item in df_standardizer.loc[project_id]['Sampling_description'].split(';')])) if str(df_standardizer.loc[project_id]['Sampling_description'])!='nan' else df_standardizer.loc[project_id]['Sampling_description']
-    fields_for_description=pd.Series([value['field'] for key, value in columns_for_description.items() if 'field' in value.keys()],[key.capitalize() for key, value in columns_for_description.items() if 'field' in value.keys()]) if str(df_standardizer.loc[project_id]['Sampling_description'])!='nan' else pd.Series({})
-    units_for_description = pd.Series([value['unit'] for key, value in columns_for_description.items() if 'unit' in value.keys()],[key.capitalize() for key, value in columns_for_description.items() if 'field' in value.keys()]) if str(df_standardizer.loc[project_id]['Sampling_description'])!='nan' else pd.Series({})
+    columns_for_description = dict(zip([item.split(':', 1)[0].capitalize() for item in df_standardizer.loc[project_id]['Sampling_description'].split(';')],[eval(re.sub(r'(\w+)', r'"\1"', item.split(':', 1)[1])) for item in df_standardizer.loc[project_id]['Sampling_description'].split(';')])) if str(df_standardizer.loc[project_id]['Sampling_description']) != 'nan' else df_standardizer.loc[project_id]['Sampling_description']
+    fields_for_description = pd.Series([columns_for_description[key][index] for key, value in columns_for_description.items() if (type(value) == dict) for index, fields in columns_for_description[key].items() if ('field' in index)],[key.capitalize() for key, value in columns_for_description.items() if (type(value) == dict) for index, fields in columns_for_description[key].items() if ('field' in index)]) if str(df_standardizer.loc[project_id]['Sampling_description']) != 'nan' else pd.Series({})
+    units_for_description = pd.Series( [columns_for_description[key][index] for key, value in columns_for_description.items() if (type(value) == dict) for index, fields in columns_for_description[key].items() if ('unit' in index)], [key.capitalize() for key, value in columns_for_description.items() if (type(value) == dict) for index, fields in columns_for_description[key].items() if ('unit' in index)]) if str( df_standardizer.loc[project_id]['Sampling_description']) != 'nan' else pd.Series({})
+
 
     columns_of_interest =  [string for string in list(df_standardizer.columns) if "_field" in string]
     fields=fields_of_interest = dict(zip(columns_of_interest,df_standardizer.loc[project_id][columns_of_interest].values.flatten().tolist()))
@@ -603,7 +604,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
     fields_of_interest_series =pd.Series(list(value[1] for value in fields_of_interest_list),list(value[0] for value in fields_of_interest_list))
 
     # Retrieve flagged samples/profiles
-    if df_standardizer.loc[project_id]['Flag_path'].astype(str)!='nan':
+    if str(df_standardizer.loc[project_id]['Flag_path'])!='nan':
           df_flagged=pd.read_table(df_standardizer.loc[project_id]['Flag_path'])
           flagged_samples=df_flagged.query('Flag==0 & Overrule==False')['Sample'].tolist() if len(df_flagged.query('Flag==0 & Overrule==False'))>0 else ['']
     else:
@@ -621,7 +622,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
         df_method=pd.read_table(path_files_list[0],usecols=[fields_of_interest_series['Sample']]+fields_for_description.values.tolist())
         df_method.columns=['Sample']+[(list(fields_for_description.index)[list(fields_for_description.values).index(value)]) for value in df_method.columns if value in list(fields_for_description.values)]  # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
-        df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:PA(x,dtype=ureg[dict(units_for_description)[x.name]].units))
+        df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
         df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
         # Remove flagged samples/profiles
@@ -632,7 +633,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
             return
 
         # Append method description
-        additional_description=[additional_key for additional_key in columns_for_description.keys() if additional_key not in fields_for_description.index] if type(columns_for_description)==dict else []
+        additional_description = ' '.join([':'.join([additional_key, columns_for_description[additional_key]]) for additional_key in columns_for_description.keys() if additional_key not in fields_for_description.index]) if type(columns_for_description) == dict else []
         if (len(fields_for_description.index)>0) or (len(additional_description) > 0):
             df=df.assign(Sampling_description=columns_for_description[additional_description]+' ' + df_method[fields_for_description.index].apply(' '.join, axis=1) if len(additional_description) > 0 else df_method[fields_for_description.index].apply(' '.join, axis=1) )
         else:
@@ -648,11 +649,21 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         if any([unit not in ureg for unit in list(units_of_interest.values()) if str(unit)!='nan']):
             print('Quitting. Please fill out standardizer with units from the list below or define your custom unit in {} using known units:\n'.format(path_to_data.parent.parent.parent /'Scripts'/'units_def.txt'),full_list_units, sep='')
             return
+
         # Convert pixel_to_size ratio in units pixel per millimeter
         if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='pixel':
             pixel_size_ratio = PQ(list(df.Pixel/ureg(units_of_interest['Pixel_unit'].split('_per_')[1]).to('millimeter')), 'pixel/millimeter')
         if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='meter':
             pixel_size_ratio = PQ(list(1/(df.Pixel*ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to('millimeter'))), 'pixel/millimeter')
+
+        # Convert pixel to millimeter for upper/lower size
+        if units_of_interest['Sampling_upper_size_unit'] == 'pixel':
+                df['Sampling_upper_size'] = df['Sampling_upper_size'] / (pixel_size_ratio ** 2)
+                units_of_interest['Sampling_upper_size_unit'] = 'millimeter'
+        if units_of_interest['Sampling_lower_size_unit'] == 'pixel':
+                df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio ** 2)
+                units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
+
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
 
@@ -698,7 +709,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         'Description':['Project ID','Project cruise','Instrument','Sampling type (e.g. platform, gear, strategy)','Station ID (native format)','Profile ID (native format)','Sample ID (native format)','Latitude','Longitude','Sampling date','Sampling time','Minimum sampling depth','Maximum sampling depth','Volume analyzed (not accounting for sample dilution and/or fractionation)','Volume imaged (accounting for sample dilution and/or fractionation)','Region of interest ID (native format)','Status of ROI annotation (e.g. unclassified, predicted, validated)','ROI assigned taxonomy']+ ['Object minor ellipsoidal axis derived from '+ field if field!='' or len(fields['Minor_axis'])>1 else 'Object minor ellipsoidal axis' for field in fields['Minor_axis'] ]+ ['Object equivalent spherical diameter derived from '+ field if field!='' or len(fields['ESD'])>1 else 'Object equivalent spherical diameter' for field in fields['ESD'] ]+ ['Object surface area derived from '+ field if field!='' or len(fields['Area'])>1 else 'Object surface area' for field in fields['Area'] ]+['Object biovolume derived from '+ field if field!='' or len(fields['Biovolume'])>1 else 'Object biovolume' for field in fields['Biovolume']]+['Pixel size used for size conversion','Smallest sampled size','Largest sampled size','Additional description of the sampling method or protocol']})
 
         # Save standardized dataframe
-        path_to_standard_dir = path_to_data.parent.parent / 'raw_standardized'
+        path_to_standard_dir = path_to_data.parent.parent / 'raw_standardized' / path_to_data.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file=path_to_standard_dir / 'standardized_export_{}.tsv'.format(str(project_id))
         path_to_metadata_standard=path_to_standard_dir / 'standardized_export_{}_metadata.tsv'.format(str(project_id))
