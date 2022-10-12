@@ -1,4 +1,4 @@
-## Objective: Exporting Ecotaxa project tsv file using Ecotaxa API
+## Objective: Exporting Ecotaxa project tsv file using Ecotaxa API in batch
 
 ## Requirements:
 # Note that you need annotator right on the project you wish to download
@@ -14,7 +14,7 @@
 # Step 1: Configure the API using your Ecotaxa login/pw (info stored in untracked Ecotaxa_API_pw.yaml)
 # Step 2: Generate a request to export a project tsv based on project ID (info stored in git-tracked Ecotaxa_API.yaml)
 # Step 3: Generate a job/task(=export) based on the request (step 2)
-# Step 4: Get the job file (ecotaxa_export_projectID_date_timeZ.zip)
+# Step 4: Get the job file (ecotaxa_export_projectID_date_time.zip)
 
 ## Useful documentations:
 # See documentation for step 1: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/AuthentificationApi.md
@@ -22,7 +22,7 @@
 # See documentation for step 3: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#export_object_set
 # See documentation for step 4: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/JobsApi.md#get_job_file
 
-## TO DO: Loop through test set projects only, Explore ways to make the script faster
+## TO DO: Export projects from additional data sources (e.g. IFCB dashboards)
 
 
 ## Python modules
@@ -99,7 +99,7 @@ with requests.Session() as sess:
 
 # prepare storage based on project list  stored in the yaml config file and instrument type
 path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir']
-project_list=pd.read_excel(path_to_git / cfg['proj_list'],sheet_name="Data",usecols=['Project_ID','Instrument','PSSdb_access','Project_test'])
+project_list=pd.read_excel(path_to_data.parent / cfg['proj_list'],sheet_name="Data",usecols=['Project_ID','Instrument','PSSdb_access','Project_test'])
 project_ids = project_list[project_list['PSSdb_access']==True].Project_ID.unique().astype(str)#str(cfg['proj_id'])
 project_inst=project_list[project_list['PSSdb_access']==True].Instrument.unique().astype(str)
 
@@ -128,7 +128,7 @@ if len(existing_project_path)!=0:
          shutil.rmtree(file, ignore_errors=True)
          file.unlink(missing_ok=True)
 else:
-  print("Creating project export file using",str(path_to_git / cfg['proj_list']) ,"file, please wait",sep=" ")
+  print("Creating project export file using",str(path_to_data.parent / cfg['proj_list']) ,"file, please wait",sep=" ")
 
 
 for i in range(len(project_ids)):
@@ -142,7 +142,7 @@ for i in range(len(project_ids)):
         api_instance = objects_api.ObjectsApi(api_client)
         # Step 2: Create a request to export project tsv file
         body_export_object_set_object_set_export_post = BodyExportObjectSetObjectSetExportPost(
-            filters=ProjectFilters(statusfilter="PVD"),
+            filters=ProjectFilters(),#ProjectFilters(statusfilter="PVD"),
             # get P(redicted), V(alidated), D(ubious) images. Check other options for filter here: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ProjectFilters.md
             request=ExportReq(
                 project_id=proj_id,  # the unique project ID of interest (integer)
@@ -192,8 +192,8 @@ for i in range(len(project_ids)):
                 if job_status == 'E':
                     print("Error creating job. Please check your connection or EcoTaxa server")
 
-    # Lines 189:195 are not working. Laurent is updating get_job_file.py.
-    # Uncomment line 191 when get_job_file.py is working to proceed to step 4
+    # Lines 195:201 are not working. Laurent is updating get_job_file.py.
+    # Uncomment line 197 when get_job_file.py is working to proceed to step 4
     # api_downloadresponse = api_jobinstance.get_job_file(job_id)
     # api_downloadresponse = api_jobinstance.get_job_file(job_id, async_req=True, _preload_content=False,_return_http_data_only=False)
     # urlresponse = api_downloadresponse.get()
