@@ -1,38 +1,44 @@
+##  Objective: Flag and standardize projects in batch
 
- 3) Standardize all files:
-def mass_st_func(instrument):
-    """"
-    Objective:
-    Complete standardization of all projects for a given instrument
-    """
-    #import functions to 1. get project ID lists and
-    from step2_standardize_data import proj_id_list_func as id_list
-    #get the standardizer function
-    from funcs_export_standardizer import standardization_func as standardize
-    from pathlib import Path
-    import yaml
-    import glob
-    instrument = str(instrument)
-    #define the paths to the config file and the standardizer using the yaml file
-    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
-    with open(path_to_config, 'r') as config_file:
-        cfg = yaml.safe_load(config_file)
-    # read config file (text file) with inputs:  project ID, output directory
-    standardizer_path = glob.glob(str(Path(cfg['raw_dir']).expanduser()) + '/' + '*' + instrument+ '*xlsx')[0]
-    config_path = str(Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser())
-    path_to_data, ID_list = id_list(instrument, testing=False)
-    #for i in ID_list:
-        #standardize(config_path, standardizer_path, i)
-    if instrument == 'IFCB':# this removal is only for testing,
-        #since the standardizer should be able to deal with projects with empty rows
-        IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
-        for element in IFCB_empty_rows:
-            if element in ID_list:
-                ID_list.remove(element)
-        for i in ID_list:
-            standardize(config_path, standardizer_path, i)
+## Requirements: Completion of standardizer spreadsheets (step0.list_projects.py) and projects export (step1.export_projects.py)
 
-    else:
-        for i in ID_list:
-            standardize(config_path, standardizer_path, i)
+## Python modules
 
+# Path modules
+from pathlib import Path # Handling of path object
+import os
+
+# Data handling
+import pandas as pd
+
+# standardization functions
+from funcs_project_standardizer import *
+
+# Workflow starts here:
+path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
+standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
+
+for standardizer in standardizer_files:
+    df_standardizer=pd.read_excel(standardizer,index_col=0)
+    for project in list(df_standardizer.index):
+        # Flagging project
+        report_file='Report_project_'+str(project)+'.html'
+        report_path=path_to_standardizer.parent / 'Reports' / report_file
+        if report_path.is_file()==False:
+           try:
+              filling_standardizer_flag_func(standardizer_path=standardizer, project_id=int(project),report_path=report_path.parent)
+           except:
+               print('Skipping flagging of project ',str(project),sep='')
+        else:
+            pass
+
+        # Standardizing project
+        standard_file = 'standardized_export_{}.tsv'.format(str(project))
+        standard_path=path_to_standardizer/ 'raw_standardized' /str(df_standardizer.loc[project]['Instrument']) /standard_file
+        if standard_path.is_file() == False:
+            try:
+                standardization_func(standardizer_path=standardizer, project_id=int(project),plot='diversity')
+            except:
+                print('Skipping standardization of project ', str(project), sep='')
+        else:
+            pass
