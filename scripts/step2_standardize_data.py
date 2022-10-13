@@ -22,8 +22,8 @@ for standardizer in standardizer_files:
     df_standardizer=pd.read_excel(standardizer,index_col=0)
     for project in list(df_standardizer.index):
         # Flagging project
-        report_file='Report_project_'+str(project)+'.html'
-        report_path=path_to_standardizer.parent / 'Reports' / report_file
+        report_file='report_project_'+str(project)+'.html'
+        report_path=path_to_standardizer.parent / 'reports' / report_file
         if report_path.is_file()==False:
            try:
               filling_standardizer_flag_func(standardizer_path=standardizer, project_id=int(project),report_path=report_path.parent)
