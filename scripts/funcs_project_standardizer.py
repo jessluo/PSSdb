@@ -329,6 +329,8 @@ def flag_func(dataframe):
     dataframe['Flag_missing']=1
     index_flag=pd.isnull(dataframe).any(1).to_numpy().nonzero()[0]
     dataframe.loc[index_flag,'Flag_missing']=0
+    dataframe['Missing_field'] = pd.isnull(dataframe).apply(lambda x: '_'.join(x.index[x == True].tolist()), axis=1)
+
     # Flag #3: low ROI count
     if 'Sample' not in dataframe.columns and 'Profile' in dataframe.columns:
         dataframe['Sample']=dataframe['Profile']
@@ -380,7 +382,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
     flag_overrule_path=df_standardizer['Flag_path'][project_id]
     df_standardizer_metadata=pd.read_excel(standardizer_path, sheet_name='Metadata')
     # Read project datafile, subsetting variables of interest
-    project_path_list=list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("*"+str(project_id)+'*'))
+    project_path_list=list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("*_"+str(project_id)+'_*'))
 
     if len([path for path in project_path_list if 'flag' not in str(path)])>0:
          project_path = [path for path in project_path_list if 'flag' not in str(path)][0]
@@ -395,33 +397,27 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          with ecotaxa_py_client.ApiClient(configuration) as api_client:
             api_instance = samples_api.SamplesApi(api_client)
             samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
-         flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': list(map(lambda x: x['orig_id'], samples)),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
+         flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
          flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}bin?dataset={}&bin={}'.format(df_standardizer['Project_source'][project_id],df['Cruise'][0],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'] else ''
 
-         # Saving flags
-         path_to_datafile = project_path.parent.parent / 'flags'
-         path_to_datafile.mkdir(parents=True, exist_ok=True)
-         if len(flagged_df[flagged_df['Flag'] == 0])>0:
-              datafile_name = project_path.stem + '_flagged.tsv'
-              print('Saving flags to ', str(path_to_datafile / datafile_name), sep=" ")
-              flagged_df[flagged_df['Flag'] == 0][['Sample', 'Sample_URL'] + [column for column in flagged_df.columns if 'Flag' in column]].drop_duplicates().to_csv(str(path_to_datafile / datafile_name), sep='\t', index=False)
          # Creating flags overruling datafile that will be read to filter samples out during standardization
-         if len(flag_overrule_path)==0 or Path(flag_overrule_path).expanduser().is_file()==False:
-              overrule_name = project_path.stem + '_flags_final.tsv'
-              print('Saving overruling flagged datafile to ', str(path_to_datafile / overrule_name),'. Set Overrule to True if you wish to keep samples for further processing', sep=" ")
-              overruled_df=flagged_df[['Sample','Flag']].drop_duplicates()#flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
-              overruled_df['Overrule']=False
-              overruled_df=overruled_df.sort_values(by=['Flag'],ascending=True)
-              overruled_df.to_csv(str(path_to_datafile / overrule_name),sep='\t',index=False)
-              # Update standardizer spreadsheet with flagged samples path and save
-              df_standardizer['Flag_path']=df_standardizer['Flag_path'].astype(str)
-              df_standardizer['Flag_path'][project_id] = str(path_to_datafile / overrule_name).replace(str(Path.home()),'~')
-              print('Updating standardizer spreadsheet with path of flagged samples/profiles ID datafile')
-              df_standardizer['Project_ID'] = df_standardizer.index
-              df_standardizer = df_standardizer[['Project_ID'] + df_standardizer.columns[:-1].tolist()]
-              with pd.ExcelWriter(str(standardizer_path), engine="xlsxwriter") as writer:
-                   df_standardizer.to_excel(writer, sheet_name='Data', index=False)
-                   df_standardizer_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+         if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
+             overrule_name = project_path.stem + '_flags.tsv'
+             print('Saving flags to ', str(path_to_datafile / overrule_name),'. Set Overrule to True if you wish to keep samples for further processing', sep=" ")
+             overruled_df = flagged_df[['Sample', 'Sample_URL', 'Flag'] + [column for column in flagged_df.columns if('Flag' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
+             overruled_df['Overrule'] = False
+             overruled_df = overruled_df.sort_values(by=['Flag'], ascending=True)
+             overruled_df.to_csv(str(path_to_datafile / overrule_name), sep='\t', index=False)
+             # Update standardizer spreadsheet with flagged samples path and save
+             df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
+             df_standardizer['Flag_path'][project_id] = str(path_to_datafile / overrule_name).replace(str(Path.home()),
+                                                                                                      '~')
+             print('Updating standardizer spreadsheet with path of flagged samples/profiles ID datafile')
+             df_standardizer['Project_ID'] = df_standardizer.index
+             df_standardizer = df_standardizer[['Project_ID'] + df_standardizer.columns[:-1].tolist()]
+             with pd.ExcelWriter(str(standardizer_path), engine="xlsxwriter") as writer:
+                 df_standardizer.to_excel(writer, sheet_name='Data', index=False)
+                 df_standardizer_metadata.to_excel(writer, sheet_name='Metadata', index=False)
 
          # Generate interactive project report
          fig = make_subplots(subplot_titles=['','','','Flag: 0 (bad flag), 1 (no flag)'],rows=3, cols=2,specs=[[{"type": "scattergeo","rowspan": 2}, {"type": "scatter",'t':0.05}],
@@ -610,7 +606,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
     else:
           flagged_samples =['']
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
-    path_files_list=list(path_to_data.glob('ecotaxa_export_{}*'.format(str(project_id))))
+    path_files_list=list(path_to_data.glob('ecotaxa_export_{}_*'.format(str(project_id))))
     path_files_list=[path for path in path_files_list if '_flag' not in str(path)]
     if len(path_files_list)>0: # Check for native format datafile
         # Load export tsv file
@@ -658,11 +654,23 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
 
         # Convert pixel to millimeter for upper/lower size
         if units_of_interest['Sampling_upper_size_unit'] == 'pixel':
-                df['Sampling_upper_size'] = df['Sampling_upper_size'] / (pixel_size_ratio ** 2)
+                df['Sampling_upper_size'] = df['Sampling_upper_size'] / (pixel_size_ratio.magnitude)
                 units_of_interest['Sampling_upper_size_unit'] = 'millimeter'
         if units_of_interest['Sampling_lower_size_unit'] == 'pixel':
-                df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio ** 2)
+                df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
                 units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
+        # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
+        camera_resolution = {'IFCB': {'Sampling_lower_size': 2000 / (20 * 5), 'Sampling_higher_size': 1360},
+                                 # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
+                                 'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_higher_size': 2048},
+                                 'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_higher_size': 1280},
+                                 'UVP6': {'Sampling_lower_size': 30, 'Sampling_higher_size': 2464},
+                                 'Zooscan': {'Sampling_lower_size': 7, 'Sampling_higher_size': 2400}}
+        with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                api_instance = projects_api.ProjectsApi(api_client)
+                api_response = api_instance.project_query(project_id)
+        df['Sampling_upper_size'] = np.where(df['Sampling_upper_size'].isna(),camera_resolution[api_response['instrument']]['Sampling_higher_size'] / pixel_size_ratio.magnitude * ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit']), df['Sampling_upper_size'])
+        df['Sampling_lower_size'] = np.where(df['Sampling_lower_size'].isna(),camera_resolution[api_response['instrument']]['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit']),df['Sampling_lower_size'])
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
