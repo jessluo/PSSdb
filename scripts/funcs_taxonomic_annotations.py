@@ -2,15 +2,16 @@
 
 ##Documentation: https://www.marinespecies.org/ (WORMS) and https://www.thepythoncode.com/article/extracting-and-submitting-web-page-forms-in-python (Python URL scraping)
 
-## Python modules:
+## Requirements: Downloading chrome and chromedriver (path on l. 37) for your system (https://chromedriver.storage.googleapis.com/index.html?path=103.0.5060.134/)
 
+## Python modules:
 # Modules for data and path handling:
 import pandas as pd
 import numpy as np
 from pathlib import Path  # Handling of path object
 import os
 
-# Modules for webpage handling:
+# Modules for webpage handling/scraping:
 import urllib3
 import re
 import string
@@ -19,32 +20,32 @@ from bs4 import BeautifulSoup
 import urllib
 from urllib.parse import urljoin
 from requests_html import HTMLSession
+# Selenium for web scraping: https://stackoverflow.com/questions/29385156/invoking-onclick-event-with-beautifulsoup-python
+# Download chromedriver at:https://chromedriver.storage.googleapis.com/index.html?path=103.0.5060.134/
+# Go in System Preferences > Security and Privacy > General > Allow
+from selenium import webdriver # Use: pip3 install -U selenium
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager # Use: pip3 install webdriver-manager
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+options=Options()
+options.add_argument("--headless") # Hidden windows
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+import os
+chromedriver = '/Users/dugennem/Downloads/chromedriver' # Local path to the chromedriver. Note: Deprecated
+#os.environ["webdriver.chrome.driver"] = chromedriver
+import time
 
-
-# Modules for EcoTaxa authentication and query:
-import ecotaxa_py_client
-from ecotaxa_py_client.api import objects_api
-from ecotaxa_py_client.api import projects_api
-from ecotaxa_py_client.model.project_filters import ProjectFilters
-from ecotaxa_py_client.api import authentification_api
-from ecotaxa_py_client.model.login_req import LoginReq
-from ecotaxa_py_client.api import taxonomy_tree_api
-from ecotaxa_py_client.model.taxon_model import TaxonModel
-
-import yaml # requires installation of PyYAML package
-path_to_config_usr=Path('scripts/Ecotaxa_API_pw.yaml').expanduser()
-  with open(path_to_config_usr ,'r') as config_file:
-    cfg_pw = yaml.safe_load(config_file)
-
-  with ecotaxa_py_client.ApiClient() as client:
-    api = authentification_api.AuthentificationApi(client)
-    token = api.login(LoginReq(username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']))
-
-configuration = ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api",access_token=token, discard_unknown_keys=True)
-
+# Modules for colors:
+import colorsys
+import seaborn as sns
+from colormap import rgb2hex
+import matplotlib
+import plotly
+import plotly.express as px # Use: pip install plotly==5.8.0
 
 ## Useful functions:
-# Retrieve hidden search/query (form) from URL
 def get_all_forms(url):
     """Returns all form tags found on a web page's `url` """
     with  HTMLSession() as session:
@@ -110,14 +111,41 @@ def get_form_inputs(form):
         elif input_tag["type"] != "submit":
             # all others except submit, prompt the user to set it
              value = input(f"Enter the value of the field '{input_tag['name']}' (type: {input_tag['type']}): ")
-            data[input_tag["name"]] = value
+             data[input_tag["name"]] = value
     return data
 
-# Return results (Rank, Phylum, Class, Genus, URL, Reference, Citation) of the form
-def get_form_hierarchy(hierarchy,form):
+# get attributes from the World Register of Marine Species
+def get_attributes_output(url,id): # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id='Trichodesmium')
+    """ This functions returns the xml table of the html response after click, given the click input id"""
+    attributes_soup=''
+    with webdriver.Chrome(chromedriver,options=options,keep_alive=False) as driver:#(service=Service(ChromeDriverManager().install()),keep_alive=False,options=options.add_argument("--window-size=1920,1200")) as driver:
+        driver.get(url) # 'https://www.marinespecies.org/aphia.php?p=search&adv=1'
+        driver.find_element(by='id',value='tName').send_keys(id) # ID
+        driver.find_elements(by='name', value='marine')[1].send_keys('(any)') # Marine taxa only
+        driver.find_elements(by='name', value='fossil')[1].send_keys('(any)')  # Fossil taxa only
+        driver.find_elements(By.XPATH, '//button')[-1].click() # Submit search queries
+        driver.get(driver.current_url+'#attributes')
+
+        if len(driver.find_elements(by='id', value='aphia_attributes_group_show')) > 0:
+            driver.find_element(by='id', value='aphia_attributes_group_show').click()  # Click to show attributes children
+            time.sleep(10)  # Wait 10 sec before getting the webpage and killing the session
+            attributes_soup = BeautifulSoup(driver.page_source, 'lxml')
+            driver.close()
+
+    return attributes_soup
+
+# Return results (Rank, Domain, Phylum, Class, Order, Family, Genus, Functional group, URL, Reference, Citation) of the form
+def get_form_hierarchy(hierarchy,url,form):
+ """
+ Objective: This functions returns the taxonomic informations of a given hierarchy stored in the World Register of Marine Species database (url)
+ :param hierarchy: Full hierarchy to be searched on url. Use > to separate different levels.
+ :param url: Path of the taxonomic database query (https://www.marinespecies.org/aphia.php?p=search)
+ :param form: Form containing the input(s) to be posted on the url
+ :return: dataframe with corresponding rank, domain, phylum, class, order, family, genus, functional group, Taxon url, reference, and citation
+ """
  with  HTMLSession() as session:
     hierarchy_levels = hierarchy.split('>')
-    df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy,'Full_hierarchy': '','Rank': '','Category': '','Domain': '','Phylum': '', 'Class': '','Order':'','Family':'','Genus': '','Functional_group': '','WORMS_ID': '','Reference': '','Citation': ''}, index=[0])
+    df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy,'Full_hierarchy': '','Rank': '','Type': '','Domain': '','Phylum': '', 'Class': '','Order':'','Family':'','Genus': '','Functional_group': '','WORMS_ID': '','Reference': '','Citation': ''}, index=[0])
     # Loop through hierarchy levels starting with the last level
     for level in hierarchy_levels[::-1]:
         data = {}
@@ -140,49 +168,74 @@ def get_form_hierarchy(hierarchy,form):
             res = session.get(url_search, params=data)
         # Transform form query into xml table and save results in dataframe
         soup = BeautifulSoup(res.html.html, "lxml")
-        if len(soup.find_all(class_="list-group-item"))==0: # If post result in a single page
+        if len(soup.find_all(class_="list-group-item"))==0: # If post results in a single page
             taxo_soup = BeautifulSoup(res.html.html, 'lxml')
             if len(taxo_soup.find_all(class_="alert alert-warning"))>0:
                 continue # Skip current level if hierarchy not found
-        else:
+            else:
+                attributes_soup = ''
+                if len([id.get('id') for id in taxo_soup.findAll('a',onclick=True) if id.get('id')=="aphia_attributes_group_show"])>0:#taxo_soup.findAll('a',onclick=True)[0].get('id')=="aphia_attributes_group_show":
+                    attributes_soup = get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=res.url.split('id=')[-1])#get_click_output(url=res.url + '#attributes',id="aphia_attributes_group_show")  # BeautifulSoup(driver.page_source, 'lxml')
+                    if 'No attributes found on lower taxonomic level' in  attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or 'Functional group' not in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText():
+                        attributes_soup = ''
+
+
+        else: # If post results in a list of taxa
             search_response = pd.DataFrame({'Taxon': [item.getText()  for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText()))==False],
                  'Link': [item.find('a').get('href')  for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText()))==False]})
 
             if len(search_response)==0:
                      continue # Skip current level if hierarchy not found
             if search_response.Taxon[0].split(' ')[0].lower() != level.lower():
-                     continue # Skip current level if hierarchy not found
+                     continue # Skip current level if search response different from level
             else:
-                     connection_webpage = requests.get(urljoin('https://www.marinespecies.org', search_response.Link[0]),data=data)
+                     connection_webpage = requests.get(urljoin(url, search_response.Link[0]),data=data)
                      taxo_soup = BeautifulSoup(connection_webpage.content, 'lxml')
                      if len(taxo_soup.find_all(class_="alert alert-warning"))>0:
-                         res = session.post(urljoin('https://www.marinespecies.org', search_response.Link[0]),data=data)
+                         res = session.post(urljoin(url, search_response.Link[0]),data=data)
                          soup = BeautifulSoup(res.html.html, "lxml")
                          taxo_soup = BeautifulSoup(res.html.html, 'lxml')
+                         attributes_soup = ''
+                         if len([id.get('id') for id in taxo_soup.findAll('a',onclick=True) if id.get('id')=="aphia_attributes_group_show"])>0:#taxo_soup.findAll('a',onclick=True)[0].get('id')=="aphia_attributes_group_show":
+                             attributes_soup =get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=connection_webpage.url.split('id=')[-1]) #get_click_output(url=connection_webpage.url + '#attributes',id="aphia_attributes_group_show")  # BeautifulSoup(driver.page_source, 'lxml')
+                             if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or 'Functional group' not in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText():
+                                 attributes_soup = ''
+
+                     else:
+                         attributes_soup =''
+                         if len([id.get('id') for id in taxo_soup.findAll('a',onclick=True) if id.get('id')=="aphia_attributes_group_show"])>0:
+                             attributes_soup = get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=connection_webpage.url.split('id=')[-1])#get_click_output(url=connection_webpage.url + '#attributes', id="aphia_attributes_group_show")  # BeautifulSoup(driver.page_source, 'lxml')
+                             if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or 'Functional group' not in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText():
+                                 attributes_soup = ''
+
 
         fields=[item.getText() if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label" )]
         Status=re.sub(r'[' + '\n' + '\xa0' + ']', '', taxo_soup.find_all(class_="leave_image_space")[fields.index('Status')].getText()) if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else ''
-        if 'unaccepted' in Status:  # Re-assign hierarchy level with accepted name if status in unaccepted
+        if len(re.findall(r'unaccepted|uncertain|unassessed', Status))>0:  # Re-assign hierarchy level with accepted name if status in unaccepted
             if 'Accepted Name' not in fields:
                 continue
             else:
-            level = re.sub(r'[' + '\n' + '\xa0' + ']', '', taxo_soup.find_all(class_="leave_image_space")[fields.index('Accepted Name')].getText()) if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else level
-            data['tName']=level
-            res = session.post(url_search, data=data)
-            # Transform form query into xml table and save results in dataframe
-            soup = BeautifulSoup(res.html.html, "lxml")
-            search_response = pd.DataFrame({'Taxon': [item.getText() for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed', item.getText())) == False],'Link': [item.find('a').get('href') for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False]})
-            if len(search_response)==0:
-                continue
-            else:
-            connection_webpage = requests.get(urljoin('https://www.marinespecies.org', search_response.Link[0]),data=data)
-            taxo_soup = BeautifulSoup(connection_webpage.content, 'lxml')
-            fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-warning")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
-
+                level = re.sub(r'[' + '\n' + '\xa0' + ']', '', taxo_soup.find_all(class_="leave_image_space")[fields.index('Accepted Name')].getText()) if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else level
+                data['tName']=level
+                res = session.post(url_search, data=data)
+                # Transform form query into xml table and save results in dataframe
+                soup = BeautifulSoup(res.html.html, "lxml")
+                search_response = pd.DataFrame({'Taxon': [item.getText() for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed', item.getText())) == False],'Link': [item.find('a').get('href') for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False]})
+                if len(search_response)==0:
+                   continue
+                else:
+                   connection_webpage = requests.get(urljoin(url, search_response.Link[0]),data=data)
+                   taxo_soup = BeautifulSoup(connection_webpage.content, 'lxml')
+                   attributes_soup = ''
+                   if taxo_soup.findAll('a',onclick=True)[0].get('id')=="aphia_attributes_group_show":
+                          attributes_soup = get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=connection_webpage.url.split('id=')[-1])#get_click_output(url=connection_webpage.url + '#attributes',id="aphia_attributes_group_show")  # BeautifulSoup(driver.page_source, 'lxml')
+                          if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or 'Functional group' not in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText():
+                                attributes_soup = ''
+                   fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-warning")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
 
         script =taxo_soup.find_all('script')
-        Functional_group=[item.getText()[item.getText().find('Functional group')+22:[sub.start() for sub in re.finditer('&nbsp',item.getText()) if sub.start()>item.getText().find('Functional group')+22][0]]  for item in script if 'Functional group' in item.getText()]
-        Category = np.where(taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n')[1] == 'Biota','Living', 'NA').tolist() if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else ''
+        Functional_group =[item.getText()[item.getText().find('Functional group') + 22:[sub.start() for sub in re.finditer('&nbsp', item.getText()) if sub.start() > item.getText().find('Functional group') + 22][0]] for item in script if 'Functional group' in item.getText()] if len(attributes_soup)==0 or [item.replace('Attributes assigned at lower taxonomic level','') for item in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText().split('\n') if 'Functional group' in item ][-1].replace('Functional group', '').strip()=='not applicable'  else [item.replace('Attributes assigned at lower taxonomic level','') for item in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText().split('\n') if 'Functional group' in item ][-1].replace('Functional group', '').strip()
+        Type = np.where(taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n')[1] == 'Biota','Living', 'NA').tolist() if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else ''
         dict_hierarchy = {re.sub(r'[' + string.punctuation + ']', '', level.split('\xa0')[1]): level.split('\xa0')[0] for level in taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n') if '\xa0' in level} if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else dict({'':''})
         full_hierarchy = '>'.join([level.split('\xa0')[0] + level.split('\xa0')[1] for level in taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n') if '\xa0' in level]) if len(taxo_soup.find_all(class_="alert alert-warning"))==0 else ''
         Domain = dict_hierarchy['Kingdom'] if 'Kingdom' in dict_hierarchy.keys() else ''
@@ -198,7 +251,7 @@ def get_form_hierarchy(hierarchy,form):
         df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy,
                                          'Full_hierarchy':full_hierarchy,
                                          'Rank': Rank,
-                                         'Category': Category,
+                                         'Type': Type,
                                          'Domain': Domain,
                                          'Phylum': Phylum,
                                          'Class': Class,
@@ -213,48 +266,30 @@ def get_form_hierarchy(hierarchy,form):
         break
     return df_hierarchy
 
+def taxon_color_palette(dataframe, levels, palette=px.colors.qualitative.T10):
+  if not all(pd.Series(levels).isin(dataframe.columns.values)):
+    return print(','.join(levels) + ' not found in dataframe')
+  else:
+    # Create/Remove colors from the palette to match the number of higher level categories
+    try:
+      pal = matplotlib.colors.LinearSegmentedColormap.from_list(name='palette', colors=palette,N=len(dataframe[levels.categories[0]].unique()))
+    except ValueError:
+      palette = [rgb2hex(int(re.sub("[^0-9]", "", rgb.split(',')[0])), int(re.sub("[^0-9]", "", rgb.split(',')[1])),
+                         int(re.sub("[^0-9]", "", rgb.split(',')[2]))) for rgb in palette]
+      pal = matplotlib.colors.LinearSegmentedColormap.from_list(name='palette', colors=palette, N=len(dataframe[levels.categories[0]].unique()))
 
-## Workflow starts here:
-#Retrieve fields of interest (including taxonomic hierarchies) in EcoTaxa projects
-# see: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#get_object_set
-fields_of_interest = "obj.orig_id,txo.id,txo.display_name,img.imgid,img.file_name,img.thumb_file_name,obj.depth_min"; colnames=['ROI_ID','ROI_Annotation_ID','ROI_Annotation','Image_ID','Image_filename','Thumb_filename','Depth']
-fields_of_interest = "txo.id,txo.display_name";colnames=['ROI_Annotation_ID','ROI_Annotation']
-with ecotaxa_py_client.ApiClient(configuration) as api_client:
-     api_project_instance=projects_api.ProjectsApi(api_client)
-     project=api_project_instance.search_projects(also_others=False, # Return visible projects with access rights
-                                                                   title_filter='', # Optional title project filter
-                                                                   instrument_filter='', # All instruments
-                                                                   order_field='projid' # Sorting variable. Use instrument or projid
-                                                                   )
-     project_list = list(map(lambda x: str(x.projid),project))
-     api_object_instance =  objects_api.ObjectsApi(api_client)
-     objects= api_object_instance.get_object_set(project_list[0],ProjectFilters(statusfilter="PVD"),fields=fields_of_interest)
-     df=pd.DataFrame(objects.details,columns=colnames).drop_duplicates()
-     for project in project_list[1:]:
-         objects = api_object_instance.get_object_set(project, ProjectFilters(statusfilter="PVD"),fields=fields_of_interest)
-         df = pd.concat([df,pd.DataFrame(objects.details, columns=colnames)],axis=0).drop_duplicates()
-     # df['ROI_ID']=df['ROI_ID'].apply(lambda x: ''.join(re.split('([0-9]+)', x)[0:-2]) + re.split('([0-9]+)', x)[-2].zfill(6))
-     api_taxo_instance = taxonomy_tree_api.TaxonomyTreeApi(api_client)
-     df['EcoTaxa_hierarchy'] = ['>'.join(api_taxo_instance.query_taxa(int(id)).lineage[::-1]) for id in df.ROI_Annotation_ID]
-     df = df.sort_values(by=['EcoTaxa_hierarchy'])
-
-# Retrieve the query form
-url='https://www.marinespecies.org/aphia.php?p=search'
-form=get_all_forms(url)[1]
-# Retrieve form's inputs and add specific taxonomic query based on current taxon categories
-form_details=get_form_details(form)
-# Loop through EcoTaxa hierarchy and merge to annotated taxonomy
-df_hierarchy=pd.DataFrame({})
-for hierarchy in df.EcoTaxa_hierarchy: #hierarchy=df.EcoTaxa_hierarchy[0]
-    print(hierarchy)
-    data = get_form_hierarchy(hierarchy, form=form_details)
-    # Update annotated taxonomy
-    df_hierarchy=pd.concat([df_hierarchy, data],axis=0)
-df_hierarchy=pd.merge(df[['ROI_Annotation','EcoTaxa_hierarchy']],df_hierarchy,on='EcoTaxa_hierarchy',how='right')
-df_hierarchy.columns=['Category']+df_hierarchy.columns[1:].tolist()
-df_hierarchy_metadata=pd.DataFrame({'Variables':df_hierarchy.columns,'Variable_types':df_hierarchy.dtypes,'Description':['Region of interest (object) annotation category','Full hierarchy of annotation category in EcoTaxa','Full taxonomic hierarchy of annotation category in World Register of Marine Species (WORMS)','Taxonomic rank of the annotation category in WORMS','Category of annotation category in EcoTaxa (e.g. Living)','Taxonomic domain/kingdom of the annotation category','Taxonomic phylum of the annotation category','Taxonomic class of the annotation category','Taxonomic order of the annotation category','Taxonomic family of the annotation category','Taxonomic genus of the annotation category', 'Functional group of the annotation category','Unique ID of the annotation category in the WORMS database','Reference for the annotation category description','Citation for the annotation category in WORMS']})
-path_to_data=Path(os.getcwd()).expanduser() / 'raw' / 'plankton_annotated_taxonomy.xlsx'
-with pd.ExcelWriter(str(path_to_data),engine="xlsxwriter") as writer:
-    df_hierarchy.to_excel(writer, sheet_name='Data', index=False)
-    df_hierarchy_metadata.to_excel(writer, sheet_name='Metadata', index=False)
-df=pd.read_excel(path_to_data)
+    hex_palette = sns.color_palette(pal(range(len(dataframe[levels.categories[0]].unique()))), len(dataframe[levels.categories[0]].unique())).as_hex()  # sns.color_palette(colors,len(melt_df_taxonomy.Group.unique())).as_hex()
+    # sns.palplot(hex_palette)
+    colors_dict = {level: hex_palette[index].upper() for index, level in enumerate(dataframe[levels.categories[0]].unique())}
+    for index, level in enumerate(levels):
+      if index == 0:
+        continue
+      else:
+        for category in dataframe[levels.categories[index]].unique():
+          sub_level = dataframe[dataframe[levels.categories[index]] == category][levels].drop_duplicates()[[levels.categories[index - 1]]].values[0][0]
+          new_pal = matplotlib.colors.LinearSegmentedColormap.from_list(name='subpalette',colors=[colors_dict[sub_level], '#FFFFFF'],
+                                                                        N=len(dataframe[dataframe[levels.categories[index - 1]] == sub_level][levels].drop_duplicates()[ levels.categories[index]].unique()) + 1)
+          hex_new_palette = sns.color_palette(new_pal(range(len(dataframe[dataframe[levels.categories[index - 1]] == sub_level][levels].drop_duplicates()[levels.categories[index]].unique()))), len(dataframe[dataframe[levels.categories[index - 1]] == sub_level][levels].drop_duplicates()[levels.categories[index]].unique())).as_hex()  # sns.color_palette(colors,len(melt_df_taxonomy.Group.unique())).as_hex()
+          # sns.palplot(hex_new_palette)
+          colors_dict.update({taxon: hex_new_palette[i].upper() for i, taxon in enumerate(dataframe[dataframe[levels.categories[index - 1]] == sub_level][levels].drop_duplicates()[levels.categories[index]].unique())})
+  return colors_dict

@@ -31,7 +31,7 @@ path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().pa
 # Download high resolution countries shapefile
 import requests
 if path_to_zip.with_suffix('').is_dir()==False:
- with requests.Session() as sess:
+  with requests.Session() as sess:
     url = 'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
     rsp = sess.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',}, stream=True)
     with open(path_to_zip, "wb") as fd:
@@ -64,6 +64,8 @@ from ecotaxa_py_client.model.project_filters import ProjectFilters
 path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
+
+
 
 with ecotaxa_py_client.ApiClient() as client:
     api = authentification_api.AuthentificationApi(client)
@@ -370,6 +372,7 @@ def flag_func(dataframe):
     dataframe['Flag']=dataframe[[column for column in dataframe.columns if 'Flag_' in column]].prod(axis=1) # Default is 0, aka no anomaly
     return dataframe
 #filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_UVP_standardizer.xlsx',project_id=560,report_path='~/GIT/PSSdb_LOV/Reports')
+
 def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
     """
     Objective: This function adds flags to image samples based on multiple criteria and automatically generate a report for a given project
@@ -567,7 +570,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
         print('No project datafile found.')
 
 # Function (4): Perform EcoTaxa export files standardization and harmonization based on standardizer spreadsheets
-#standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_IFCB_standardizer.xlsx',project_id=3324)
+#standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_UVP_standardizer.xlsx',project_id=22)
 def standardization_func(standardizer_path,project_id,plot='diversity'):
     """
        Objective: This function uses the instrument-specific standardizer spreadsheet to standardize variable names and units
@@ -585,8 +588,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         print('Project ID is not included in standardizer. Quitting')
         return
     if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','IFCB','UVP']:
-            print('Standardization only applies to Zooscan, IFCB, and UVP projects. Quitting')
-            return
+        print('Standardization only applies to Zooscan, IFCB, and UVP projects. Quitting')
+        return
 
     # Retrieve fields to standardize in standardizer (indicated by variable_field)
     columns_for_description = dict(zip([item.split(':', 1)[0].capitalize() for item in df_standardizer.loc[project_id]['Sampling_description'].split(';')],[eval(re.sub(r'(\w+)', r'"\1"', item.split(':', 1)[1])) for item in df_standardizer.loc[project_id]['Sampling_description'].split(';')])) if str(df_standardizer.loc[project_id]['Sampling_description']) != 'nan' else df_standardizer.loc[project_id]['Sampling_description']
@@ -633,7 +636,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         # Append method description
         additional_description = ' '.join([':'.join([additional_key, columns_for_description[additional_key]]) for additional_key in columns_for_description.keys() if additional_key not in fields_for_description.index]) if type(columns_for_description) == dict else []
         if (len(fields_for_description.index)>0) or (len(additional_description) > 0):
-            df=df.assign(Sampling_description=columns_for_description[additional_description]+' ' + df_method[fields_for_description.index].apply(' '.join, axis=1) if len(additional_description) > 0 else df_method[fields_for_description.index].apply(' '.join, axis=1) )
+            df=df.assign(Sampling_description=additional_description+' ' + df_method[fields_for_description.index].apply(' '.join, axis=1) if len(additional_description) > 0 else df_method[fields_for_description.index].apply(' '.join, axis=1) )
         else:
             df=df.assign(Sampling_description=columns_for_description)
         # Set missing values to NA
@@ -868,11 +871,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
             title={'text': 'Cruise:' + str(df_standardized["Cruise"].values[0]).capitalize(),
                    'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
             xaxis={'title': 'Sample ID', 'nticks': 2, 'tickangle': 0, 'tickfont': dict(size=10),'titlefont': dict(size=12)},
-            xaxis2={'title': u'Equivalent circular diameter (\u03BCm)', 'tickfont': dict(size=10), 'titlefont': dict(size=12),
-                 "tickvals": np.sort(np.concatenate(np.arange(1,10).reshape((9,1))*np.power(10, np.arange(0, np.ceil(np.log10(nbss['bin_gmean'].max())), 1)))).tolist(),
-                 'ticktext': [size if (size/np.power(10,np.ceil(np.log10(size))))==1  else '' for size in np.sort(np.concatenate(np.arange(1,10).reshape((9,1))*np.power(10, np.arange(0, np.ceil(np.log10(nbss['bin_gmean'].max())), 1))))]},
             yaxis={"tickmode": "array",'title': 'Variable selected in <br> dropdown menu ', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
-            yaxis2={"tickmode": "array",'title': u'Normalized Biomass Size Spectrum <br> (\u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3)', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
             boxmode='group')
         fig.update_yaxes(type="log", row=1, col=2)
         fig.update_yaxes(type="log", row=2, col=2)

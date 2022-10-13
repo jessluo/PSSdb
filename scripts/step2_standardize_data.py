@@ -4,14 +4,14 @@
 
 ## Python modules
 
-# Path modules
-from pathlib import Path # Handling of path object
+## Path modules
+from pathlib import Path
 import os
 
-# Data handling
+## Data handling
 import pandas as pd
 
-# standardization functions
+## standardization functions
 from funcs_project_standardizer import *
 
 # Workflow starts here:
