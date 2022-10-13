@@ -401,6 +401,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}bin?dataset={}&bin={}'.format(df_standardizer['Project_source'][project_id],df['Cruise'][0],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'] else ''
 
          # Creating flags overruling datafile that will be read to filter samples out during standardization
+         path_to_datafile = project_path.parent.parent / 'Flags'
+         path_to_datafile.mkdir(parents=True, exist_ok=True)
          if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
              overrule_name = project_path.stem + '_flags.tsv'
              print('Saving flags to ', str(path_to_datafile / overrule_name),'. Set Overrule to True if you wish to keep samples for further processing', sep=" ")
