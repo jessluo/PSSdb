@@ -604,7 +604,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
     # Retrieve flagged samples/profiles
     if str(df_standardizer.loc[project_id]['Flag_path'])!='nan':
           df_flagged=pd.read_table(df_standardizer.loc[project_id]['Flag_path'])
-          flagged_samples=df_flagged.query('Flag==0 & Overrule==False')['Sample'].tolist() if len(df_flagged.query('Flag==0 & Overrule==False'))>0 else ['']
+          flagged_samples=df_flagged.query('(Flag==0 & Overrule==False) or (Flag==1 & Overrule==True)')['Sample'].tolist() if len(df_flagged.query('(Flag==0 & Overrule==False) or (Flag==1 & Overrule==True)'))>0 else ['']
     else:
           flagged_samples =['']
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
@@ -662,17 +662,25 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
                 df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
                 units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
         # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
-        camera_resolution = {'IFCB': {'Sampling_lower_size': 2000 / (20 * 5), 'Sampling_higher_size': 1360},
-                                 # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
-                                 'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_higher_size': 2048},
-                                 'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_higher_size': 1280},
-                                 'UVP6': {'Sampling_lower_size': 30, 'Sampling_higher_size': 2464},
-                                 'Zooscan': {'Sampling_lower_size': 7, 'Sampling_higher_size': 2400}}
+        camera_resolution = {'IFCB': {'Sampling_lower_size': 2000 / (20 * 5), 'Sampling_upper_size': 1360},
+                             # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
+                             'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
+                             'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
+                             'UVP6': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2464},
+                             'Zooscan': {'Sampling_lower_size': 7, 'Sampling_upper_size': 2400}}
         with ecotaxa_py_client.ApiClient(configuration) as api_client:
-                api_instance = projects_api.ProjectsApi(api_client)
-                api_response = api_instance.project_query(project_id)
-        df['Sampling_upper_size'] = np.where(df['Sampling_upper_size'].isna(),camera_resolution[api_response['instrument']]['Sampling_higher_size'] / pixel_size_ratio.magnitude * ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit']), df['Sampling_upper_size'])
-        df['Sampling_lower_size'] = np.where(df['Sampling_lower_size'].isna(),camera_resolution[api_response['instrument']]['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit']),df['Sampling_lower_size'])
+            api_instance = projects_api.ProjectsApi(api_client)
+            api_response = api_instance.project_query(project_id)
+        if 'Sampling_upper_size' not in df.columns:
+            df['Sampling_upper_size'] = np.nan
+            units_of_interest['Sampling_upper_size_unit'] = 'micrometer'
+        if 'Sampling_lower_size' not in df.columns:
+            df['Sampling_lower_size'] = np.nan
+            units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
+        if len(df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])])>0:
+            df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])] = (camera_resolution[api_response['instrument']]['Sampling_upper_size']/pixel_size_ratio.magnitude)*ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit'])
+        if len(df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])])>0:
+            df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[api_response['instrument']]['Sampling_lower_size'] / (pixel_size_ratio.magnitude**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
@@ -740,6 +748,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         # Map, left panel
         df_standardized['Profile']= df_standardized['Profile'].astype(str) # Required to pass groupby if missing
         df_standardized['Station'] = df_standardized['Station'].astype(str)# Required to pass groupby if missing
+        df_standardized['Sample'] = df_standardized['Sample'].astype(str)  # Required to pass groupby if missing
+
         summary_df_standardized=df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged','Depth_min','Depth_max'],dropna=True).apply(lambda x: pd.Series({'Count':x.ROI.count(),'Abundance': x.ROI.count() / ( x.Volume_analyzed.unique()[0]), # individuals per liter
                                                                                                                                                                        'Average_diameter':np.nanmean(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean(x.ESD), # micrometer
                                                                                                                                                                        'Std_diameter':np.nanstd(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(x.ESD)})).reset_index()
