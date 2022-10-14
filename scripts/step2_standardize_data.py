@@ -24,11 +24,11 @@ for standardizer in standardizer_files:
         # Flagging project
         report_file='report_project_'+str(project)+'.html'
         report_path=path_to_standardizer.parent / 'reports' / str(df_standardizer.loc[project]['Instrument']) / report_file
-
         if report_path.is_file()==False:
-
+           try:
               filling_standardizer_flag_func(standardizer_path=standardizer, project_id=int(project),report_path=report_path.parent)
-
+           except:
+               print('Skipping flagging of project ',str(project),sep='')
         else:
             pass
 
