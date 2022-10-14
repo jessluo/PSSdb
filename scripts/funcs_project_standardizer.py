@@ -346,7 +346,7 @@ def flag_func(dataframe):
         # gdf=unary_union(gdf.geometry.tolist())
         gdf['Flag_GPSonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
         dataframe['Flag_GPSonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPSonland']==True]['Sample'].tolist()),0,1)
-        # Calculate count uncertainties assuming Poisson distribution. Upper-lower count limit are based on 0.05% uncertainty
+        # Calculate count uncertainties assuming Poisson distribution. Upper-lower count limit are based on 5% uncertainty
         summary=dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI))})).reset_index()
         # kwargs={'mapping':'x:Sample,y:ROI_count,ymin:Count_lower,ymax:Count_upper','scale_y_log10()':'','theme(axis_text_x=element_blank())':''}
         # ggplot_funcs(dataframe=summary,output_path='~/GIT/PSSdb_LOV_orga/Plots/EcoTaxa_3315_count_uncertainty.png',xlab='Sample ID',ylab='Number of pictures per sample',geom='geom_pointrange',**kwargs)
@@ -573,7 +573,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
         print('No project datafile found.')
 
 # Function (4): Perform EcoTaxa export files standardization and harmonization based on standardizer spreadsheets
-#standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_UVP_standardizer.xlsx',project_id=22)
+#standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_IFCB_standardizer.xlsx',project_id=2248)
 def standardization_func(standardizer_path,project_id,plot='diversity'):
     """
        Objective: This function uses the instrument-specific standardizer spreadsheet to standardize variable names and units
@@ -668,7 +668,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
                 df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
                 units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
         # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
-        camera_resolution = {'IFCB': {'Sampling_lower_size': 2000 / (20 * 5), 'Sampling_upper_size': 1360},
+        camera_resolution = {'IFCB': {'Sampling_lower_size':1000* (2000 / (20 * 5)), 'Sampling_upper_size': 1360},
                              # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
                              'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
                              'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
@@ -708,6 +708,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
                        Biovolume=1e09*(df.Biovolume*[1*ureg(units_of_interest['Biovolume_unit']).to(ureg.cubic_pixel).magnitude for ntimes in range(df[['Biovolume']].shape[1])]/((np.vstack([pixel_size_ratio**3 for ntimes in range(df[['Biovolume']].shape[1])]).T)[0,:])) if all(pd.Series(['Biovolume','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
                        Minor_axis=1e03*(df.Minor_axis*[1*ureg(units_of_interest['Minor_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Minor_axis']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['Minor_axis']].shape[1])]).T)[0,:])) if all(pd.Series(['Minor_axis','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
                        ESD=1e03*(df.ESD*[1*ureg(units_of_interest['ESD_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['ESD']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['ESD']].shape[1])]).T)[0,:])) if all(pd.Series(['ESD','Pixel']).isin(df.columns)) else pd.NA, # micrometers
+                       Sampling_type=df.Sampling_type if 'Sampling_type' in df.columns else pd.NA,
                        Sampling_lower_size=list(df.Sampling_lower_size)*ureg(units_of_interest['Sampling_lower_size_unit']).to(ureg.micrometer) if 'Sampling_lower_size' in df.columns else pd.NA, # micrometer
                        Sampling_upper_size=list(df.Sampling_upper_size)*ureg(units_of_interest['Sampling_upper_size_unit']).to(ureg.micrometer) if 'Sampling_upper_size' in df.columns else pd.NA # micrometer
                        )
