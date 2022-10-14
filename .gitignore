@@ -3,7 +3,7 @@ __pycache__
 *.pyc
 .idea
 Ecotaxa_API_pw.yaml
-raw/API
+raw/ecotaxa
 raw/raw_standardized
 figures/Standardizer
 figures/*.html

@@ -331,7 +331,8 @@ def flag_func(dataframe):
     dataframe['Flag_missing']=1
     index_flag=pd.isnull(dataframe).any(1).to_numpy().nonzero()[0]
     dataframe.loc[index_flag,'Flag_missing']=0
-    dataframe['Missing_field'] = pd.isnull(dataframe).apply(lambda x: '_'.join(x.index[x == True].tolist()), axis=1)
+    dataframe['Missing_field'] =''
+    dataframe['Missing_field'] = pd.isnull(dataframe).apply(lambda x: ';'.join(x.index[x == True].tolist()), axis=1)
 
     # Flag #3: low ROI count
     if 'Sample' not in dataframe.columns and 'Profile' in dataframe.columns:
@@ -371,7 +372,7 @@ def flag_func(dataframe):
 
     dataframe['Flag']=dataframe[[column for column in dataframe.columns if 'Flag_' in column]].prod(axis=1) # Default is 0, aka no anomaly
     return dataframe
-#filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_UVP_standardizer.xlsx',project_id=560,report_path='~/GIT/PSSdb_LOV/Reports')
+#filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_UVP_standardizer.xlsx',project_id=110,report_path='~/GIT/PSSdb_LOV/Reports')
 
 def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
     """
@@ -403,7 +404,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
          flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}bin?dataset={}&bin={}'.format(df_standardizer['Project_source'][project_id],df['Cruise'][0],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'] else ''
 
-         # Creating flags overruling datafile that will be read to filter samples out during standardization
+         # Generating flags overruling datafile that will be read to filter samples out during standardization
          path_to_datafile = project_path.parent.parent.parent / 'flags' / project_path.parent.stem
          path_to_datafile.mkdir(parents=True, exist_ok=True)
          if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
@@ -424,7 +425,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  df_standardizer.to_excel(writer, sheet_name='Data', index=False)
                  df_standardizer_metadata.to_excel(writer, sheet_name='Metadata', index=False)
 
-         # Generate interactive project report
+         # Generating interactive project report
          fig = make_subplots(subplot_titles=['','','','Flag: 0 (bad flag), 1 (no flag)'],rows=3, cols=2,specs=[[{"type": "scattergeo","rowspan": 2}, {"type": "scatter",'t':0.05}],
                                               [None, {"type": "scatter",'b':0.05}],
                                               [{"type":'table',"colspan": 2},None]]
@@ -434,12 +435,12 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          if 'Category' not in df.columns:
              flagged_df['Category']=''
              flagged_df['Annotation']='unclassified'
-         summary_df = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if 'Flag' in column], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI),'Artefacts_percentage':len(x[x['Category'].isin(['bead', 'bubble', 'artefact'])].ROI) / len(x.ROI)})).reset_index()
+         summary_df = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI),'Artefacts_percentage':len(x[x['Category'].isin(['bead', 'bubble', 'artefact'])].ROI) / len(x.ROI)})).reset_index()
          summary_df['Sample_URL'] = summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
          subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPSonland==0, 'red','black')
          subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample,ordered=True)
-         gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
+         #gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
          if len(subset_summary_df[subset_summary_df.Flag_GPSonland == 1]) > 0:
              # Definition of the zoomed (geo2) and inset (geo) maps
              sub_data=subset_summary_df[subset_summary_df.Flag_GPSonland == 1]
@@ -488,14 +489,15 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
                                   y=subset_summary_df.ROI_count,
                                   error_y=dict(type="data",array=subset_summary_df.Count_error,width=0, thickness=0.1,color=subset_summary_df.colors.values[0]),
-                                  hovertext="Sample ID: " + subset_summary_df.Sample.astype(str), hoverinfo="text",
+                                  hovertext="Sample ID: " + subset_summary_df.Sample.astype(str) + '<br>ROI imaged: '+subset_summary_df.ROI_count.astype(str),
+                                  hoverinfo="none",
                                   marker=dict(size=3.5, color='black'),
                                   mode='markers',showlegend=False, visible=True), row=1, col=2)
          if len(subset_summary_df[subset_summary_df.Flag_count == 1]) > 0:
                 fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_count==1].Sample,
                              y=subset_summary_df[subset_summary_df.Flag_count==1].ROI_count,
                              error_y=dict(type="data",array=subset_summary_df[subset_summary_df.Flag_count==1].Count_error,width=0,thickness=0.1,color=subset_summary_df[subset_summary_df.Flag_count==1].colors.values[0]),
-                             hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==1].Sample.astype(str), hoverinfo="none",
+                             hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==1].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==1].ROI_count.astype(int).astype(str), hoverinfo="text",
                              marker=dict(size=3.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==1].colors, width=2)), mode='markers',
                              showlegend=False, visible=True), row=1, col=2)
          if len(subset_summary_df[subset_summary_df.Flag_count==0]) > 0:
@@ -503,22 +505,22 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                                  x=subset_summary_df[subset_summary_df.Flag_count==0].Sample,
                                  y=subset_summary_df[subset_summary_df.Flag_count==0].ROI_count,
                                  error_y=dict(type="data", array=subset_summary_df[subset_summary_df.Flag_count==0].Count_error,width=0,thickness=0.1,color=subset_summary_df[subset_summary_df.Flag_count==0].colors.values[0]),
-                                 hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==0].Sample.astype(str), hoverinfo="none",
+                                 hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==0].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==0].ROI_count.astype(int).astype(str), hoverinfo="text",
                                  marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==0].colors,width=2)), mode='markers',showlegend=True, visible=True), row=1, col=2)
          # Scatterplot 2, middle-right panel: Percentage of artefacts
          subset_summary_df['colors'] = np.where(subset_summary_df.Flag_artefacts == 0, 'rgba(212,85,0,0.6)','black')  # High percentage of artefacts
          fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
                                   name='Percentage of validation',
                                   y=subset_summary_df.Validation_percentage,
-                                  hovertext="Sample ID: " + subset_summary_df.Sample.astype(str),
+                                  hovertext="Sample ID: " + subset_summary_df.Sample.astype(str)+'<br>% of validation: '+np.round(100*subset_summary_df.Validation_percentage,1).astype(str)+'%',
                                   hoverinfo="text", marker=dict(color='black'), mode='lines',
                                   showlegend=True, visible=True), row=2, col=2)
 
          if len(subset_summary_df[subset_summary_df.Flag_artefacts == 1]) > 0:
             fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample,
                              y=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Artefacts_percentage,
-                             hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample.astype(str),
-                             hoverinfo="none",
+                             hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample.astype(str)+'<br>% of artefacts: '+np.round(100*subset_summary_df[subset_summary_df.Flag_artefacts == 1].Artefacts_percentage,1).astype(str)+'%',
+                             hoverinfo="text",
                              marker=dict(size=3.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_artefacts == 1].colors, width=2)),
                              mode='markers',
                              showlegend=False, visible=True), row=2, col=2)
@@ -527,10 +529,11 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
             fig.add_trace(go.Scatter(name='High percentage of artefacts<br>(Flag_artefacts)',
                                      x=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample,
                                      y=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Artefacts_percentage,
-                                     hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample.astype(str), hoverinfo="text",
+                                     hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample.astype(str)+'<br>% of artefacts: '+np.round(100*subset_summary_df[subset_summary_df.Flag_artefacts == 0].Artefacts_percentage,1).astype(str)+'%', hoverinfo="text",
                                      marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_artefacts == 0].colors, width=2)),
                                      mode='markers', showlegend=True, visible=True), row=2, col=2)
          # Table
+         summary_df['Flag_missing']=summary_df.apply(lambda x :str(x.Flag_missing)+' ('+x.Missing_field+')' if x.Flag_missing==0 else x.Flag_missing,axis=1)
          fig.add_trace(go.Table(header=dict(values=['Sample/Profile ID<br>']+[column+'<br>' for column in summary_df.columns if 'Flag' in column],align=np.repeat('center',1+len([column for column in summary_df.columns if 'Flag' in column])),
                                        line_color='rgba(255,255,255,0)',fill_color='rgba(255,255,255,0)'),
                            cells=dict(values=summary_df[summary_df.Flag==0][['Sample_URL']+[column for column in summary_df.columns if 'Flag' in column]].T)), row=3, col=1)
@@ -562,7 +565,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          fig.for_each_xaxis(lambda x: x.update(showgrid=False))
          fig.for_each_yaxis(lambda x: x.update(showgrid=False))
          Path(report_path).expanduser().mkdir(parents=True, exist_ok=True)
-         report_filename='Report_project_'+str(project_id)+'.html'
+         report_filename='report_project_'+str(project_id)+'.html'
          path_to_report=Path(report_path).expanduser()/report_filename
          fig.write_html(path_to_report)
          print('Saving cruise report to', path_to_report, sep=' ')

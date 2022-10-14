@@ -13,8 +13,8 @@ raw_dir : '~/GIT/PSSdb/raw/'
 #IFCB dashboard directory:
 IFCB_dir : '~/GIT/PSSdb/raw/IFCB_dashboard_downloads/'
 
-# API download Storage sub-direcotry (API/Instrument)
-dataset_subdir : 'raw/API'
+# EcoTaxa download Storage sub-directory (ecotaxa/Instrument)
+dataset_subdir : 'raw/ecotaxa'
 
 #standadrized datasets storage sub-subdirectory
 standardized_subdir : 'raw/raw_standardized'
