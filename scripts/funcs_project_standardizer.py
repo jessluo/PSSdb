@@ -372,8 +372,8 @@ def flag_func(dataframe):
 
     dataframe['Flag']=dataframe[[column for column in dataframe.columns if 'Flag_' in column]].prod(axis=1) # Default is 0, aka no anomaly
     return dataframe
-#filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_UVP_standardizer.xlsx',project_id=110,report_path='~/GIT/PSSdb_LOV/Reports')
 
+#filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb_LOV/Reports')
 def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
     """
     Objective: This function adds flags to image samples based on multiple criteria and automatically generate a report for a given project
@@ -393,22 +393,22 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          df=pd.read_table(project_path,usecols=df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna())
          old_columns=df.columns
          df.columns=[df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna()[df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna()==column].index[0].replace('_field','') for column in df.columns]
-         print('Performing project {} control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPSonland: GPS coordinates on land\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(0:flag, 1:no flag)'.format(str(project_id)))
+         # Append flags
          flagged_df=flag_func(df)
          # Adding URL to check flagged samples
          # Query EcoTaxa API to retrieve samples ID
-
-         with ecotaxa_py_client.ApiClient(configuration) as api_client:
-            api_instance = samples_api.SamplesApi(api_client)
-            samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
-         flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
+         if (df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id)):
+             with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                 api_instance = samples_api.SamplesApi(api_client)
+                 samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
+             flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
          flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}bin?dataset={}&bin={}'.format(df_standardizer['Project_source'][project_id],df['Cruise'][0],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'] else ''
 
          # Generating flags overruling datafile that will be read to filter samples out during standardization
          path_to_datafile = project_path.parent.parent.parent / 'flags' / project_path.parent.stem
          path_to_datafile.mkdir(parents=True, exist_ok=True)
          if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
-             overrule_name = project_path.stem + '_flags.tsv'
+             overrule_name ='project_{}_flags.tsv'.format(str(project_id))
              print('Saving flags to ', str(path_to_datafile / overrule_name),'. Set Overrule to True if you wish to keep samples for further processing', sep=" ")
              overruled_df = flagged_df[['Sample', 'Sample_URL', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
              overruled_df['Overrule'] = False
@@ -439,7 +439,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          summary_df['Sample_URL'] = summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
          subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPSonland==0, 'red','black')
-         subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample,ordered=True)
+         subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample.unique(),ordered=True)
          #gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
          if len(subset_summary_df[subset_summary_df.Flag_GPSonland == 1]) > 0:
              # Definition of the zoomed (geo2) and inset (geo) maps
@@ -459,10 +459,11 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
              #go.Figure(data=[data_geo, data_geo], layout=layout)
              fig.add_trace(data_geo, row=1,col=1).update_layout(go.Figure(data=[data_geo, data_geo], layout=layout).layout,margin={"r":0,"t":0,"l":0,"b":0})
+             fig.layout['geo'] = layout['geo']
              data_geo.update({'geo': 'geo2','showlegend':False}) # Update geo trace before adding the zoomed
              fig.add_trace(data_geo, row=1, col=1)
-             fig.data[0]['geo'] = 'geo2' # Need to update geo trace manually
-
+             fig.data[len(fig.data)-1]['geo'] = 'geo2' # Need to update geo trace manually
+             fig.layout['geo2'] = layout['geo2']
          if len(subset_summary_df[subset_summary_df.Flag_GPSonland==0])>0:
              sub_data = subset_summary_df[subset_summary_df.Flag_GPSonland == 0]
              data_geo = dict(type='scattergeo',
@@ -472,18 +473,20 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                              hovertext='Sample ID: ' + sub_data.Sample.astype(str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
                              hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)), geojson="natural earth", showlegend=True,geo='geo')
              layout = dict()
-             layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude),lat=np.nanmean(sub_data.Latitude), roll=0),
-                                   center=dict(lon=np.nanmean(sub_data.Longitude),lat=np.nanmean(sub_data.Latitude)),
-                                   projection_type='orthographic', lataxis_range=[-90,90], lonaxis_range=[-180, 180],
-                                   domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
-             layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],
-                                  domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
+             layout['geo2'] = dict(
+                 projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude),roll=0),
+                 center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
+                 projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
+                 domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
+             layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
+
              # go.Figure(data=[data_geo, data_geo], layout=layout)
              fig.add_trace(data_geo, row=1, col=1)
+             fig.layout['geo']=layout['geo']
              data_geo.update({'geo': 'geo2', 'showlegend': False})  # Update geo trace before adding the zoomed
              fig.add_trace(data_geo, row=1, col=1)
-             fig.data[2]['geo'] = 'geo2'  # Need to update geo trace manually
-
+             fig.data[len(fig.data)-1]['geo'] = 'geo2'  # Need to update geo trace manually
+             fig.layout['geo2'] = layout['geo2']
          # Scatterplot 1, top-right panel: Count per sample
          subset_summary_df['colors'] = np.where(subset_summary_df.Flag_count==0, 'rgba(0,0,255,0.4)', 'black') # Low ROI count
          fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
@@ -736,10 +739,10 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         # Save standardized dataframe
         path_to_standard_dir = path_to_data.parent.parent / 'raw_standardized' / path_to_data.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
-        path_to_standard_file=path_to_standard_dir / 'standardized_export_{}.tsv'.format(str(project_id))
-        path_to_metadata_standard=path_to_standard_dir / 'standardized_export_{}_metadata.tsv'.format(str(project_id))
-        path_to_standard_plot = path_to_data.parent.parent.parent / 'figures' / 'Standardizer' / 'standardized_export_{}.html'.format(str(project_id))
-
+        path_to_standard_file=path_to_standard_dir / 'standardized_project_{}.tsv'.format(str(project_id))
+        path_to_metadata_standard=path_to_standard_dir / 'standardized_project_{}_metadata.tsv'.format(str(project_id))
+        path_to_standard_plot = path_to_data.parent.parent.parent / 'figures' / 'standardizer' / path_to_data.stem / 'standardized_project_{}.html'.format(str(project_id))
+        path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
         print('Saving standardized datafile to',path_to_standard_file,sep=' ')
         #with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
         df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
