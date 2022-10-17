@@ -99,7 +99,7 @@ with requests.Session() as sess:
 
 # prepare storage based on project list  stored in the yaml config file and instrument type
 path_to_data = Path(cfg['git_dir']).expanduser() / cfg['dataset_subdir']
-project_list=pd.read_excel(path_to_data.parent / cfg['proj_list'],sheet_name="Data",usecols=['Project_ID','Instrument','PSSdb_access','Project_test'])
+project_list=pd.read_excel(path_to_data.parent / Path(cfg['proj_list']).name,sheet_name="Data",usecols=['Project_ID','Instrument','PSSdb_access','Project_test'])
 project_ids = project_list[project_list['PSSdb_access']==True].Project_ID.unique().astype(str)#str(cfg['proj_id'])
 project_inst=project_list[project_list['PSSdb_access']==True].Instrument.unique().astype(str)
 
