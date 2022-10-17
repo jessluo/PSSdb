@@ -393,8 +393,34 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          df=pd.read_table(project_path,usecols=df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna())
          old_columns=df.columns
          df.columns=[df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna()[df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna()==column].index[0].replace('_field','') for column in df.columns]
+         # Set missing values to NA
+         na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
+
+         # converter function: Reformat the na values to match the type of individual columns
+         def is_float(na) -> bool:
+             try:
+                 float(na)
+                 return True if na != 'nan' else False
+             except ValueError:
+                 return False
+
+         def convert(na, type):
+             try:
+                 return str(pd.DataFrame({'NA': na}, index=[0]).NA.astype(type)[0])
+             except ValueError:
+                 str(na)
+
+         df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
+         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
+         df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
+
          # Append flags
          flagged_df=flag_func(df)
+         # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
+         flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in x.split(';'))).all() else x)
+         flagged_df.loc[flagged_df['Missing_field'] == '', 'Flag_missing'] = 1
+         flagged_df['Flag'] = flagged_df[[column for column in flagged_df.columns if 'Flag_' in column]].prod(axis=1)
+
          # Adding URL to check flagged samples
          # Query EcoTaxa API to retrieve samples ID
          if (df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id)):
@@ -409,15 +435,14 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          path_to_datafile.mkdir(parents=True, exist_ok=True)
          if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
              overrule_name ='project_{}_flags.tsv'.format(str(project_id))
-             print('Saving flags to ', str(path_to_datafile / overrule_name),'. Set Overrule to True if you wish to keep samples for further processing', sep=" ")
+             print('Saving flags to', str(path_to_datafile / overrule_name),'\nSet Overrule to True if you wish to keep samples for further processing', sep=" ")
              overruled_df = flagged_df[['Sample', 'Sample_URL', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
              overruled_df['Overrule'] = False
              overruled_df = overruled_df.sort_values(by=['Flag'], ascending=True)
              overruled_df.to_csv(str(path_to_datafile / overrule_name), sep='\t', index=False)
              # Update standardizer spreadsheet with flagged samples path and save
              df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
-             df_standardizer['Flag_path'][project_id] = str(path_to_datafile / overrule_name).replace(str(Path.home()),
-                                                                                                      '~')
+             df_standardizer['Flag_path'][project_id] = str(path_to_datafile / overrule_name).replace(str(Path.home()), '~')
              print('Updating standardizer spreadsheet with path of flagged samples/profiles ID datafile')
              df_standardizer['Project_ID'] = df_standardizer.index
              df_standardizer = df_standardizer[['Project_ID'] + df_standardizer.columns[:-1].tolist()]
@@ -538,7 +563,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          # Table
          summary_df['Flag_missing']=summary_df.apply(lambda x :str(x.Flag_missing)+' ('+x.Missing_field+')' if x.Flag_missing==0 else x.Flag_missing,axis=1)
          fig.add_trace(go.Table(header=dict(values=['Sample/Profile ID<br>']+[column+'<br>' for column in summary_df.columns if 'Flag' in column],align=np.repeat('center',1+len([column for column in summary_df.columns if 'Flag' in column])),
-                                       line_color='rgba(255,255,255,0)',fill_color='rgba(255,255,255,0)'),
+                                       line_color='rgba(255,255,255,0)',fill_color='rgba(255,255,255,1)'),
                            cells=dict(values=summary_df[summary_df.Flag==0][['Sample_URL']+[column for column in summary_df.columns if 'Flag' in column]].T)), row=3, col=1)
          # Update subplot domains for small table
          if len(summary_df[summary_df.Flag==0][['Sample_URL']])<8: # scrolling threshold
@@ -558,8 +583,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                 xaxis={'title': '', 'showticklabels':False, 'tickfont':dict(size=10), 'titlefont':dict(size=12)},
                 xaxis2={'title': 'Sample ID', 'nticks': 3, 'tickangle': 0, 'tickfont':dict(size=10), 'titlefont':dict(size=12)},
                 yaxis={"tickmode": "array", 'title': '# of ROI', 'tickfont':dict(size=10), 'titlefont':dict(size=12),
-                       "tickvals": pd.to_numeric([f"{n:.1g}" for n in np.power(10,np.arange(1, np.ceil(np.log10(subset_summary_df['ROI_count'].max()))+1,1 ))]),
-                       'ticktext':['10<sup>{}</sup>'.format(int(exponent)) for exponent in np.arange(1, np.ceil(np.log10(subset_summary_df['ROI_count'].max()))+1,1 )]},
+                       "tickvals": pd.to_numeric([f"{n:.1g}" for n in np.power(10,np.arange(np.floor(np.log10(subset_summary_df['ROI_count'].max()))-1, np.ceil(np.log10(subset_summary_df['ROI_count'].max()))+1,1 ))]),
+                       'ticktext':['10<sup>{}</sup>'.format(int(exponent)) for exponent in np.arange(np.floor(np.log10(subset_summary_df['ROI_count'].max()))-1, np.ceil(np.log10(subset_summary_df['ROI_count'].max()))+1,1 )]},
                 yaxis2={'title.standoff':7000,"tickmode": "array", 'title': 'Percentage of artefacts/validation', 'tickfont':dict(size=10), 'titlefont':dict(size=12)},
                 hovermode="x")
          fig.update_yaxes( type="log", row=1, col=2)
@@ -616,6 +641,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
           flagged_samples=df_flagged.query('(Flag==0 & Overrule==False) or (Flag==1 & Overrule==True)')['Sample'].tolist() if len(df_flagged.query('(Flag==0 & Overrule==False) or (Flag==1 & Overrule==True)'))>0 else ['']
     else:
           flagged_samples =['']
+
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
     path_files_list=list(path_to_data.glob('ecotaxa_export_{}_*'.format(str(project_id))))
     path_files_list=[path for path in path_files_list if '_flag' not in str(path)]
@@ -633,8 +659,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
         # Remove flagged samples/profiles
-        df=df[df['Sample'].isin(flagged_samples)==False]
-        df_method=df_method[df_method['Sample'].isin(flagged_samples)==False]
+        df=df[df['Sample'].isin(flagged_samples)==False].reset_index(drop=True)
+        df_method=df_method[df_method['Sample'].isin(flagged_samples)==False].reset_index(drop=True)
         if len(df)==0:
             print('No samples left after flagging. Skipping project ', project_id, sep='')
             return
@@ -646,8 +672,24 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         else:
             df=df.assign(Sampling_description=columns_for_description)
         # Set missing values to NA
-        na=str(int(df_standardizer.loc[project_id]['NA_value'])) if (df_standardizer.dtypes['NA_value']=='float64') and (str(df_standardizer.loc[project_id]['NA_value'])!='nan') else str(df_standardizer.loc[project_id]['NA_value'])
-        df=df.mask(df.astype(str)==na)
+        na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
+        # converter function: Reformat the na values to match the type of individual columns
+        def is_float(na) -> bool:
+            try:
+                float(na)
+                return True if na != 'nan' else False
+            except ValueError:
+                return False
+
+        def convert(na, type):
+            try:
+                return str(pd.DataFrame({'NA': na}, index=[0]).NA.astype(type)[0])
+            except ValueError:
+                str(na)
+
+        df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
+        columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
+        df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
 
         # Transform variables based on field units
         units=[string for string in list(df_standardizer.columns) if "_unit" in string]
@@ -671,25 +713,32 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
                 df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
                 units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
         # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
-        camera_resolution = {'IFCB': {'Sampling_lower_size':1000* (2000 / (20 * 5)), 'Sampling_upper_size': 1360},
+        camera_resolution = {'IFCB': {'Sampling_lower_size': 1000 * 2000 / (20 * 5), 'Sampling_upper_size': 1360},
                              # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
                              'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
                              'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
                              'UVP6': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2464},
-                             'Zooscan': {'Sampling_lower_size': 7, 'Sampling_upper_size': 2400}}
-        with ecotaxa_py_client.ApiClient(configuration) as api_client:
-            api_instance = projects_api.ProjectsApi(api_client)
-            api_response = api_instance.project_query(project_id)
+                             'Zooscan': {'Sampling_lower_size': 631, 'Sampling_upper_size': 22640}}
+
+        if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
+            with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                api_instance = projects_api.ProjectsApi(api_client)
+                api_response = api_instance.project_query(project_id)
+            instrument = api_response['instrument']
+        else:
+            instrument = df_standardizer['Instrument'][project_id]
+
         if 'Sampling_upper_size' not in df.columns:
             df['Sampling_upper_size'] = np.nan
             units_of_interest['Sampling_upper_size_unit'] = 'micrometer'
         if 'Sampling_lower_size' not in df.columns:
             df['Sampling_lower_size'] = np.nan
             units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
+
         if len(df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])])>0:
-            df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])] = (camera_resolution[api_response['instrument']]['Sampling_upper_size']/pixel_size_ratio.magnitude)*ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit'])
+            df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])] = (camera_resolution[instrument]['Sampling_upper_size']/pixel_size_ratio.magnitude[0])*ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit'])
         if len(df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])])>0:
-            df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[api_response['instrument']]['Sampling_lower_size'] / (pixel_size_ratio.magnitude**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
+            df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
@@ -707,6 +756,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
                        Depth_min=list(df.Depth_min) * ureg(units_of_interest['Depth_min_unit']).to(ureg.meter) if 'Depth_min' in df.columns else pd.NA,  # meter
                        Depth_max=list(df.Depth_max) * ureg(units_of_interest['Depth_max_unit']).to(ureg.meter) if 'Depth_max' in df.columns else pd.NA,  # meter
+                       Annotation=df.Annotation if 'Annotation' in df.columns else 'unclassified',
+                       Category=df.Category.astype(str) if 'Category' in df.columns else '',
                        Area=1e06*((df.Area*[1*ureg(units_of_interest['Area_unit']).to(ureg.square_pixel).magnitude for ntimes in range(df[['Area']].shape[1])])/((np.vstack([pixel_size_ratio**2 for ntimes in range(df[['Area']].shape[1])]).T)[0,:])) if all(pd.Series(['Area','Pixel']).isin(df.columns)) else pd.NA, # square micrometers
                        Biovolume=1e09*(df.Biovolume*[1*ureg(units_of_interest['Biovolume_unit']).to(ureg.cubic_pixel).magnitude for ntimes in range(df[['Biovolume']].shape[1])]/((np.vstack([pixel_size_ratio**3 for ntimes in range(df[['Biovolume']].shape[1])]).T)[0,:])) if all(pd.Series(['Biovolume','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
                        Minor_axis=1e03*(df.Minor_axis*[1*ureg(units_of_interest['Minor_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Minor_axis']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['Minor_axis']].shape[1])]).T)[0,:])) if all(pd.Series(['Minor_axis','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
@@ -808,51 +859,52 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
             group_categories = df_taxonomy[df_taxonomy.EcoTaxa_hierarchy.isin(subset_df.EcoTaxa_hierarchy.tolist())][[column for column in df_taxonomy.columns if column in rank_categories and column in np.array(rank_categories)[np.where(pd.Categorical(rank_categories, categories=rank_categories, ordered=True) <= column_group[0])[ 0].tolist()]]]
             group_categories = group_categories.sort_values(by=column_group[0])
             group_categories[group_categories.isnull()] = ''
-            summary_df_taxonomy = subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + ['Phylum'], observed=True).apply( lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index().pivot(index=columns_ID,columns='Phylum', values='ROI_count').reset_index()
-            melt_df_taxonomy = summary_df_taxonomy.melt(
+            if len(subset_df.dropna(subset=['Full_hierarchy'])) > 0:
+                summary_df_taxonomy = subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + ['Phylum'], observed=True).apply( lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index().pivot(index=columns_ID,columns='Phylum', values='ROI_count').reset_index()
+                melt_df_taxonomy = summary_df_taxonomy.melt(
                 value_vars=[column for column in summary_df_taxonomy.columns if column not in columns_ID],
                 id_vars=columns_ID, var_name='Group', value_name='Count').dropna()
-            melt_df_taxonomy = pd.merge(melt_df_taxonomy, group_categories, left_on='Group', right_on='Phylum',how='left')
-            melt_df_taxonomy.Group = pd.Categorical(melt_df_taxonomy.Group,categories=group_categories['Phylum'].unique(), ordered=True)
-            melt_df_taxonomy.Group.cat.categories
-            melt_df_taxonomy = melt_df_taxonomy.sort_values(by=['Group'] + columns_ID)
-            levels = pd.Categorical(melt_df_taxonomy.columns[melt_df_taxonomy.columns.isin(rank_categories)].tolist(),categories=pd.Series(rank_categories)[ pd.Series(rank_categories).isin(melt_df_taxonomy.columns.tolist())].tolist(), ordered=True)
-            colors_dict = taxon_color_palette(dataframe=group_categories, levels=levels,palette=px.colors.qualitative.T10)
-            levels_dict = dict(zip(levels, px.colors.sequential.Reds[0:len(levels)][::-1]))
-            # fig=px.pie(melt_df_taxonomy,values='Count',names='Group',color='Group',hole=0.3,color_discrete_map=colors_dict).update_traces(sort=False,textinfo='percent+label').update_layout(title_text="Annotation diversity",annotations=[dict(text='% ROI', x=0.5, y=0.5, font_size=20, showarrow=False)])
-            level_new_data = melt_df_taxonomy[columns_ID + ['Group', 'Count']].drop_duplicates().groupby(by=columns_ID).apply(lambda x: pd.Series({'Total': x.Count.sum(), 'Rank': 'Phylum'})).reset_index()
-            fig.add_trace(go.Pie(name='Phylum', labels=level_new_data['Rank'], values=level_new_data['Total'], hoverinfo='none',
+                melt_df_taxonomy = pd.merge(melt_df_taxonomy, group_categories, left_on='Group', right_on='Phylum',how='left')
+                melt_df_taxonomy.Group = pd.Categorical(melt_df_taxonomy.Group,categories=group_categories['Phylum'].unique(), ordered=True)
+                melt_df_taxonomy.Group.cat.categories
+                melt_df_taxonomy = melt_df_taxonomy.sort_values(by=['Group'] + columns_ID)
+                levels = pd.Categorical(melt_df_taxonomy.columns[melt_df_taxonomy.columns.isin(rank_categories)].tolist(),categories=pd.Series(rank_categories)[ pd.Series(rank_categories).isin(melt_df_taxonomy.columns.tolist())].tolist(), ordered=True)
+                colors_dict = taxon_color_palette(dataframe=group_categories, levels=levels,palette=px.colors.qualitative.T10)
+                levels_dict = dict(zip(levels, px.colors.sequential.Reds[0:len(levels)][::-1]))
+                # fig=px.pie(melt_df_taxonomy,values='Count',names='Group',color='Group',hole=0.3,color_discrete_map=colors_dict).update_traces(sort=False,textinfo='percent+label').update_layout(title_text="Annotation diversity",annotations=[dict(text='% ROI', x=0.5, y=0.5, font_size=20, showarrow=False)])
+                level_new_data = melt_df_taxonomy[columns_ID + ['Group', 'Count']].drop_duplicates().groupby(by=columns_ID).apply(lambda x: pd.Series({'Total': x.Count.sum(), 'Rank': 'Phylum'})).reset_index()
+                fig.add_trace(go.Pie(name='Phylum', labels=level_new_data['Rank'], values=level_new_data['Total'], hoverinfo='none',
                        textinfo='none', direction='clockwise', hole=0.2, legendgroup=2, showlegend=True, sort=False,
                        marker=dict(colors=['rgba(255,255,255,0)'], line=dict(color=levels_dict['Phylum'], width=6)),
                        textposition='inside', insidetextorientation='radial'), row=2, col=2).update_layout(annotations=[dict(text='% ROI', x=0.78,y=0.31, font_size=12, showarrow=False),dict(text='Pie chart of the annotations diversity '+str((np.round(100*subset_df['Type'].value_counts(normalize=True),1).astype(str)+ '%').to_dict()), x=0.7, y=-0.05, font_size=12, showarrow=False)])
 
-            fig.add_trace( go.Pie(name='Taxonomic phylum:', labels=melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Group'],
+                fig.add_trace( go.Pie(name='Taxonomic phylum:', labels=melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Group'],
                        values=melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Count'], hole=0.2,
                        direction='clockwise', legendgroup=1, sort=False, hoverinfo='percent+label',
                        textinfo='percent+label', textfont_size=10, textposition='none',
                        marker=dict(colors=[color for taxon, color in colors_dict.items() if taxon in melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Group'].values.tolist()])), row=2, col=2)
-            levels = df_taxonomy.columns[df_taxonomy.columns.isin(rank_categories)].tolist()
-            for index, level in enumerate(levels):
+                levels = df_taxonomy.columns[df_taxonomy.columns.isin(rank_categories)].tolist()
+                for index, level in enumerate(levels):
 
-                if level == 'Phylum':
-                    continue
-                else:
-                    summary_df_taxonomy = subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + levels[0:index + 1], observed=True, dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index()
-                    summary_df_taxonomy = summary_df_taxonomy[summary_df_taxonomy['Phylum'].isnull() == False]
-                    summary_df_taxonomy.loc[:, levels[0:index + 1]] = summary_df_taxonomy.loc[:,levels[0:index + 1]].fillna('unassigned')
-                    summary_df_taxonomy = pd.merge(summary_df_taxonomy,summary_df_taxonomy.groupby(by=columns_ID + [levels[index - 1]], observed=True, group_keys=False).apply( lambda x: pd.Series({'Total_ROI_count': x.ROI_count.sum()})).reset_index()[ [levels[index - 1], 'Total_ROI_count']], on=levels[index - 1],how='left')
-                    summary_df_taxonomy['Phylum'] = pd.Categorical(summary_df_taxonomy['Phylum'],categories=group_categories['Phylum'].unique(),ordered=True)
-                    new_data = summary_df_taxonomy  # melt_df_taxonomy.groupby(level).apply(lambda x :pd.Series({'Count': sum(x.Count)})).reset_index()
-                    new_data = new_data.sort_values(by=levels[0:index])
-                    new_colors = [colors_dict[taxon] if taxon != 'unassigned' else '#FFFFFF' for taxon in new_data[new_data.columns.tolist()[index + 1]]]  # [color for taxon,color in colors_dict.items() if taxon in new_data[new_data.columns.tolist()[2]].values.tolist()]
-                    new_data['Hierarchy'] = new_data.apply(lambda x: '>'.join(x[levels[0:index + 1]][levels[0:index + 1]] + ' (' + levels[0:index + 1] + ')'), axis=1)
-                    level_new_data = new_data.groupby(by=columns_ID).apply( lambda x: pd.Series({'Total': x.ROI_count.sum(), 'Rank': level})).reset_index()
-                    fig.add_trace(go.Pie(name=level, labels=level_new_data['Rank'], values=level_new_data['Total'],
+                    if level == 'Phylum':
+                        continue
+                    else:
+                        summary_df_taxonomy = subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + levels[0:index + 1], observed=True, dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index()
+                        summary_df_taxonomy = summary_df_taxonomy[summary_df_taxonomy['Phylum'].isnull() == False]
+                        summary_df_taxonomy.loc[:, levels[0:index + 1]] = summary_df_taxonomy.loc[:,levels[0:index + 1]].fillna('unassigned')
+                        summary_df_taxonomy = pd.merge(summary_df_taxonomy,summary_df_taxonomy.groupby(by=columns_ID + [levels[index - 1]], observed=True, group_keys=False).apply( lambda x: pd.Series({'Total_ROI_count': x.ROI_count.sum()})).reset_index()[ [levels[index - 1], 'Total_ROI_count']], on=levels[index - 1],how='left')
+                        summary_df_taxonomy['Phylum'] = pd.Categorical(summary_df_taxonomy['Phylum'],categories=group_categories['Phylum'].unique(),ordered=True)
+                        new_data = summary_df_taxonomy  # melt_df_taxonomy.groupby(level).apply(lambda x :pd.Series({'Count': sum(x.Count)})).reset_index()
+                        new_data = new_data.sort_values(by=levels[0:index])
+                        new_colors = [colors_dict[taxon] if taxon != 'unassigned' else '#FFFFFF' for taxon in new_data[new_data.columns.tolist()[index + 1]]]  # [color for taxon,color in colors_dict.items() if taxon in new_data[new_data.columns.tolist()[2]].values.tolist()]
+                        new_data['Hierarchy'] = new_data.apply(lambda x: '>'.join(x[levels[0:index + 1]][levels[0:index + 1]] + ' (' + levels[0:index + 1] + ')'), axis=1)
+                        level_new_data = new_data.groupby(by=columns_ID).apply( lambda x: pd.Series({'Total': x.ROI_count.sum(), 'Rank': level})).reset_index()
+                        fig.add_trace(go.Pie(name=level, labels=level_new_data['Rank'], values=level_new_data['Total'],
                                hoverinfo='none', textinfo='none', direction='clockwise',
                                hole=0.2 + index * (1 / (len(levels) + 1)), legendgroup=2, showlegend=True, sort=False,
                                marker=dict(colors=['#FFFFFF'], line=dict(color=levels_dict[level], width=6)),
                                textposition='inside', insidetextorientation='radial'), row=2, col=2)
-                    fig.add_trace(go.Pie(name=level, labels=new_data['Hierarchy'], values=new_data['ROI_count'],
+                        fig.add_trace(go.Pie(name=level, labels=new_data['Hierarchy'], values=new_data['ROI_count'],
                                                hoverinfo='label+percent', textinfo='none', direction='clockwise',
                                                hole=0.2 + index * (1 / (len(levels) + 1)), showlegend=False, sort=False,
                                                marker=dict(colors=new_colors, line=dict(color='#000000', width=0)),
@@ -868,14 +920,12 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
                                        'y': [summary_df_standardized[cols[k]], 'undefined'],
                                        'visible': [True, True, True]}, [2]],
                                 # visible should have the same length as number of subplots, second argument specifies which subplot is updated
-                                label=cols_labels[k]) for k in np.where(
-            np.isin(list(cols), ['Abundance', 'Average_diameter', 'Std_diameter']))[0]]
+                                label=cols_labels[k]) for k in np.where(np.isin(list(cols), ['Abundance', 'Average_diameter', 'Std_diameter']))[0]]
 
-
-
+        title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id],'Cruise:' + str(df_standardized["Cruise"].values[0]))
         fig.update_layout(
             updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
-            title={'text': 'Cruise:' + str(df_standardized["Cruise"].values[0]).capitalize(),
+            title={'text': title,
                    'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
             xaxis={'title': 'Sample ID', 'nticks': 2, 'tickangle': 0, 'tickfont': dict(size=10),'titlefont': dict(size=12)},
             yaxis={"tickmode": "array",'title': 'Variable selected in <br> dropdown menu ', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
