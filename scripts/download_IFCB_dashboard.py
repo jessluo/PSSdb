@@ -24,8 +24,8 @@ y = {}
 y['startdate'] = dt.datetime(2015,8,21);
 y['enddate'] = dt.datetime(2015,9,10);
 y['size_cutoff'] = 50;
-Project_ID = 'santa-cruz-municipal-wharf'
-Project_source = 'https://ifcb.caloos.org/'
+Project_ID = 'EXPORTS'
+Project_source = 'https://ifcb-data.whoi.edu/'
 BASE_URL=Project_source # needs to be defined based on Karina's script
 METRIC = 'temperature' # needs to be defined based on Karina's script
 y['path_download'] = IFCB_dashboard_data_path + '/' + Project_ID ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
@@ -38,7 +38,15 @@ os.mkdir(y['path_download'])
 ## FUNCTIONS HERE
 
 ## create list of dates available for the project of interest
-def get_df_list_IFCB (base_url = Project_source, dataset = Project_ID):
+def get_df_list_IFCB ( base_url, dataset, startdate=20000101,enddate=21000101):
+    """
+    Objective: generate list of files for a dataset in the IFCB dashboard
+    :param startdate:
+    :param enddate:
+    :param base_url:
+    :param dataset:
+    :return:
+    """
     link = base_url + 'api/list_bins?dataset=' + dataset # this path is for the data LIST only
     #metadata_link = "https://ifcb.caloos.org/timeline?dataset="
     r = requests.get(link)
@@ -46,12 +54,12 @@ def get_df_list_IFCB (base_url = Project_source, dataset = Project_ID):
     r_content = json.loads(r_content.decode('utf-8'))
     all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
     all_file_info['date_info'] = [int(sample[1:9]) for sample in all_file_info['pid']]
-    # constrain date ranges for file download
-    start_stamp=int(y['startdate'].strftime('%Y%m%d'))
-    end_stamp=int(y['enddate'].strftime('%Y%m%d'))
-    subset_file_info = all_file_info.loc[all_file_info['date_info']>= start_stamp].reset_index(drop =True) # | all_file_info['date_info']<= end_stamp]
-    subset_file_info = all_file_info.loc[all_file_info['date_info']<= end_stamp].reset_index(drop =True)
-    return subset_file_info
+    # constrain date ranges for file download.
+    #start_stamp=int(startdate.strftime('%Y%m%d'))
+    #end_stamp=int(y['enddate'].strftime('%Y%m%d'))
+    file_info = all_file_info.loc[all_file_info['date_info']>= startdate].reset_index(drop =True) # | all_file_info['date_info']<= end_stamp]
+    file_info = file_info.loc[file_info['date_info']<= enddate].reset_index(drop =True)
+    return file_info
 
 # We adopted some code contributed by Joe Futrelle (WHOI): https://github.com/joefutrelle/pyifcb
 
@@ -108,49 +116,51 @@ def metadata_dict(pid_id):
 
 
 # use the file list to download data and store it locally
-subset_file_info = get_df_list_IFCB (base_url = Project_source, dataset = Project_ID)
-for i in range (len(subset_file_info)):
-    localpath = y['path_download'] + '/' + str(subset_file_info.loc[i, 'pid'])# create local directory to store the files
-    if os.path.exists(localpath) and os.path.isdir(localpath):
-        shutil.rmtree(localpath)
-    os.mkdir(localpath)
-    #generate features files
-    features_filename = pathname + str(subset_file_info.loc[i, 'pid']) + '_features.csv'
-    features_df = df_from_url(features_filename)
-    # obtain metadata
-    pid_id = str(subset_file_info.loc[i, 'pid'])
-    met_dict = metadata_dict(pid_id)
-    for c in ['texture', 'Wedge', 'Ring', 'HOG', 'moment_invariant']:
-        features_df = features_df[features_df.columns.drop(list(features_df.filter(regex=c)))]
-    #url = metadata_link + dataset_name +'&bin='+ str(subset_file_info.loc[i, 'pid'])
-    features_df['datetime'] = met_dict['datetime']
-    features_df['Latitude'] = met_dict['latitude']
-    features_df['Longitude'] = met_dict['longitude']
-    features_df['depth'] = met_dict['depth']
-    features_df['vol_analyzed'] = met_dict['ml_analyzed']
-    features_df['sample_type'] = met_dict['sample_type']
-    features_df['cruise'] = met_dict['cruise']
-    features_df['number_of_rois'] = met_dict['number_of_rois']
-    features_df['concentration'] = met_dict['concentration']
-
-
-
-    #now generate dataframe for the class scores
-    class_filename = pathname + str(subset_file_info.loc[i, 'pid']) + '_class_scores.csv'
-    class_df = df_from_url(class_filename)
-    #class_df = class_df.drop(columns = 'pid')
-    # create column with taxonomic category based on class score
-    for r in class_df.index.values:
-        #class_df.iloc[r, 2:len(class_df.columns)]= class_df.iloc[r, 2:len(class_df.columns)].astype(float)
-        scores = class_df.iloc[r-1, 2:len(class_df.columns)].astype(float)
-        for col in class_df.columns:
-            if class_df.loc[r, col] == str(max(scores)):
-                features_df.loc[r, 'class'] = col
+file_info = get_df_list_IFCB (startdate=20180811,enddate=20180812, base_url = Project_source, dataset = Project_ID)
+for i in range (len(file_info)):
+    try:
+        # generate features files
+        features_filename = pathname + str(file_info.loc[i, 'pid']) + '_features.csv'
+        features_df = df_from_url(features_filename)
+        features_df.head()
+        localpath = y['path_download'] + '/' + str(file_info.loc[i, 'pid'])# create local directory to store the files
+        if os.path.exists(localpath) and os.path.isdir(localpath):
+            shutil.rmtree(localpath)
+        os.mkdir(localpath)
+        # obtain metadata
+        pid_id = str(file_info.loc[i, 'pid'])
+        met_dict = metadata_dict(pid_id)
+        for c in ['texture', 'Wedge', 'Ring', 'HOG', 'moment_invariant']:
+            features_df = features_df[features_df.columns.drop(list(features_df.filter(regex=c)))]
+        #url = metadata_link + dataset_name +'&bin='+ str(subset_file_info.loc[i, 'pid'])
+        features_df['datetime'] = met_dict['datetime']
+        features_df['Latitude'] = met_dict['latitude']
+        features_df['Longitude'] = met_dict['longitude']
+        features_df['depth'] = met_dict['depth']
+        features_df['vol_analyzed'] = met_dict['ml_analyzed']
+        features_df['sample_type'] = met_dict['sample_type']
+        features_df['cruise'] = met_dict['cruise']
+        features_df['number_of_rois'] = met_dict['number_of_rois']
+        features_df['concentration'] = met_dict['concentration']
+        #now generate dataframe for the class scores
+        class_filename = pathname + str(file_info.loc[i, 'pid']) + '_class_scores.csv'
+        class_df = df_from_url(class_filename)
+        #class_df = class_df.drop(columns = 'pid')
+        # create column with taxonomic category based on class score
+        for r in class_df.index.values:
+            #class_df.iloc[r, 2:len(class_df.columns)]= class_df.iloc[r, 2:len(class_df.columns)].astype(float)
+            scores = class_df.iloc[r-1, 2:len(class_df.columns)].astype(float)
+            for col in class_df.columns:
+                if class_df.loc[r, col] == str(max(scores)):
+                    features_df.loc[r, 'class'] = col
 
             ## continue trying to get the class for each ROI
 
 
-    features_df.to_csv(localpath + '/' +str(subset_file_info.loc[0, 'pid']) + '_features.csv', sep='\t')
-    class_df.to_csv(localpath + '/' +str(subset_file_info.loc[0, 'pid']) + '_class_scores.csv', sep='\t')
-    print(str(subset_file_info.loc[0, 'pid']) + ' download done ')
+        features_df.to_csv(localpath + '/' +str(file_info.loc[i, 'pid']) + '_features.csv', sep='\t')
+        class_df.to_csv(localpath + '/' +str(file_info.loc[i, 'pid']) + '_class_scores.csv', sep='\t')
+        print(str(file_info.loc[i, 'pid']) + ' download done ')
+
+    except:
+        print('there is no features or class_scores files for' + str(file_info.loc[i, 'pid']))
 #test = 'D20150910T212605_IFCB104'
