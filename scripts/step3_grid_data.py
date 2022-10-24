@@ -4,8 +4,8 @@
 import numpy as np
 import pandas as pd
 import os
-from read_funcs import * # functions to list standardized and binned files
-from gridding_funcs import *
+from funcs_read import * # functions to list standardized and binned files
+from funcs_gridding import *
 from pathlib import Path
 from glob import glob
 import yaml  # requires installation of PyYAML package
