@@ -9,8 +9,8 @@ from glob import glob
 import shutil
 # Config modules
 import yaml  # requires installation of PyYAML package
-from read_funcs import *
-from NBS_funcs import *
+from funcs_read import *
+from funcs_NBS import *
 
 #define the instrument to calculate NBS:
 
