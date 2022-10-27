@@ -19,11 +19,19 @@ IFCB_dashboard_data_path = str(Path(cfg['IFCB_dir']).expanduser())
 
 # Set names of variables (date range, dataset, dashboard name) NOTE: Project_ID and Project_source should be obtained from the
 #IFCB standardizer
-Project_ID = 'EXPORTS'
-Project_source = 'https://ifcb-data.whoi.edu/'
-start = 20180811 #  integer for start date to get the data, format YYYYMMDD
-end = 20180812 #  integer for end date to get the data, format YYYYMMDD
-METRIC = 'temperature' # needs to be defined based on Karina's script
+which_dashboard = input('from which IFCB dashboard do you want to download (WHOI or CALOOS)?')
+if which_dashboard == 'WHOI':
+    Project_source = 'https://ifcb-data.whoi.edu/'
+elif which_dashboard == 'CALOOS':
+    Project_source = 'https://ifcb.caloos.org/'
+
+Project_ID = input('what is the name of the project you want to download? name has to be as in the dashboard')
+
+start = int(input('what is the start date you want to set? ( format: YYYYMMDD)'))
+
+end = int(input('what is the end date you want to set? ( format: YYYYMMDD)'))
+
+#define path for download
 path_download = IFCB_dashboard_data_path + '/' + Project_ID ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
 pathname = Project_source + Project_ID + '/'
 
@@ -32,7 +40,7 @@ if os.path.exists(path_download) and os.path.isdir(path_download):
 os.mkdir(path_download)
 
 #PROCESSING HERE
-
+METRIC = 'temperature' # needs to be defined based on Karina's script
 # use the file list to download data and store it locally
 file_info = get_df_list_IFCB(startdate= start ,enddate= end , base_url = Project_source, dataset = Project_ID)
 
@@ -44,7 +52,7 @@ for i in range (len(file_info)):
         features_filename = pathname + pid_id + '_features.csv'
         features_df = df_from_url(features_filename)
         #features_df.head()
-        localpath = path_download + '/' + str(file_info.loc[i, 'pid'])# create local directory to store the files
+        localpath = path_download + '/' + pid_id# create local directory to store the files
         if os.path.exists(localpath) and os.path.isdir(localpath):
             shutil.rmtree(localpath)
         os.mkdir(localpath)
@@ -56,7 +64,7 @@ for i in range (len(file_info)):
         features_df['sample_id'] = Project_ID
         features_df['datetime'] = met_dict['datetime']
         features_df['date'] = str(pd.to_datetime(met_dict['datetime']).date().strftime('%Y%m%d'))
-        features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strptime('%H%M%S'))
+        features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strftime('%H%M%S'))
         features_df['pixel_to_micron'] = met_dict['scale']
         features_df['Latitude'] = met_dict['latitude']
         features_df['Longitude'] = met_dict['longitude']
