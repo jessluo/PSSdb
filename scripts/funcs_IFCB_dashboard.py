@@ -1,7 +1,7 @@
 # Functions necessary to download raw files from CALOOS and WHOI dashboards
 
 ## create list of dates available for the project of interest
-def get_df_list_IFCB ( base_url, dataset, startdate=20000101,enddate=21000101):
+def get_df_list_IFCB ( base_url, dataset, startdate=20000101, enddate=21000101):
     """
     Objective: generate list of files for a dataset in the IFCB dashboard
     :param startdate: set start date to  select data from the project, in format YYYYMMDD
@@ -70,6 +70,7 @@ def metadata_dict(dashboard, pid_id):
     assert r.ok
     record = r.json()
     return {
+        'scale': record['scale'],
         'datetime': record['timestamp_iso'],
         'previous_bin': record['previous_bin_id'],
         'next_bin': record['next_bin_id'],
