@@ -5,6 +5,7 @@ import os
 import shutil
 import numpy as np
 import yaml
+import datetime as dt
 from pathlib import Path
 from funcs_IFCB_dashboard import *
 
@@ -20,8 +21,8 @@ IFCB_dashboard_data_path = str(Path(cfg['IFCB_dir']).expanduser())
 #IFCB standardizer
 Project_ID = 'EXPORTS'
 Project_source = 'https://ifcb-data.whoi.edu/'
-start = 20210429 #  integer for start date to get the data, format YYYYMMDD
-end = 20210430 #  integer for end date to get the data, format YYYYMMDD
+start = 20180811 #  integer for start date to get the data, format YYYYMMDD
+end = 20180812 #  integer for end date to get the data, format YYYYMMDD
 METRIC = 'temperature' # needs to be defined based on Karina's script
 path_download = IFCB_dashboard_data_path + '/' + Project_ID ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
 pathname = Project_source + Project_ID + '/'
@@ -39,26 +40,30 @@ file_info = get_df_list_IFCB(startdate= start ,enddate= end , base_url = Project
 for i in range (len(file_info)):
     try:
         # generate features files
-        features_filename = pathname + str(file_info.loc[i, 'pid']) + '_features.csv'
+        pid_id = str(file_info.loc[i, 'pid'])
+        features_filename = pathname + pid_id + '_features.csv'
         features_df = df_from_url(features_filename)
-        features_df.head()
+        #features_df.head()
         localpath = path_download + '/' + str(file_info.loc[i, 'pid'])# create local directory to store the files
         if os.path.exists(localpath) and os.path.isdir(localpath):
             shutil.rmtree(localpath)
         os.mkdir(localpath)
         # obtain metadata
-        pid_id = str(file_info.loc[i, 'pid'])
         met_dict = metadata_dict(dashboard= Project_source, pid_id=pid_id)
         for c in ['texture', 'Wedge', 'Ring', 'HOG', 'moment_invariant']:
             features_df = features_df[features_df.columns.drop(list(features_df.filter(regex=c)))]
         #url = metadata_link + dataset_name +'&bin='+ str(subset_file_info.loc[i, 'pid'])
+        features_df['sample_id'] = Project_ID
         features_df['datetime'] = met_dict['datetime']
+        features_df['date'] = str(pd.to_datetime(met_dict['datetime']).date().strftime('%Y%m%d'))
+        features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strptime('%H%M%S'))
+        features_df['pixel_to_micron'] = met_dict['scale']
         features_df['Latitude'] = met_dict['latitude']
         features_df['Longitude'] = met_dict['longitude']
         features_df['depth'] = met_dict['depth']
         features_df['vol_analyzed'] = met_dict['ml_analyzed']
         features_df['sample_type'] = met_dict['sample_type']
-        features_df['cruise'] = met_dict['cruise']
+        features_df['sample_cruise'] = met_dict['cruise']
         features_df['number_of_rois'] = met_dict['number_of_rois']
         features_df['concentration'] = met_dict['concentration']
         #now generate dataframe for the class scores
