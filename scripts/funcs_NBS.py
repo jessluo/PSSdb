@@ -46,9 +46,10 @@ def size_binning_func(df_subset):
 def parse_NBS_func(df, parse_by = ['Station_location', 'date_bin', 'midDepthBin']):
     """
     Objective: parse out any df that come from files that include multiple stations, dates and depths.
-    dataframe needs to be already binned.
+    dataframe needs to be already binned. Steps are: 1) parse the data 2) bin ROIs by size and 3) calculate the NBS
+    (threshold included)
     :param df: a standardized, binned dataframe
-    :param parse_by: list of columns that will be use][-=d to parse the dataframe
+    :param parse_by: list of columns that will be used to parse the dataframe
     :return: a binned, tresholded NBS dataframe
     """
     import pandas as pd
@@ -73,6 +74,23 @@ def parse_NBS_func(df, parse_by = ['Station_location', 'date_bin', 'midDepthBin'
 def NB_SS_func(df, df_bins, ignore_depth = 'no', dates='date_bin', station= 'Station_location', depths = 'midDepthBin',\
                size_range= 'range_size_bin', sizeClasses= 'sizeClasses', biovolume='Biovolume',\
                lat='midLatBin', lon='midLonBin', project_ID= 'Project_ID', vol_filtered='Volume_analyzed'):
+    """
+    
+    :param df:
+    :param df_bins:
+    :param ignore_depth:
+    :param dates:
+    :param station:
+    :param depths:
+    :param size_range:
+    :param sizeClasses:
+    :param biovolume:
+    :param lat:
+    :param lon:
+    :param project_ID:
+    :param vol_filtered:
+    :return:
+    """
     import numpy as np
     import pandas as pd
     if ignore_depth == 'no':
