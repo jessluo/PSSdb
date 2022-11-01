@@ -10,7 +10,7 @@ import yaml
 def biovol_func(df, instrument, area_type= 'object_area', remove_cat='none'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
-    the volume of an ellipsoid OR a sphere. Also, determine which area will be used to calculate the biovolume.
+    the volume of  a sphere. Also, determine which area will be used to calculate the biovolume.
     This function also removes Biovolumes= 0 in the IFCB files
     :param df: a STANDARDIZED dataframe that contains object's Area (should be in micrometers^2)
      and object's Minor_axis (should be in micrometers)
