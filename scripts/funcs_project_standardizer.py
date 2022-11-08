@@ -30,6 +30,7 @@ path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().pa
 
 # Download high resolution countries shapefile
 import requests
+import shutil
 if path_to_zip.with_suffix('').is_dir()==False:
   with requests.Session() as sess:
     url = 'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
