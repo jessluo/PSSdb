@@ -1,5 +1,7 @@
 # Process to download raw data from IFCB dashboards
 
+
+
 import pandas as pd
 import os
 import shutil
@@ -15,6 +17,8 @@ path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
 with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
 IFCB_dashboard_data_path = str(Path(cfg['IFCB_dir']).expanduser())
+
+# generate a dataframe with the timeseries list for each dashboard:
 
 
 # Set names of variables (date range, dataset, dashboard name) NOTE: Project_ID and Project_source should be obtained from the
