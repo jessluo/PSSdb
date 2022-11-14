@@ -16,4 +16,3 @@ micron_per_pixel=micron / pixel=umperpixel
 pixel_per_millimeter= pixel / millimeter=pixelpermm
 millimeter_per_pixel= millimeter / pixel=mmperpixel
 square_millimeter_per_square_pixel=(millimeter / pixel )**2=mm2perpixel2
-test
