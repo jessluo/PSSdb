@@ -19,7 +19,7 @@ def get_df_list_IFCB ( base_url, dataset, startdate=20000101, enddate=21000101):
     r_content = r.content
     r_content = json.loads(r_content.decode('utf-8'))
     all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
-    all_file_info['date_info'] = [int(sample[1:9]) for sample in all_file_info['pid']]
+    all_file_info['date_info'] = int(pd.to_datetime(all_file_info['sample_time']).date().strftime('%Y%m%d')) # [int(sample[1:9]) for sample in all_file_info['pid']] changed
     # constrain date ranges for file download.
     #start_stamp=int(startdate.strftime('%Y%m%d'))
     #end_stamp=int(y['enddate'].strftime('%Y%m%d'))
@@ -86,3 +86,20 @@ def metadata_dict(dashboard, pid_id):
         'cast': record['cast'],
         'niskin': record['niskin'],
     }
+
+
+def roi_number(dashboard, pid_id):
+    """
+    objective: simplified version of the function above. ideal to just get the number of ROIs
+    :param dashboard: url to either the WHOI or CALOOS dashboard
+    :param pid: the identifier for the data in each time bin displayed on the timeline in the dashboard
+    :return: dictionary with the metadata
+    """
+    import requests
+    import re
+    url = f'{dashboard}api/bin/{pid_id}?include_coordinates=False'
+    r = requests.get(url)
+    assert r.ok
+    record = r.json()
+    return record['num_images']
+
