@@ -19,7 +19,11 @@ def get_df_list_IFCB ( base_url, dataset, startdate=20000101, enddate=21000101):
     r_content = r.content
     r_content = json.loads(r_content.decode('utf-8'))
     all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
-    all_file_info['date_info'] = int(pd.to_datetime(all_file_info['sample_time']).date().strftime('%Y%m%d')) # [int(sample[1:9]) for sample in all_file_info['pid']] changed
+    # generate a new column to index by dates:
+    date_info = []
+    for i in range(0, len(all_file_info)):
+        date_info.append(int(pd.to_datetime(all_file_info.loc[0, 'sample_time']).date().strftime('%Y%m%d')))
+    all_file_info['date_info'] = date_info # [int(sample[1:9]) for sample in all_file_info['pid']] changed
     # constrain date ranges for file download.
     #start_stamp=int(startdate.strftime('%Y%m%d'))
     #end_stamp=int(y['enddate'].strftime('%Y%m%d'))
