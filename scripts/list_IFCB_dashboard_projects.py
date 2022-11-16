@@ -22,7 +22,7 @@ path_save = path_download + '/IFCB_dashboard_projects_list.xlsx'
 if os.path.exists(path_save):
     exists = input('Warning! the IFCB_dashboard_projects_list exists. Do you want to update? \n counting the number of ROIs in a time series is very time consuming \n y/n')
     if exists == 'y':
-        os.remove(path_save)
+        #os.remove(path_save)
         # predefined information of dashboards:
         # dashboards = ['CALOOS', 'WHOI']
         contacts = ['Clarissa Anderson', 'Heidi Sozik']
@@ -111,7 +111,7 @@ if os.path.exists(path_save):
         projects_df['Project_test'] = Project_test
 
         projects_df = projects_df[projects_df['Latest_update'].notna()]
-
+        os.remove(path_save)
         #projects_df.to_csv(path_save, sep='\t')
         with pd.ExcelWriter(path_save, engine="xlsxwriter") as writer: #saving as excel file not working
             projects_df.to_excel(writer, sheet_name='Data', index=False)
