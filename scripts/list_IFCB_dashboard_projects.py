@@ -6,6 +6,7 @@ import os
 import yaml
 from pathlib import Path
 import pandas as pd
+from tqdm import tqdm
 from funcs_IFCB_dashboard import *
 
 # set path
@@ -16,10 +17,10 @@ with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_download = str(Path(cfg['raw_dir']).expanduser())
 
-path_save = path_download + '/IFCB_dashboard_projects_list.csv'
+path_save = path_download + '/IFCB_dashboard_projects_list.xlsx'
 
 if os.path.exists(path_save):
-    exists = input('Warning! the IFCB_dashboard_projects_list exists. Do you want to update? this will take a while y/n')
+    exists = input('Warning! the IFCB_dashboard_projects_list exists. Do you want to update? \n counting the number of ROIs in a time series is very time consuming \n y/n')
     if exists == 'y':
         os.remove(path_save)
         # predefined information of dashboards:
@@ -82,9 +83,9 @@ if os.path.exists(path_save):
                             # step here to get ROI count for each projects:
                             try:
                                 pid_df = get_df_list_IFCB(urls[ds], l[0])
-                                # print(pid_df.head())
-                                for i in range (0, len(pid_df)):
-                                    n_roi = n_roi + roi_number(urls[ds], pid_df.loc[i, 'pid'])
+                                print('counting the number of ROIs for '+ l[0])
+                                for i in tqdm(pid_df.loc[:, 'pid']):
+                                    n_roi = n_roi + roi_number(urls[ds], i)
                                 Objects_number.append(n_roi)
                                 Latest_update.append(pid_df.loc[len(pid_df) - 1, 'sample_time'])
                             except:
@@ -111,10 +112,10 @@ if os.path.exists(path_save):
 
         projects_df = projects_df[projects_df['Latest_update'].notna()]
 
-        projects_df.to_csv(path_save, sep='\t')
-        #with pd.ExcelWriter(path_save, engine="xlsxwriter") as writer: saving as excel file not working
-            #projects_df.to_excel(writer, sheet_name='Data', index=False)
-        print('IFCB_dashboard_projects_list.csv file saved in ' + path_download)
+        #projects_df.to_csv(path_save, sep='\t')
+        with pd.ExcelWriter(path_save, engine="xlsxwriter") as writer: #saving as excel file not working
+            projects_df.to_excel(writer, sheet_name='Data', index=False)
+        print('IFCB_dashboard_projects_list.xlsx file saved in ' + path_download)
 
 else:
     print('process finished')
