@@ -1,0 +1,36 @@
+	Project_ID	Project_title	dashboard_url	Instrument	Contact_name	Contact_email	Pssdb_access	Percentage_classified	Percentage_validated	Latest_update	Project_test
+0	san-francisco-pier-17	San Francisco Pier 17	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2021-06-18T19:21:00Z	False
+1	santa-cruz-municipal-wharf	Santa Cruz Municipal Wharf	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-11-14T15:01:18Z	False
+2	scripps-pier	Scripps Pier	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-04-22T16:08:00Z	False
+3	mbari-power-buoy	MBARI Power Buoy	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-11-15T13:46:07Z	False
+4	newport-beach-pier	Newport Beach Pier	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-11-15T23:25:34Z	False
+5	san-francisco-bay-cruises	San Francisco Bay Cruises	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-10-18T19:32:40Z	False
+6	stearns-wharf	Stearns Wharf	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-09-28T18:58:54Z	True
+7	del-mar-mooring	Del Mar Mooring	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-08-21T16:11:35Z	False
+8	bodega-marine-lab	Bodega Marine Lab	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-11-12T16:31:24Z	False
+9	cal-poly-humboldt-hioc	Cal Poly Humboldt - Hog Island Oyster Company	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-11-15T19:28:45Z	False
+10	scripps-pier-ifcb-183	Scripps Pier (IFCB 183)	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-11-10T10:54:16Z	False
+11	calcofi-cruises-ctd	CalCOFI Cruises (CTD)	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-10-19T05:18:47Z	False
+12	plumes-and-blooms-cruises	Plumes and Blooms Cruises	https://ifcb.caloos.org/	IFCB	Clarissa Anderson	cra002@ucsd.edu	True	100		2022-09-14T20:11:07Z	False
+14	SPIROPA	SPIROPA	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2019-07-18T15:21:58Z	False
+15	WHOI_dock	WHOI_dock	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-09-13T12:55:15Z	False
+16	EXPORTS	EXPORTS	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2021-05-31T06:47:00Z	False
+17	Attune_size_calibration_July2018	Attune_size_calibration_July2018	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2019-03-20T20:53:33Z	False
+18	Lab_testing	Lab_testing	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-11-15T22:56:50Z	False
+19	NAAMES	NAAMES	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2018-04-12T02:11:17Z	False
+20	harpswell	Bowdoin College (SCSC)	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-08-28T12:59:13Z	False
+21	NESLTER_transect	NESLTER transect	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-08-03T10:33:18Z	False
+22	Llopiz_preserved_microzooplankton	Llopiz_preserved_microzooplankton	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2019-01-04T22:04:22Z	True
+23	mdibl	MDI Biological Laboratory	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-08-29T11:21:44Z	False
+24	arctic	Shipboard IFCB observations from Bering Strait	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-09-06T07:27:59Z	False
+25	SIO_Delmar_mooring	SIO_Delmar_mooring	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2020-06-30T13:06:10Z	False
+26	NESLTER_broadscale	NESLTER_broadscale	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-11-10T11:46:23Z	False
+27	IFCB14_dock_WHOI	IFCB14_dock_WHOI	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2019-03-18T21:15:20Z	False
+28	gsodock	URI GSO (Dock)	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2021-09-11T08:31:20Z	False
+29	fiddlers	Fiddlers Cove	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-07-29T14:06:22Z	False
+30	nauset	Salt Pond	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2021-07-26T11:19:09Z	False
+31	OTZ_Atlantic	OTZ Atlantic	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-08-19T12:38:04Z	False
+32	mvco	MVCO	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-11-15T03:30:51Z	False
+33	Orifices_tests_2022	Orifices tests 2022	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-08-23T19:26:44Z	False
+34	FCB_IFCB_hybrid	FCB_IFCB_hybrid	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-08-20T20:00:43Z	False
+35	NBP2202	NBP2202	https://ifcb-data.whoi.edu/	IFCB	Heidi Sozik	hsosik@whoi.edu	True	100		2022-02-28T21:23:55Z	False
