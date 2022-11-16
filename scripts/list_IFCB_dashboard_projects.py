@@ -83,9 +83,9 @@ if os.path.exists(path_save):
                             try:
                                 pid_df = get_df_list_IFCB(urls[ds], l[0])
                                 # print(pid_df.head())
-                                #for i in range (0, len(pid_df)):
-                                    #n_roi = n_roi + roi_number(urls[ds], pid_df.loc[i, 'pid'])
-                                #Objects_number.append(n_roi)
+                                for i in range (0, len(pid_df)):
+                                    n_roi = n_roi + roi_number(urls[ds], pid_df.loc[i, 'pid'])
+                                Objects_number.append(n_roi)
                                 Latest_update.append(pid_df.loc[len(pid_df) - 1, 'sample_time'])
                             except:
                                 Objects_number.append(float('nan'))
@@ -103,7 +103,7 @@ if os.path.exists(path_save):
         projects_df['Contact_name'] = Contact_name
         projects_df['Contact_email'] = Contact_email
         projects_df['Pssdb_access'] = Pssdb_access
-        #projects_df['Objects_number'] = Objects_number
+        projects_df['Objects_number'] = Objects_number
         projects_df['Percentage_classified'] = Percentage_classified
         projects_df['Percentage_validated'] = Percentage_validated
         projects_df['Latest_update'] = Latest_update
