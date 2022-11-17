@@ -4,6 +4,7 @@ import requests
 import re
 import os
 import yaml
+import timeit
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
@@ -29,9 +30,6 @@ if os.path.exists(path_save):
         emails = ['cra002@ucsd.edu', 'hsosik@whoi.edu']
         urls = ['https://ifcb.caloos.org/', 'https://ifcb-data.whoi.edu/']
 
-        ##test projects
-        test = ['santa-cruz-municipal-wharf', 'NAAMES']
-
         # lists to be filled with the project
         Project_ID = []
         Project_title = []
@@ -40,7 +38,7 @@ if os.path.exists(path_save):
         Contact_name = []
         Contact_email = []
         Pssdb_access = []
-        Objects_number = []
+        #Objects_number = [] object count will not be consdiered here since it can be done together with the downloads
         Percentage_classified = []
         Percentage_validated = []
         Latest_update = []
@@ -76,20 +74,21 @@ if os.path.exists(path_save):
                             Pssdb_access.append('True')
                             Percentage_classified.append(100)
                             Percentage_validated.append(float('nan'))
-                            if (l[0] == 'stearns-wharf' or l[0] == 'Llopiz_preserved_microzooplankton'):
+                            if (l[0] == 'santa-cruz-municipal-wharf' or l[0] == 'EXPORTS'): # test projects defined here
                                 Project_test.append('True')
                             else:
                                 Project_test.append('False')
                             # step here to get ROI count for each projects:
                             try:
                                 pid_df = get_df_list_IFCB(urls[ds], l[0])
-                                print('counting the number of ROIs for '+ l[0])
-                                for i in tqdm(pid_df.loc[:, 'pid']):
-                                    n_roi = n_roi + roi_number(urls[ds], i)
-                                Objects_number.append(n_roi)
+                                print('obtaining data for project ' + l[0])
+                                #print('counting the number of ROIs for '+ l[0])
+                                #for i in tqdm(pid_df.loc[:, 'pid']):
+                                    #n_roi = n_roi + roi_number(urls[ds], i)
+                                #Objects_number.append(n_roi)
                                 Latest_update.append(pid_df.loc[len(pid_df) - 1, 'sample_time'])
                             except:
-                                Objects_number.append(float('nan'))
+                                #Objects_number.append(float('nan'))
                                 Latest_update.append(float('nan'))
 
                     except:
@@ -104,7 +103,7 @@ if os.path.exists(path_save):
         projects_df['Contact_name'] = Contact_name
         projects_df['Contact_email'] = Contact_email
         projects_df['Pssdb_access'] = Pssdb_access
-        projects_df['Objects_number'] = Objects_number
+        #projects_df['Objects_number'] = Objects_number
         projects_df['Percentage_classified'] = Percentage_classified
         projects_df['Percentage_validated'] = Percentage_validated
         projects_df['Latest_update'] = Latest_update
