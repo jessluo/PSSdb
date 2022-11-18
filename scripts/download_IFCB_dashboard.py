@@ -20,6 +20,8 @@ with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
 all_files_data = str(Path(cfg['raw_dir']).expanduser()) + '/IFCB_dashboard_projects_list.xlsx'
 IFCB_dashboard_data_path = str(Path(cfg['IFCB_dir']).expanduser())
+if not os.path.exists(IFCB_dashboard_data_path):
+    os.mkdir(IFCB_dashboard_data_path)
 
 
 # generate a dataframe with the timeseries list for each dashboard:
