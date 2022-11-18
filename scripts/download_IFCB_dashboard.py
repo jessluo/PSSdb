@@ -154,18 +154,18 @@ for n in range (0, len(timeseries_data)):
                 #if len(df_concatenated.index) <= 100000:
                     #df_concatenated = pd.concat([df_concatenated, features_df], ignore_index=True)
                     #pass
-                if len(df_concatenated.index) > 500000:
+                if pid_id == last_file :
                     file_numbers = file_numbers + 1
                     print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
                     df_concatenated.to_csv(path_download + '/' + Project_ID + '_features_' + str(file_numbers) +'.csv', sep='\t')
                     df_concatenated = pd.DataFrame()
                     #pass
-                elif pid_id == last_file:
+                elif len(df_concatenated.index) > 500000:
                     file_numbers = file_numbers + 1
                     print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
                     df_concatenated.to_csv(path_download + '/' + Project_ID + '_features_' + str(file_numbers) +'.csv', sep='\t')
                     df_concatenated = pd.DataFrame()
-                    pass
+
 
                 # class_df.to_csv(path_download + '/' + str(i) + '_class_scores.csv', sep='\t') 11/16/2022 decided not to keep class scores
                 # print(str(i) + ' download done ')
