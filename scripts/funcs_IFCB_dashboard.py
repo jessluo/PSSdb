@@ -21,8 +21,8 @@ def get_df_list_IFCB ( base_url, dataset, startdate=20000101, enddate=21000101):
     all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
     # generate a new column to index by dates:
     date_info = []
-    for i in range(0, len(all_file_info)):
-        date_info.append(int(pd.to_datetime(all_file_info.loc[0, 'sample_time']).date().strftime('%Y%m%d')))
+    for i in all_file_info.loc[:, 'sample_time']:
+        date_info.append(int(pd.to_datetime(i).date().strftime('%Y%m%d')))
     all_file_info['date_info'] = date_info # [int(sample[1:9]) for sample in all_file_info['pid']] changed
     # constrain date ranges for file download.
     #start_stamp=int(startdate.strftime('%Y%m%d'))
@@ -56,7 +56,7 @@ def df_from_url(url):
     df.drop(df.index[0], inplace = True)
     df.columns = df.columns.str.replace('\r', '')
     if df.columns.__contains__(None):
-        print('features file has not been generated')
+        print( url + ' file does not exist')
     else:
         return df
 
