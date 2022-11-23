@@ -80,7 +80,9 @@ with open(path_to_config_usr ,'r') as config_file:
 path_to_git=Path(cfg['git_dir']).expanduser()
 
 # Step 1: Authentication in EcoTaxa
-with ecotaxa_py_client.ApiClient() as client:
+configuration = ecotaxa_py_client.Configuration( host = "https://ecotaxa.obs-vlfr.fr/api")
+configuration.verify_ssl=False
+with ecotaxa_py_client.ApiClient(configuration) as client:
     api = authentification_api.AuthentificationApi(client)
     token = api.login(LoginReq(
                                username=cfg_pw['ecotaxa_user'],
@@ -88,6 +90,7 @@ with ecotaxa_py_client.ApiClient() as client:
                                ))
 
 configuration = ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api",access_token=token, discard_unknown_keys=True)
+configuration.verify_ssl=False
 
 # Step 1b: Authentication for JSON
 BASE_URL = "https://ecotaxa.obs-vlfr.fr"
