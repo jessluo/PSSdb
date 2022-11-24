@@ -72,6 +72,8 @@ path_to_data = path_to_git / Path(cfg['dataset_subdir']).parent
 path_to_projects=path_to_git / Path(cfg['dataset_subdir'])
 # Step 1: Search visible and accessible projects based on instrument filter
 # This step does require your authentication in EcoTaxa
+configuration = ecotaxa_py_client.Configuration( host = "https://ecotaxa.obs-vlfr.fr/api")
+configuration.verify_ssl=False
 with ecotaxa_py_client.ApiClient() as client:
     api = authentification_api.AuthentificationApi(client)
     token = api.login(LoginReq(
@@ -80,7 +82,7 @@ with ecotaxa_py_client.ApiClient() as client:
                                ))
 
 configuration = ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api",access_token=token, discard_unknown_keys=True)
-
+configuration.verify_ssl=False
 print("Searching for projects on EcoTaxa (please wait):")
 with ecotaxa_py_client.ApiClient(configuration) as api_client:
     api_instance = projects_api.ProjectsApi(api_client)
@@ -335,4 +337,4 @@ for instrument in inst:
             with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))),engine="xlsxwriter") as writer:
                        subset_df_instrument.to_excel(writer, sheet_name='Data', index=False)
                        subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
-print('Please fill out standardizer for each project. Read the metadata spreadsheet to get variable description.\n Use unit from the list below or define custom units in {}:\n'.format(path_to_git/'Scripts'/'units_def.txt'),full_list_units,sep='')
+print('Please fill out standardizer for each project. Read the metadata spreadsheet to get variable description.\n Use unit from the list below or define custom units in {}:\n'.format(path_to_git/'scripts'/'units_def.txt'),full_list_units,sep='')
