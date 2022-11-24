@@ -41,7 +41,7 @@ import pandas as pd
 # Unit convention to fill standardizer spreadsheets
 from pint import UnitRegistry # Use pip install pint to install
 ureg=UnitRegistry()
-ureg.load_definitions(Path.home()/'GIT'/'PSSdb'/'Scripts' /'units_def.txt')  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
+ureg.load_definitions(Path.home()/'GIT'/'PSSdb'/'scripts' /'units_def.txt')  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
 full_list_units = list(dict.fromkeys(sorted(dir(ureg))))  # list(dict.fromkeys(sorted(list(np.concatenate([dir(getattr(ureg.sys,system)) for system in dir(ureg.sys)]).flat))))
 
 
