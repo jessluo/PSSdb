@@ -52,14 +52,26 @@ elif subset == 'tests':
 for n in range (0, len(timeseries_data)):
     start = time.time()
     Project_source = timeseries_data.loc[n, 'dashboard_url']
+    if Project_source:
+        dashboard_id = 'CALOOS'
+    elif Project_source:
+        dashboard_id = 'WHOI'
     Project_ID = timeseries_data.loc[n, 'Project_ID']
     # define path for download
     path_download = IFCB_dashboard_data_path + '/' + Project_ID  ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
     pathname = Project_source + Project_ID + '/'
 
-    if os.path.exists(path_download) and os.path.isdir(path_download):
-        shutil.rmtree(path_download)
-    os.mkdir(path_download)
+    if os.path.isdir(path_download) and len(os.listdir(path_download) ) != 0: # and  os.path.exists(path_download)
+        replace = input('There is already downloaded data in ' +pathname+ ' do you want to replace the files? \n Y/N')
+        if replace == 'Y':
+            print('Overwriting '+ Project_ID  +' file(s), please wait')
+            shutil.rmtree(path_download)
+            os.mkdir(path_download)
+        else:
+            print('Skipping ' + Project_ID)
+            continue
+    elif not os.path.exists(path_download):
+        os.mkdir(path_download)
 
     # PROCESSING HERE
     METRIC = 'temperature'  # needs to be defined based on Karina's script
@@ -80,26 +92,36 @@ for n in range (0, len(timeseries_data)):
                 features_df = df_from_url(features_filename)
                 # obtain metadata
                 met_dict = metadata_dict(dashboard=Project_source, pid_id=pid_id)
-                for c in ['texture', 'Wedge', 'Ring', 'HOG', 'moment_invariant']:
-                    features_df = features_df[features_df.columns.drop(list(features_df.filter(regex=c)))]
-                # url = metadata_link + dataset_name +'&bin='+ str(subset_file_info.loc[i, 'pid'])
-                features_df['Project_ID'] = Project_ID
-                features_df['datetime'] = met_dict['datetime']
-                features_df['date'] = str(pd.to_datetime(met_dict['datetime']).date().strftime('%Y%m%d'))
-                features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strftime('%H%M%S'))
-                features_df['pixel_to_micron'] = met_dict['scale']
-                features_df['Latitude'] = met_dict['latitude']
-                features_df['Longitude'] = met_dict['longitude']
-                features_df['depth'] = met_dict['depth']
-                features_df['vol_analyzed'] = met_dict['ml_analyzed']
-                features_df['sample_type'] = met_dict['sample_type']
-                features_df['sample_cruise'] = met_dict['cruise']
-                features_df['number_of_rois'] = met_dict['number_of_rois']
-                features_df['concentration'] = met_dict['concentration']
+                features_clean = pd.DataFrame()
+                #extract data of interest from features file:
+                features_clean['area'] = features_df ['Area']
+                features_clean['biovolume'] = features_df ['Biovolume']
+                features_clean['equiv_diameter'] = features_df ['EquivDiameter']
+                features_clean['major_axis_length'] = features_df ['MajorAxisLength']
+                features_clean['minor_axis_length'] = features_df ['MinorAxisLength']
+                features_clean['solidity'] = features_df ['Solidity']
+                features_clean['summed_area'] = features_df ['summedArea']
+                features_clean['summed_biovolume'] = features_df ['summedBiovolume']
+                features_clean['summed_major_axis_length'] = features_df ['summedMajorAxisLength']
+                features_clean['summed_minor_axis_length'] = features_df ['summedMinorAxisLength']
+                #add metadata
+                features_clean['project_ID'] = Project_ID
+                features_clean['datetime'] = met_dict['datetime']
+                #features_df['date'] = str(pd.to_datetime(met_dict['datetime']).date().strftime('%Y%m%d'))
+                #features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strftime('%H%M%S'))
+                features_clean['pixel_to_micron'] = met_dict['scale']
+                features_clean['latitude'] = met_dict['latitude']
+                features_clean['longitude'] = met_dict['longitude']
+                features_clean['depth'] = met_dict['depth']
+                features_clean['vol_analyzed'] = met_dict['ml_analyzed']
+                features_clean['sample_type'] = met_dict['sample_type']
+                features_clean['sample_cruise'] = met_dict['cruise']
+                features_clean['number_of_rois'] = met_dict['number_of_rois']
+                features_clean['concentration'] = met_dict['concentration']
                 # now generate dataframe for the class scores
                 class_filename = pathname + str(i) + '_class_scores.csv'
                 class_df = df_from_url(class_filename)
-                features_df['roi_id'] = class_df['pid']
+                features_clean['roi_id'] = class_df['pid']
                 class_df = class_df.set_index('pid')
                 class_df = class_df.astype(float)
                 # create lists for top five classes and their scores
@@ -134,22 +156,34 @@ for n in range (0, len(timeseries_data)):
                         class_5_score.append(class_df.loc[roi, class_df.columns[index_top5[4]]])
                 except:
                     print(i + ' does not have a class score')
-                features_df['class_1'] = class_1
-                features_df['class_1_score'] = class_1_score
+                features_clean['class_1'] = class_1
+                features_clean['class_1_score'] = class_1_score
 
-                features_df['class_2'] = class_2
-                features_df['class_2_score'] = class_2_score
+                features_clean['class_2'] = class_2
+                features_clean['class_2_score'] = class_2_score
 
-                features_df['class_3'] = class_3
-                features_df['class_3_score'] = class_3_score
+                features_clean['class_3'] = class_3
+                features_clean['class_3_score'] = class_3_score
 
-                features_df['class_4'] = class_4
-                features_df['class_4_score'] = class_4_score
+                features_clean['class_4'] = class_4
+                features_clean['class_4_score'] = class_4_score
 
-                features_df['class_5'] = class_5
-                features_df['class_5_score'] = class_5_score
+                features_clean['class_5'] = class_5
+                features_clean['class_5_score'] = class_5_score
 
-                df_concatenated = pd.concat([df_concatenated, features_df], ignore_index=True)
+                #replace with nan the class and class scores below 0.0001
+                cols = ["class_1", "class_2", "class_3", "class_4", "class_5"]
+                cols_scores = ["class_1_score", "class_2_score", "class_3_score", "class_4_score", "class_5_score"]
+                for no, c in enumerate(cols_scores):
+                    features_clean[c] = features_clean[c].mask(features_clean[c] < 0.0001, np.nan)
+                    features_clean[cols[no]] = features_clean[cols[no]].mask(features_clean[c] < 0.0001, np.nan)
+
+                features_clean['datetime'] = pd.to_datetime(features_clean['datetime'])
+                year = features_clean.loc[1, 'datetime'].strftime('%Y')
+                dataset_id = features_clean.loc[1, 'roi_id'].split('_')
+                dataset_id = dataset_id[1]
+
+                df_concatenated = pd.concat([df_concatenated, features_clean], ignore_index=True)
 
                 #if len(df_concatenated.index) <= 100000:
                     #df_concatenated = pd.concat([df_concatenated, features_df], ignore_index=True)
@@ -157,13 +191,13 @@ for n in range (0, len(timeseries_data)):
                 if pid_id == last_file :
                     file_numbers = file_numbers + 1
                     print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
-                    df_concatenated.to_csv(path_download + '/' + Project_ID + '_features_' + str(file_numbers) +'.csv', sep='\t')
+                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
                     df_concatenated = pd.DataFrame()
                     #pass
                 elif len(df_concatenated.index) > 500000:
                     file_numbers = file_numbers + 1
                     print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
-                    df_concatenated.to_csv(path_download + '/' + Project_ID + '_features_' + str(file_numbers) +'.csv', sep='\t')
+                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
                     df_concatenated = pd.DataFrame()
 
 
