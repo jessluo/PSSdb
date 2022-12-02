@@ -52,10 +52,6 @@ elif subset == 'tests':
 for n in range (0, len(timeseries_data)):
     start = time.time()
     Project_source = timeseries_data.loc[n, 'dashboard_url']
-    if Project_source:
-        dashboard_id = 'CALOOS'
-    elif Project_source:
-        dashboard_id = 'WHOI'
     Project_ID = timeseries_data.loc[n, 'Project_ID']
     # define path for download
     path_download = IFCB_dashboard_data_path + '/' + Project_ID  ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
@@ -93,17 +89,7 @@ for n in range (0, len(timeseries_data)):
                 # obtain metadata
                 met_dict = metadata_dict(dashboard=Project_source, pid_id=pid_id)
                 features_clean = pd.DataFrame()
-                #extract data of interest from features file:
-                features_clean['area'] = features_df ['Area']
-                features_clean['biovolume'] = features_df ['Biovolume']
-                features_clean['equiv_diameter'] = features_df ['EquivDiameter']
-                features_clean['major_axis_length'] = features_df ['MajorAxisLength']
-                features_clean['minor_axis_length'] = features_df ['MinorAxisLength']
-                features_clean['solidity'] = features_df ['Solidity']
-                features_clean['summed_area'] = features_df ['summedArea']
-                features_clean['summed_biovolume'] = features_df ['summedBiovolume']
-                features_clean['summed_major_axis_length'] = features_df ['summedMajorAxisLength']
-                features_clean['summed_minor_axis_length'] = features_df ['summedMinorAxisLength']
+
                 #add metadata
                 features_clean['project_ID'] = Project_ID
                 features_clean['datetime'] = met_dict['datetime']
@@ -118,6 +104,17 @@ for n in range (0, len(timeseries_data)):
                 features_clean['sample_cruise'] = met_dict['cruise']
                 features_clean['number_of_rois'] = met_dict['number_of_rois']
                 features_clean['concentration'] = met_dict['concentration']
+                # extract data of interest from features file:
+                features_clean['area'] = features_df['Area']
+                features_clean['biovolume'] = features_df['Biovolume']
+                features_clean['equiv_diameter'] = features_df['EquivDiameter']
+                features_clean['major_axis_length'] = features_df['MajorAxisLength']
+                features_clean['minor_axis_length'] = features_df['MinorAxisLength']
+                features_clean['solidity'] = features_df['Solidity']
+                features_clean['summed_area'] = features_df['summedArea']
+                features_clean['summed_biovolume'] = features_df['summedBiovolume']
+                features_clean['summed_major_axis_length'] = features_df['summedMajorAxisLength']
+                features_clean['summed_minor_axis_length'] = features_df['summedMinorAxisLength']
                 # now generate dataframe for the class scores
                 class_filename = pathname + str(i) + '_class_scores.csv'
                 class_df = df_from_url(class_filename)
@@ -182,6 +179,10 @@ for n in range (0, len(timeseries_data)):
                 year = features_clean.loc[1, 'datetime'].strftime('%Y')
                 dataset_id = features_clean.loc[1, 'roi_id'].split('_')
                 dataset_id = dataset_id[1]
+                if Project_source == 'https://ifcb.caloos.org/':
+                    dashboard_id = 'CALOOS'
+                elif Project_source == 'https://ifcb-data.whoi.edu/':
+                    dashboard_id = 'WHOI'
 
                 df_concatenated = pd.concat([df_concatenated, features_clean], ignore_index=True)
 
