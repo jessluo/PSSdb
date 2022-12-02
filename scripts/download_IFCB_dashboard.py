@@ -90,6 +90,18 @@ for n in range (0, len(timeseries_data)):
                 met_dict = metadata_dict(dashboard=Project_source, pid_id=pid_id)
                 features_clean = pd.DataFrame()
 
+                # extract data of interest from features file:
+                features_clean['area'] = features_df['Area']
+                features_clean['biovolume'] = features_df['Biovolume']
+                features_clean['equiv_diameter'] = features_df['EquivDiameter']
+                features_clean['major_axis_length'] = features_df['MajorAxisLength']
+                features_clean['minor_axis_length'] = features_df['MinorAxisLength']
+                features_clean['solidity'] = features_df['Solidity']
+                features_clean['summed_area'] = features_df['summedArea']
+                features_clean['summed_biovolume'] = features_df['summedBiovolume']
+                features_clean['summed_major_axis_length'] = features_df['summedMajorAxisLength']
+                features_clean['summed_minor_axis_length'] = features_df['summedMinorAxisLength']
+
                 #add metadata
                 features_clean['project_ID'] = Project_ID
                 features_clean['datetime'] = met_dict['datetime']
@@ -104,17 +116,7 @@ for n in range (0, len(timeseries_data)):
                 features_clean['sample_cruise'] = met_dict['cruise']
                 features_clean['number_of_rois'] = met_dict['number_of_rois']
                 features_clean['concentration'] = met_dict['concentration']
-                # extract data of interest from features file:
-                features_clean['area'] = features_df['Area']
-                features_clean['biovolume'] = features_df['Biovolume']
-                features_clean['equiv_diameter'] = features_df['EquivDiameter']
-                features_clean['major_axis_length'] = features_df['MajorAxisLength']
-                features_clean['minor_axis_length'] = features_df['MinorAxisLength']
-                features_clean['solidity'] = features_df['Solidity']
-                features_clean['summed_area'] = features_df['summedArea']
-                features_clean['summed_biovolume'] = features_df['summedBiovolume']
-                features_clean['summed_major_axis_length'] = features_df['summedMajorAxisLength']
-                features_clean['summed_minor_axis_length'] = features_df['summedMinorAxisLength']
+
                 # now generate dataframe for the class scores
                 class_filename = pathname + str(i) + '_class_scores.csv'
                 class_df = df_from_url(class_filename)
