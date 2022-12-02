@@ -50,7 +50,8 @@ for l, i in enumerate(timeseries_data['Project_ID']):
                 df_clean['project_ID'] = df['Project_ID']
                 df_clean['datetime'] = df['datetime']
                 df_clean['pixel_to_micron'] = df['pixel_to_micron']
-                df_clean['latitude'] = df['Longitude']
+                df_clean['latitude'] = df['Latitude']
+                df_clean['longitude'] = df['Longitude']
                 df_clean['depth'] = df['depth']
                 df_clean['vol_analyzed'] = df['vol_analyzed']
                 df_clean['sample_type'] = df['sample_type']
@@ -80,7 +81,7 @@ for l, i in enumerate(timeseries_data['Project_ID']):
                 dataset_id = dataset_id[1]
                 os.remove(filename)
                 #CONTINUE HERE, include in name dashboard info,  dataset ID, dataset name, year, 'features' and file number  :
-                print(dataset +'_'+ dashboard_id +'_'+ dataset_id +'_'+ df_clean.loc[0, 'project_ID'] +'_'+ year + '_features_' + str(num) + '.tsv')
+                print(dataset + dashboard_id +'_'+ dataset_id +'_'+ df_clean.loc[0, 'project_ID'] +'_'+ year + '_features_' + str(num) + '.tsv')
                 df_clean.to_csv(dataset + dashboard_id +'_'+ dataset_id +'_'+ df_clean.loc[0, 'project_ID'] +'_'+ year + '_features_' + str(num) + '.tsv', sep='\t')
         except:
             pass
