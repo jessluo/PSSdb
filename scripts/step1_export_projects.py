@@ -56,7 +56,7 @@ project_inst=dict(zip(project_ids,list(map(lambda inst: [key for key,value in di
 # prompting a warning to export all accessible projects or test set only
 test_confirmation=input("Do you wish to export all accessible project(s) or the test subset? Enter all or test\n")
 if test_confirmation=='test':
-    project_ids=project_list[(project_list['PSSdb_access']==True) & (project_list['Project_test']==True)].Project_ID.astype(str)
+    project_ids=np.array(project_list[(project_list['PSSdb_access']==True) & (project_list['Project_test']==True)].Project_ID.astype(str))
 
 # prompting a warning if export files for the list of projects already exist
 # asking for confirmation to overwrite. Attention: all outdated project export files will be erased!
@@ -92,7 +92,7 @@ path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 # prompting a warning to export all accessible projects or test set only
 test_confirmation=input("Do you wish to export all accessible project(s) or the test subset? Enter all or test\n")
 if test_confirmation=='test':
-    project_ids=project_list[(project_list['PSSdb_access']==True) & (project_list['Project_test']==True)].Project_ID.astype(str)
+    project_ids=np.array(project_list[(project_list['PSSdb_access']==True) & (project_list['Project_test']==True)].Project_ID.astype(str))
 
 # prompting a warning if export files for the list of projects already exist
 # asking for confirmation to overwrite. Attention: all outdated project export files will be erased!
@@ -111,12 +111,12 @@ if len(existing_project_path)!=0:
          shutil.rmtree(file, ignore_errors=True)
          file.unlink(missing_ok=True)
 else:
-  print("Creating project export file using",str(path_to_data / cfg['proj_list']) ,"file, please wait",sep=" ")
+  print("Creating project export file using",str(path_to_data.parent / cfg['proj_list']) ,"file, please wait",sep=" ")
 
 # Loop through project using Ecopart export function (see funcs_export_projects.py)
-for i in 0: #range(len(project_ids))
+for i in range(len(project_ids)):
     proj_id = project_ids[i]
-    Ecopart_export(project={proj_id:project_list.loc[project_list.Project_ID==proj_id,'Project_title'].values[0]},username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_projects)
+    Ecopart_export(project={proj_id:project_list.loc[project_list.Project_ID==int(proj_id),'Project_title'].values[0]},username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_projects)
 
 # 3) Exporting IFCB dashboard projects:
 

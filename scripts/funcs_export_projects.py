@@ -8,10 +8,11 @@
 # Step 4: Get the job file (ecotaxa_export_projectID_date_timeZ.zip)
 
 ## Useful documentations:
-# See documentation for step 1: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/AuthentificationApi.md
-# See documentation for step 2: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ExportReq.md
-# See documentation for step 3: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#export_object_set
-# See documentation for step 4: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/JobsApi.md#get_job_file
+# See documentation for step 1 of Ecotaxa_export: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/AuthentificationApi.md
+# See documentation for step 2 of Ecotaxa_export: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ExportReq.md
+# See documentation for step 3 of Ecotaxa_export: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#export_object_set
+# See documentation for step 4 of Ecotaxa_export: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/JobsApi.md#get_job_file
+# https://stackoverflow.com/questions/16694907/download-large-file-in-python-with-requests
 
 ## Python modules:
 
@@ -21,7 +22,6 @@ import shutil # Delete uncompressed export zip folder
 import pandas as pd
 
 # Modules for webpage handling/scraping:
-from funcs_standardize_annotations import get_all_forms
 import urllib3
 import requests
 
@@ -86,29 +86,32 @@ def Ecopart_export(project,localpath,username,password):
                             break
 
             url_to_zip = 'https://ecopart.obs-vlfr.fr/{}'.format(status['d']['ExtraAction'][(status['d']['ExtraAction'].find('href') + 6):(status['d']['ExtraAction'].find('.zip') + 4)])
-            rsp = session.get(url_to_zip, stream=False)
+    with requests.Session() as session:
+            session.post('https://ecopart.obs-vlfr.fr/login', data=data_login, headers={ 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36'})
+            rsp = session.get(url_to_zip, stream=True)
             path_to_zip = path_to_datafile / list(project.values())[0] / "ecopart_detailed_export_{}_{}Z.zip".format(list(project.keys())[0], datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))
             path_to_zip.parent.mkdir(parents=True, exist_ok=True)
-            with open(path_to_zip, "wb") as fd:
-                for a_chunk in rsp.iter_content():  # Loop over content, i.e. eventual HTTP chunks
-                    # rsp.raise_for_status()
-                    fd.write(a_chunk)
-            #print("Download completed: ", path_to_zip, "\nUnpacking zip file", sep='')
-            shutil.unpack_archive(path_to_zip, path_to_zip.parent)  # Unzip export file
-            # Rename export files
-            if len(list(path_to_zip.parent.glob('export_detailed_*_Export_metadata_summary.tsv'))):
-                Path(list(path_to_zip.parent.glob('export_detailed_*_Export_metadata_summary.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])))
-            if len(list(path_to_zip.parent.glob('export_detailed_*_PAR_Aggregated.tsv'))):
-                Path(list(path_to_zip.parent.glob('export_detailed_*_PAR_Aggregated.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_particles.tsv'.format(list(project.keys())[0])))
-            if len(list(path_to_zip.parent.glob('export_detailed_*_ZOO_Aggregated.tsv'))):
-                Path(list(path_to_zip.parent.glob('export_detailed_*_ZOO_Aggregated.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_zooplankton.tsv'.format(list(project.keys())[0])))
-            # Replace particles/plankton filename in metadata
-            df_meta=pd.read_table(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])))
-            df_meta['Particle filename']=Path(path_to_zip.parent / 'ecopart_export_detailed_{}_particles.tsv'.format(list(project.keys())[0])).name
-            df_meta['Plankton filename'] = Path(path_to_zip.parent / 'ecopart_export_detailed_{}_zooplankton.tsv'.format(list(project.keys())[0])).name
-            df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])), sep="\t",index=False)
-        # Delete original zip file
-            path_to_zip.unlink(missing_ok=True)
+            with open(path_to_zip, 'wb') as f:
+                shutil.copyfileobj(rsp.raw, f,length=16*1024*1024)
+            rsp.close()
+    shutil.unpack_archive(path_to_zip, path_to_zip.parent)  # Unzip export file
+    # Rename export files
+    if len(list(path_to_zip.parent.glob('export_detailed_*_Export_metadata_summary.tsv'))):
+        Path(list(path_to_zip.parent.glob('export_detailed_*_Export_metadata_summary.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])))
+    if len(list(path_to_zip.parent.glob('export_detailed_*_PAR_Aggregated.tsv'))):
+        Path(list(path_to_zip.parent.glob('export_detailed_*_PAR_Aggregated.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_particles.tsv'.format(list(project.keys())[0])))
+    if len(list(path_to_zip.parent.glob('export_detailed_*_ZOO_Aggregated.tsv'))):
+        Path(list(path_to_zip.parent.glob('export_detailed_*_ZOO_Aggregated.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_zooplankton.tsv'.format(list(project.keys())[0])))
+    # Replace particles/plankton filename in metadata
+    df_meta=pd.read_table(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])))
+    df_meta['Particle filename']=Path(path_to_zip.parent / 'ecopart_export_detailed_{}_particles.tsv'.format(list(project.keys())[0])).name
+    df_meta['Plankton filename'] = Path(path_to_zip.parent / 'ecopart_export_detailed_{}_zooplankton.tsv'.format(list(project.keys())[0])).name
+    df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])), sep="\t",index=False)
+    # Delete original zip file
+    path_to_zip.unlink(missing_ok=True)
+    with requests.Session() as session:
+        # Authenticate with email/password
+        session.post('https://ecopart.obs-vlfr.fr/login', data=data_login, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36'})
         # Check that access is granted and export is allowed
         response = session.get(url=url_export)
         if response.ok:
@@ -128,27 +131,30 @@ def Ecopart_export(project,localpath,username,password):
                         if (status['d']['IsComplete'] == 'Y'):
                             break
             url_to_zip = 'https://ecopart.obs-vlfr.fr/{}'.format(status['d']['ExtraAction'][(status['d']['ExtraAction'].find('href') + 6):(status['d']['ExtraAction'].find('.zip') + 4)])
-            rsp = session.get(url_to_zip, stream=False)
-            path_to_zip = path_to_datafile / list(project.values())[0] / "ecopart_raw_export_{}_{}Z.zip".format(list(project.keys())[0], datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))
-            path_to_zip.parent.mkdir(parents=True, exist_ok=True)
-            with open(path_to_zip,"wb") as fe:
-                for chunk in rsp.iter_content():
-                    fe.write(chunk)
-            print("Download completed: ", path_to_zip, "\nUnpacking zip file", sep='')
-            shutil.unpack_archive(path_to_zip, path_to_zip.parent)  # Unzip export file
-            # Concatenate and rename export files
-            Path(list(path_to_zip.parent.glob('export_raw_*_Export_metadata_summary.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])))
-            if len(list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))):
-                pd.concat(map(lambda path: pd.read_csv(path, sep='\t',encoding='latin1'),list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))),axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])),sep="\t",index=False)
-                [file.unlink(missing_ok=True) for file in  list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))]
-            if len(list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))):
-                pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1'),list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
-                [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))]
-            if len(list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))):
-                pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1'),list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
-                [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))]
-            # Delete original zip file
-            path_to_zip.unlink(missing_ok=True)
+    with requests.Session() as session:
+         # Authenticate with email/password
+        session.post('https://ecopart.obs-vlfr.fr/login', data=data_login, headers={ 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36'})
+        rsp = session.get(url_to_zip, stream=True)
+        path_to_zip = path_to_datafile / list(project.values())[0] / "ecopart_raw_export_{}_{}Z.zip".format(list(project.keys())[0], datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))
+        path_to_zip.parent.mkdir(parents=True, exist_ok=True)
+        with open(path_to_zip, 'wb') as f:
+            shutil.copyfileobj(rsp.raw, f,length=16*1024*1024)
+        rsp.close()
+    print("Download completed: ", path_to_zip, "\nUnpacking zip file", sep='')
+    shutil.unpack_archive(path_to_zip, path_to_zip.parent)  # Unzip export file
+    # Concatenate and rename export files
+    Path(list(path_to_zip.parent.glob('export_raw_*_Export_metadata_summary.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])))
+    if len(list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))):
+        pd.concat(map(lambda path: pd.read_csv(path, sep='\t',encoding='latin1'),list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))),axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])),sep="\t",index=False)
+        [file.unlink(missing_ok=True) for file in  list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))]
+    if len(list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))):
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1'),list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+         [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))]
+    if len(list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))):
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1'),list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+         [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))]
+    # Delete original zip file
+    path_to_zip.unlink(missing_ok=True)
 
 
 def Ecotaxa_export(project,localpath,username,password):

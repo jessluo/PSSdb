@@ -9,4 +9,5 @@ figures/Standardizer
 figures/*.html
 raw/IFCB_dashboard_downloads
 Reports
-raw/Flags
+raw/flags
+raw/ecopart
