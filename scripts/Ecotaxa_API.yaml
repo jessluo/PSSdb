@@ -11,10 +11,10 @@ git_dir : '~/GIT/PSSdb/'
 raw_dir : '~/GIT/PSSdb/raw/'
 
 # Ecotaxa exported files storage sub-direcotry :
-Ecotaxa_subdir : 'Ecotaxa'
+Ecotaxa_subdir : 'ecotaxa'
 
 # Ecopart exported files storage sub-direcotry:
-Ecopart_subdir : 'Ecopart'
+Ecopart_subdir : 'ecopart'
 
 #IFCB dashboard directory:
 IFCB_dir : '~/GIT/PSSdb/raw/IFCB_dashboard_downloads/'

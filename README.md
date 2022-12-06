@@ -5,28 +5,28 @@ A collaborative project between NOAA/Geophysical Fluid Dynamics Laboratory and S
 
 ```
 PSSdb/
-  project_file.idea
   .gitignore
   requirements.txt
   raw/
-  scratch/
-  final/
-  code/
-    0.all.py
-    1.gather_IFCB_data.py
-    1.gather_UVP_data.py
-    2.grid_data.py
-    3....
-    gridding.py
-    ecotaxa.py
-    tests/
-      test_gridding.py
-      test_ecotaxa.py
-      ...
-    extra/
-      plot_map.R
-      test_aggregation.py
-      ...
+    project_list_all.xslx: list of projects hosted on Ecotaxa, Ecopart, and IFCB dashboards
+    project_IFCB/UVP/Zooscan_standardizer.xlsx: spreadsheets to map and standardize exported projects
+    ecotaxa/
+           instrument/ecotaxa_export_projectID_exportdateGMT_exporttimeGMT.tsv: native export file for projects hosted on Ecotaxa
+    ecopart/
+           instrument/ecopart_export_raw/detailed_projectID_exportdateGMT_exporttimeGMT.tsv: native export file for projects hosted on Ecopart
+    flags/
+           instrument/project_projectID_flags.tsv: table including flagged samples based on 5 criteria and overruling test
+    IFCB_dashboard_downloads/
+    raw_standardized/
+           instrument/standardized_project_projectID.tsv: standardized table
+  reports/
+    instrument/report_project_projectID.html: an interactive report showing the flagged samples locations, number of ROI, percentage of validation, and flag details
+  scripts/
+    step0_list_projects.py
+    step1_export_projects.py
+    step2_standardize_projects.py
+    step3_grid_projects.py
+    step4_compute_NBSS.py
 ```
         
 ### Hints on code documentation

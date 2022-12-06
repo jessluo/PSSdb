@@ -69,7 +69,7 @@ if len(existing_project_path) != 0:
     else:
         print("Creating list of Ecotaxa projects. Please wait")
         # get projects list
-        df_Ecotaxa_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_ecotaxa_projects)
+        df_Ecotaxa_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecotaxa_projects).replace(str(Path.home()),'~'))
         df_metadata = df_Ecotaxa_list['metadata']
         # Generating project_list_all file
         with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
@@ -79,7 +79,7 @@ if len(existing_project_path) != 0:
 else:
     print("Creating list of projects hosted on Ecotaxa, Ecopart, or IFCB dashboard. Please wait")
     # get projects list
-    df_Ecotaxa_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_ecotaxa_projects)
+    df_Ecotaxa_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecotaxa_projects).replace(str(Path.home()),'~'))
     df_metadata = df_Ecotaxa_list['metadata']
 
     # Generating project_list_all file
@@ -100,7 +100,7 @@ if len(existing_project_path) != 0:
         if confirmation == 'Y':
             print("Overwriting list of Ecopart projects. Please wait")
             # get projects list
-            df_Ecopart_list = Ecopart_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_ecopart_projects)
+            df_Ecopart_list = Ecopart_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecopart_projects).replace(str(Path.home()),'~'))
             df_metadata=pd.concat([df_metadata,df_Ecopart_list['metadata'].reset_index(drop=True)],axis=0).drop_duplicates(['Variables'])
             with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                 df_Ecopart_list['data'].to_excel(writer, sheet_name='ecopart', index=False)
@@ -110,7 +110,7 @@ if len(existing_project_path) != 0:
     else:
         print("Creating list of Ecopart projects. Please wait")
         # get projects list
-        df_Ecopart_list = Ecopart_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_ecopart_projects)
+        df_Ecopart_list = Ecopart_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecopart_projects).replace(str(Path.home()),'~'))
         df_metadata = pd.concat([df_metadata, df_Ecopart_list['metadata'].reset_index(drop=True)], axis=0).drop_duplicates(['Variables'])
 
         # Generating project_list_all file
@@ -120,7 +120,7 @@ if len(existing_project_path) != 0:
 else:
     print("Creating list of projects hosted on Ecotaxa, Ecopart, or IFCB dashboard. Please wait")
     # get projects list
-    df_Ecopart_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_ecopart_projects)
+    df_Ecopart_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecopart_projects).replace(str(Path.home()),'~'))
     df_metadata = pd.concat([df_metadata, df_Ecopart_list['metadata'].reset_index(drop=True)], axis=0).drop_duplicates(['Variables'])
 
     # Generating project_list_all file
