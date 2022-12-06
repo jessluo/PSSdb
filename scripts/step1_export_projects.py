@@ -46,7 +46,7 @@ import numpy as np
 # 1) Exporting Ecotaxa projects:
 print('Exporting projects hosted on Ecotaxa (https://ecotaxa.obs-vlfr.fr/):')
 # prepare storage based on project list stored in the yaml config file and instrument type
-project_list=pd.read_excel(path_to_data / cfg['proj_list'],sheet_name="ecotaxa",usecols=['Project_ID','Instrument','PSSdb_access','Project_test','Project_localpath'])
+project_list=pd.read_excel(path_to_data.parent / cfg['proj_list'],sheet_name="ecotaxa",usecols=['Project_ID','Instrument','PSSdb_access','Project_test','Project_localpath'])
 project_ids = np.array(project_list[project_list['PSSdb_access']==True].Project_ID.astype(str))#str(cfg['proj_id'])
 path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 
@@ -79,13 +79,13 @@ else:
 
 # Loop through project using Ecotaxa export function (see funcs_export_projects.py)
 for i in range(len(project_ids)):
-    proj_id = int(project_ids.to_list()[i])
+    proj_id = int(project_ids[i])
     Ecotaxa_export(project=proj_id,username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_projects / project_inst[project_ids[i]][0])
 
 # 2) Exporting Ecopart projects:
 print("Exporting projects hosted on EcoPart (https://ecopart.obs-vlfr.fr/):")
 # prepare storage based on project list stored in the yaml config file and instrument type
-project_list=pd.read_excel(path_to_data / cfg['proj_list'],sheet_name="ecopart",usecols=['Project_ID','Project_title','Project_localpath','Instrument','PSSdb_access','Project_test'])
+project_list=pd.read_excel(path_to_data.parent / cfg['proj_list'],sheet_name="ecopart",usecols=['Project_ID','Project_title','Project_localpath','Instrument','PSSdb_access','Project_test'])
 project_ids = np.array(project_list[project_list['PSSdb_access']==True].Project_ID.astype(str))#str(cfg['proj_id'])
 path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 
