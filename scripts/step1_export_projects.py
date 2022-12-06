@@ -47,7 +47,7 @@ import numpy as np
 print('Exporting projects hosted on Ecotaxa (https://ecotaxa.obs-vlfr.fr/):')
 # prepare storage based on project list stored in the yaml config file and instrument type
 project_list=pd.read_excel(path_to_data / cfg['proj_list'],sheet_name="ecotaxa",usecols=['Project_ID','Instrument','PSSdb_access','Project_test','Project_localpath'])
-project_ids = project_list[project_list['PSSdb_access']==True].Project_ID.astype(str)#str(cfg['proj_id'])
+project_ids = np.array(project_list[project_list['PSSdb_access']==True].Project_ID.astype(str))#str(cfg['proj_id'])
 path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 
 dict_instruments={'IFCB':'IFCB','UVP':['UVP5HD','UVP5SD','UVP5Z','UVP6'],'Zooscan':'Zooscan','Unknown':'?','AMNIS':'AMNIS','CPICS':'CPICS','CytoSense':'CytoSense','FastCam':'FastCam','FlowCam':'FlowCam','ISIIS':'ISIIS','LISST':['LISST','LISST-Holo'],'Loki':'Loki','Other':['Other camera','Other flowcytometer','Other microscope','Other scanner'],'PlanktoScope':'PlanktoScope','VPR':'VPR','ZooCam':'ZooCam','eHFCM':'eHFCM'}
@@ -86,7 +86,7 @@ for i in range(len(project_ids)):
 print("Exporting projects hosted on EcoPart (https://ecopart.obs-vlfr.fr/):")
 # prepare storage based on project list stored in the yaml config file and instrument type
 project_list=pd.read_excel(path_to_data / cfg['proj_list'],sheet_name="ecopart",usecols=['Project_ID','Project_title','Project_localpath','Instrument','PSSdb_access','Project_test'])
-project_ids = project_list[project_list['PSSdb_access']==True].Project_ID.astype(str)#str(cfg['proj_id'])
+project_ids = np.array(project_list[project_list['PSSdb_access']==True].Project_ID.astype(str))#str(cfg['proj_id'])
 path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 
 # prompting a warning to export all accessible projects or test set only
