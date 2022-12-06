@@ -99,7 +99,7 @@ columns_types={metadata.Variables[i]:metadata.Variable_types[i] for i in metadat
 df_taxonomy=pd.read_excel(path_to_taxonomy,dtype=columns_types )
 rank_categories=[rank.partition("(")[2].replace(')','') for hierarchy in pd.Series(df_taxonomy.loc[df_taxonomy['Full_hierarchy'].astype(str).str.len().nlargest(1, keep="all").index[0],'Full_hierarchy']) for rank in hierarchy.split('>')]
 df_taxonomy['Rank']=pd.Categorical(df_taxonomy.Rank,ordered=True,categories=rank_categories)
-from funcs_taxonomic_annotations import taxon_color_palette
+from funcs_standardize_annotations import taxon_color_palette
 
 # Functions here:
 
