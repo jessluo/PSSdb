@@ -66,8 +66,6 @@ path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
-
-
 with ecotaxa_py_client.ApiClient() as client:
     api = authentification_api.AuthentificationApi(client)
     token = api.login(LoginReq(username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']))
@@ -82,9 +80,9 @@ warnings.filterwarnings("ignore")
 warnings.filterwarnings('ignore', module='pint')
 import pint_pandas # Use pip install pint-pandas
 PA=pint_pandas.PintArray
-PQ=pint.quantity.Quantity
 from pint import UnitRegistry # Use pip install pint to install
 ureg=UnitRegistry()
+PQ=ureg.Quantity
 #ureg.default_format = '~' # Add this if you want to use abbreviated unit names.
 ureg.load_definitions(Path.home()/'GIT'/'PSSdb'/'scripts' /'units_def.txt')  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
 full_list_units = list(dict.fromkeys(sorted(dir(ureg))))  # list(dict.fromkeys(sorted(list(np.concatenate([dir(getattr(ureg.sys,system)) for system in dir(ureg.sys)]).flat))))
@@ -695,7 +693,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
         # Transform variables based on field units
         units=[string for string in list(df_standardizer.columns) if "_unit" in string]
         units_of_interest = dict(zip(units,df_standardizer.loc[project_id][units].values.flatten().tolist()))
-       # Test whether all units are defined:                             [re.sub(r'^-?[0-9]_times_10power-?[0-9]_','',str(unit)) for unit in list(units_of_interest.values())]
+        # Test whether all units are defined:                             [re.sub(r'^-?[0-9]_times_10power-?[0-9]_','',str(unit)) for unit in list(units_of_interest.values())]
         if any([unit not in ureg for unit in list(units_of_interest.values()) if str(unit)!='nan']):
             print('Quitting. Please fill out standardizer with units from the list below or define your custom unit in {} using known units:\n'.format(path_to_data.parent.parent.parent /'Scripts'/'units_def.txt'),full_list_units, sep='')
             return

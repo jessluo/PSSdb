@@ -263,7 +263,7 @@ for instrument in inst:
                              'Unit of the pixel conversion factor column in project file',
                              'Name of the category ID column in project file',
                              'Name of the annotation status column in project file (e.g predicted, validated)',
-                             'Path of the file containing the ID of flagged samples to be removed from standardized project. Automatic flagging available in funcs_project_standardizer.py',
+                             'Path of the file containing the ID of flagged samples to be removed from standardized project. Automatic flagging available in funcs_standardize_projects.py',
                              'Character for missing values',
                              'ID of corresponding EcoPart project(s) (*UVP-only). Use comma to separate multiple projects',
                              'Name of the sampling type column in project file (e.g. platform, gear, strategy). Used to describe the sampling method',

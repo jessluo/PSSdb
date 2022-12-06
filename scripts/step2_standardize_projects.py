@@ -12,7 +12,7 @@ import os
 import pandas as pd
 
 ## standardization functions
-from funcs_project_standardizer import *
+from funcs_standardize_projects import *
 
 # Workflow starts here:
 path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
