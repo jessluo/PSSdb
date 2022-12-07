@@ -20,10 +20,18 @@
 from pathlib import Path  # Handling of path object
 import shutil # Delete uncompressed export zip folder
 import pandas as pd
+import yaml # requires installation of PyYAML package
+# read git-tracked config file (text file) with inputs:  project ID, output directory
+path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+with open(path_to_config ,'r') as config_file:
+    cfg = yaml.safe_load(config_file)
+path_to_git=Path(cfg['git_dir']).expanduser()
+path_to_data=path_to_git / cfg['dataset_subdir']
 
 # Modules for webpage handling/scraping:
 import urllib3
 import requests
+from bs4 import BeautifulSoup
 
 # Modules for Ecotaxa API interface:
 import warnings
@@ -68,6 +76,18 @@ def Ecopart_export(project,localpath,username,password):
         session.post('https://ecopart.obs-vlfr.fr/login', data=data_login, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36'})
         # Check that access is granted and export is allowed
         response = session.get(url=url_export)
+        soup = BeautifulSoup(response.text, 'lxml')
+        if len(soup.find_all('table')[-1].find_all('span')): # If export allowed, return button to start Task, else return span stating No data to export
+            if (soup.find_all('table')[-1].find_all('span')[0].contents[0]=='No data to export, change your criteria'):
+                print('Project not exportable. Updating project_list_all/ecopart and skipping export')
+                sheets = pd.ExcelFile(path_to_data.parent / cfg['proj_list']).sheet_names
+                if ('ecopart' in sheets):
+                    project_list = pd.read_excel(path_to_data.parent / cfg['proj_list'], sheet_name="ecopart")
+                    project_list.loc[project_list.Project_ID.astype(str)==str(list(project.keys())[0]),'PSSdb_access']=False
+                    project_list=project_list.sort_values(['PSSdb_access','Project_ID'],ascending=False)
+                    with pd.ExcelWriter(str(path_to_data.parent / cfg['proj_list']), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                        project_list.to_excel(writer, sheet_name='ecopart', index=False)
+                return
         if response.ok:
             # Start export task for detailed data
             r = session.post(url_export,data={'what': 'DET', 'fileformatd': 'TSV', 'aggregatefilesd': 'Y', 'starttask': 'Y'})

@@ -31,15 +31,17 @@ import datetime, time # Time module for break and current date
 # Prompt for export confirmation
 import sys
 
-# Ecotaxa API modules. Install module via git first
-import ecotaxa_py_client
-from funcs_export_projects import *
-from sys import argv
-import requests
-
-# Dataframe modules
+# Dataframe/Array modules
 import pandas as pd
 import numpy as np
+
+# Ecotaxa API modules. Install module via git first
+import ecotaxa_py_client
+
+# Data portal-specific web scraping functions to export projects
+from sys import argv
+import requests
+from funcs_export_projects import *
 
 # Workflow starts here
 
@@ -64,7 +66,7 @@ existing_project_path=list(path_to_projects.rglob('*export_*'))
 existing_project_ids=list(map(lambda x: str(x.stem)[(str(x.stem).find('export_')+7):([i.start() for i in re.finditer('_',str(x.stem))])[2]],existing_project_path))
 if len(existing_project_path)!=0:
 
-  confirmation=input("{} project(s) already downloaded. Do you wish to overwrite the export file(s)? Enter Y or N\n If Y, outdated project export(s) will be erased\n".format(str(len(existing_project_path))))
+  confirmation=input("{} project(s) already downloaded. Do you wish to overwrite the export file(s)? Enter Y or N\n If Y, outdated project export(s) will be erased\n".format(str(len(existing_project_ids))))
   if confirmation!='Y':
       project_ids=np.array([x for x in project_ids if x not in existing_project_ids])
       print("Skipping existing project(s). Creating export file for other projects")
@@ -100,7 +102,7 @@ existing_project_path=list(path_to_projects.rglob('*export_*'))
 existing_project_ids=list(set(list(map(lambda x: str(x.stem)[1+([i.start() for i in re.finditer('_',str(x.stem))])[2]:([i.start() for i in re.finditer('_',str(x.stem))])[3]],existing_project_path))))
 if len(existing_project_path)!=0:
 
-  confirmation=input("{} project(s) already downloaded. Do you wish to overwrite the export file(s)? Enter Y or N\n If Y, outdated project export(s) will be erased\n".format(str(len(existing_project_path))))
+  confirmation=input("{} project(s) already downloaded. Do you wish to overwrite the export file(s)? Enter Y or N\n If Y, outdated project export(s) will be erased\n".format(str(len(existing_project_ids))))
   if confirmation!='Y':
       project_ids=np.array([x for x in project_ids if x not in existing_project_ids])
       print("Skipping existing project(s). Creating export file for other projects")
