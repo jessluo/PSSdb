@@ -123,7 +123,7 @@ def Ecopart_export(project,localpath,username,password):
     if len(list(path_to_zip.parent.glob('export_detailed_*_ZOO_Aggregated.tsv'))):
         Path(list(path_to_zip.parent.glob('export_detailed_*_ZOO_Aggregated.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_zooplankton.tsv'.format(list(project.keys())[0])))
     # Replace particles/plankton filename in metadata
-    df_meta=pd.read_table(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])))
+    df_meta=pd.read_table(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])),encoding='latin-1')
     df_meta['Particle filename']=Path(path_to_zip.parent / 'ecopart_export_detailed_{}_particles.tsv'.format(list(project.keys())[0])).name
     df_meta['Plankton filename'] = Path(path_to_zip.parent / 'ecopart_export_detailed_{}_zooplankton.tsv'.format(list(project.keys())[0])).name
     df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_detailed_{}_metadata.tsv'.format(list(project.keys())[0])), sep="\t",index=False)
