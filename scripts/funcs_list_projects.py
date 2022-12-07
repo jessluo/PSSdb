@@ -57,6 +57,9 @@ from requests_futures import sessions # Use pip install requests-futures
 from bs4 import BeautifulSoup
 import re
 
+import warnings
+warnings.filterwarnings('ignore', module='urllib3')
+
 
 ## Functions start here:
 
@@ -75,7 +78,7 @@ def Ecotaxa_list(username,password,localpath):
         api = authentification_api.AuthentificationApi(client)
         token = api.login(LoginReq( username=username, password=password))
     configuration = ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api",access_token=token, discard_unknown_keys=True)
-
+    configuration.verify_ssl=False
     print("Searching for projects on EcoTaxa (https://ecotaxa.obs-vlfr.fr/):")
     with ecotaxa_py_client.ApiClient(configuration) as api_client:
         api_instance = projects_api.ProjectsApi(api_client)
