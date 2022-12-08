@@ -268,109 +268,109 @@ def Ecopart_list(username,password,localpath):
     return {'data': df_projects, 'metadata': df_metadata}
 
 
-def IFCB_list(localpath):
-    if os.path.exists(localpath):
-        exists = input('Warning! the IFCB_dashboard_projects_list exists. Do you want to update? \n  y/n')
-        if exists == 'y':
-            # os.remove(path_save)
-            # predefined information of dashboards:
-            # dashboards = ['CALOOS', 'WHOI']
-            contacts = ['Clarissa Anderson', 'Heidi Sozik']
-            emails = ['cra002@ucsd.edu', 'hsosik@whoi.edu']
-            urls = ['https://ifcb.caloos.org/', 'https://ifcb-data.whoi.edu/']
+def IFCB_dashboard_list(localpath):
+    print('Searching for projects on CALOOS (https://ifcb.caloos.org/) and WHOI-IFCB (https://ifcb-data.whoi.edu/)')
+    contacts = ['Clarissa Anderson', 'Heidi Sozik']
+    emails = ['cra002@ucsd.edu', 'hsosik@whoi.edu']
+    urls = ['https://ifcb.caloos.org/', 'https://ifcb-data.whoi.edu/']
 
-            # lists to be filled with the project
-            Project_ID = []
-            Project_title = []
-            dashboard_url = []
-            Instrument = []
-            Contact_name = []
-            Contact_email = []
-            Pssdb_access = []
-            # Objects_number = [] object count will not be consdiered here since it can be done together with the downloads
-            Percentage_classified = []
-            Percentage_validated = []
-            Latest_update = []
-            Project_test = []
-            # n_roi = 0
+    # lists to be filled with the project
+    Project_ID = []
+    Project_title = []
+    Project_source = []
+    Project_localpath = []
+    Instrument = []
+    Contact_name = []
+    Contact_email = []
+    Pssdb_access = []
+    Objects_number = [] # object count will not be consdiered here since it can be done together with the downloads
+    Percentage_classified = []
+    Percentage_validated = []
+    Latest_update = []
+    Project_test = []
+    # n_roi = 0
 
-            for ds, url in enumerate(urls):
-                data = requests.get(url)
-                data = data.content
-                data = data.decode('utf-8')
-                data = data.split('\n')
-                data_dict = {}
-                for n, r in enumerate(data):
-                    roi_info = r.split(',')
-                    data_dict[n] = roi_info
-                data_dict.popitem()
-                df = pd.DataFrame.from_dict(data_dict, orient='index')
-                keys_proj_numbers = [key for key, val in data_dict.items() if
+    for ds, url in enumerate(urls):
+        data = requests.get(url)
+        data = data.content
+        data = data.decode('utf-8')
+        data = data.split('\n')
+        data_dict = {}
+        for n, r in enumerate(data):
+            roi_info = r.split(',')
+            data_dict[n] = roi_info
+        data_dict.popitem()
+        df = pd.DataFrame.from_dict(data_dict, orient='index')
+        keys_proj_numbers = [key for key, val in data_dict.items() if
                                      any('timeline?dataset=' in s for s in val)]
-                for n in keys_proj_numbers:
-                    for i in data_dict[n]:
-                        proj_info = re.search('timeline\?dataset=(.*)', i)
+        for n in keys_proj_numbers:
+            for i in data_dict[n]:
+                proj_info = re.search('timeline\?dataset=(.*)', i)
+                try:
+                    l = proj_info.group(1).split('>')
+                    l[0] = l[0].replace('\'', '').replace('\"', '')
+                    l[1] = l[1].replace('</a', '')
+                    if l[0] not in Project_ID:
+                        Project_ID.append(l[0])
+                        Project_title.append(l[1])
+                        Project_localpath.append(localpath)
+                        Project_source.append(urls[ds] + 'timeline?dataset=' +l[0])
+                        Instrument.append('IFCB')
+                        Contact_name.append(contacts[ds])
+                        Contact_email.append(emails[ds])
+                        Pssdb_access.append('True')
+                        Objects_number.append(float('nan'))
+                        Percentage_classified.append(100.000)
+                        Percentage_validated.append(float('nan'))
+                        if (l[0] == 'santa-cruz-municipal-wharf' or l[
+                            0] == 'EXPORTS'):  # test projects defined here
+                            Project_test.append('True')
+                        else:
+                            Project_test.append('False')
+                        # step here to get ROI count for each projects:
                         try:
-                            l = proj_info.group(1).split('>')
-                            l[0] = l[0].replace('\'', '').replace('\"', '')
-                            l[1] = l[1].replace('</a', '')
-                            if l[0] not in Project_ID:
-                                Project_ID.append(l[0])
-                                Project_title.append(l[1])
-                                dashboard_url.append(urls[ds])
-                                Instrument.append('IFCB')
-                                Contact_name.append(contacts[ds])
-                                Contact_email.append(emails[ds])
-                                Pssdb_access.append('True')
-                                Percentage_classified.append(100)
-                                Percentage_validated.append(float('nan'))
-                                if (l[0] == 'santa-cruz-municipal-wharf' or l[
-                                    0] == 'EXPORTS'):  # test projects defined here
-                                    Project_test.append('True')
-                                else:
-                                    Project_test.append('False')
-                                # step here to get ROI count for each projects:
-                                try:
-                                    pid_df = get_df_list_IFCB(urls[ds], l[0])
-                                    # print('obtaining data for project ' + l[0])
-                                    # print('counting the number of ROIs for '+ l[0])
-                                    # for i in tqdm(pid_df.loc[:, 'pid']):
-                                    # n_roi = n_roi + roi_number(urls[ds], i)
-                                    # Objects_number.append(n_roi)
-                                    Latest_update.append(pid_df.loc[len(pid_df) - 1, 'sample_time'])
-                                except:
-                                    # Objects_number.append(float('nan'))
-                                    Latest_update.append(float('nan'))
-
+                            pid_df = get_df_list_IFCB(urls[ds], l[0])
+                            # print('obtaining data for project ' + l[0])
+                            # print('counting the number of ROIs for '+ l[0])
+                            # for i in tqdm(pid_df.loc[:, 'pid']):
+                            # n_roi = n_roi + roi_number(urls[ds], i)
+                            # Objects_number.append(n_roi)
+                            Latest_update.append(pid_df.loc[len(pid_df) - 1, 'sample_time'])
                         except:
-                            pass
+                            # Objects_number.append(float('nan'))
+                            Latest_update.append(float('nan'))
 
-            df_projects = pd.DataFrame()
+                except:
+                    pass
 
-            df_projects['dashboard_url'] = dashboard_url
-            df_projects['Project_ID'] = Project_ID
-            df_projects['Project_title'] = Project_title
-            df_projects['Instrument'] = Instrument
-            df_projects['Contact_name'] = Contact_name
-            df_projects['Contact_email'] = Contact_email
-            df_projects['Pssdb_access'] = Pssdb_access
-            # projects_df['Objects_number'] = Objects_number
-            df_projects['Percentage_classified'] = Percentage_classified
-            df_projects['Percentage_validated'] = Percentage_validated
-            df_projects['Latest_update'] = Latest_update
-            df_projects['Project_test'] = Project_test
+    df_projects = pd.DataFrame()
 
-            projects_df = df_projects[df_projects['Latest_update'].notna()]
-            os.remove(localpath)
+    df_projects['Project_source']= Project_source
+    df_projects['Project_localpath'] = Project_localpath
+    df_projects['Project_ID'] = Project_ID
+    df_projects['Project_title'] = Project_title
+    df_projects['Instrument'] = Instrument
+    df_projects['Contact_name'] = Contact_name
+    df_projects['Contact_email'] = Contact_email
+    df_projects['PSSdb_access'] = Pssdb_access
+    df_projects['Objects_number'] = Objects_number
+    df_projects['Percentage_classified'] = Percentage_classified
+    df_projects['Percentage_validated'] = Percentage_validated
+    df_projects['Latest_update'] = Latest_update
+    df_projects['Project_test'] = Project_test
+
+    df_projects = df_projects[df_projects['Latest_update'].notna()]
+    #os.remove(localpath)
     df_metadata = pd.DataFrame({'Variables': df_projects.columns, 'Variable_types': df_projects.dtypes,
-                                'Units/Values': ['', '', '', '', '', '', '', '', '#', '%', '%', ''],
+                                'Units/Values': ['', '', '', '', '', '', '', '', '#', '%', '%', '', ''],
                                 'Description': ['Project_source (URL where original project files can be exported)',
                                                 'Local path indicating the location of exported files storage',
                                                 'Project ID', 'Project title', 'Project instrument',
                                                 'Name of the project contact', 'Email of the project contact',
                                                 'Project accessibility. If True, export is possible with current authentication',
-                                                'Total number of objects (images) in the project',
+                                                'Total number of objects (images) in the project. IFCB dashboard downloads count objects in the export step ',
                                                 'Percentage of predicted images', 'Percentage of validated images',
+                                                'Latest date the dataset has been updated',
                                                 'Test set boolean identifier. If True, project is one of the test set projects']})
 
     return {'data': df_projects, 'metadata': df_metadata}
