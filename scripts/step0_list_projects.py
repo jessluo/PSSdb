@@ -132,6 +132,46 @@ else:
 df_projects_list['Ecopart_project']=df_projects_list.Project_ID.astype(str).apply(lambda id: ';'.join(df_Ecopart_list['data'][df_Ecopart_list['data'].Ecotaxa_ID.astype(str)==str(id)].Project_ID.astype(str).values.tolist()))
 
 #3) List IFCB dashboard projects using Scripts.funcs_list_projects.py function: IFCB_dashboard_list
+existing_project_path = list(path_to_data.glob('project_list_all.xlsx'))
+if len(existing_project_path) != 0:
+    sheets = pd.ExcelFile(existing_project_path[0]).sheet_names
+    if ('ifcb' in sheets) & ('metadata_ifcb_dashboard' in sheets):
+        df_metadata_ifcb_dashboard=pd.read_excel(existing_project_path[0],sheet_name='metadata_ifcb_dashboard')
+        df_ifcb = pd.read_excel(existing_project_path[0], sheet_name='ifcb',dtype=dict(zip(df_metadata_ifcb_dashboard.Variables, df_metadata_ifcb_dashboard.Variable_types)))
+
+        confirmation = input("List of IFCB dashboard projects already created. Do you wish to overwrite the existing list? Enter Y or N\n")
+        if confirmation == 'Y':
+            print("Overwriting list of IFCB projects. Please wait")
+            # get projects list
+            df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
+            df_metadata_ifcb_dashboard=df_ifcb_list['metadata']
+            with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
+
+        elif confirmation=='N':
+            df_ifcb_list={'data':df_ifcb}
+    else:
+        print("Creating list of IFCB projects. Please wait")
+        # get projects list
+        df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
+        df_metadata_ifcb_dashboard = df_ifcb_list['metadata']
+        # Generating project_list_all file
+        with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+            df_Ecotaxa_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
+            df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
+
+else:
+    print("Creating list of projects hosted on Ecotaxa, Ecopart, or IFCB dashboard. Please wait")
+    # get projects list
+    df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
+    df_metadata_ifcb_dashboard = df_ifcb_list['metadata']
+
+    # Generating project_list_all file
+    with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'),engine="xlsxwriter") as writer:
+        df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
+        df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
+
+df_projects_list=pd.concat([df_projects_list,df_ifcb_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
 
 #df_projects_list=pd.concat([df_projects_list,df_IFCB_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
 
