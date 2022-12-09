@@ -63,7 +63,7 @@ for n in range (0, len(timeseries_data)):
             print('Overwriting '+ Project_ID  +' file(s), please wait')
             shutil.rmtree(path_download)
             os.mkdir(path_download)
-        else:
+        elif replace == 'N':
             print('Skipping ' + Project_ID)
             continue
     elif not os.path.exists(path_download):
