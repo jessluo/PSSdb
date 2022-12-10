@@ -405,11 +405,11 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
             # generate features files
             pid_id = str(i)
             #print(pid_id)
-            features_filename = dashboard_url  + Project_ID + '/' + pid_id + '_features.csv'
+            features_filename = dashboard_url + Project_ID + '/' + pid_id + '_features.csv'
             try:
                 features_df = df_from_url(features_filename)
                 # obtain metadata
-                met_dict = metadata_dict(dashboard=Project_source, pid_id=pid_id)
+                met_dict = metadata_dict(dashboard=dashboard_url, pid_id=pid_id)
                 features_clean = pd.DataFrame()
 
                 # extract data of interest from features file:
@@ -440,7 +440,7 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 features_clean['concentration'] = met_dict['concentration']
 
                 # now generate dataframe for the class scores
-                class_filename = dashboard_url + str(i) + '_class_scores.csv'
+                class_filename = dashboard_url + Project_ID + '/' + pid_id + '_class_scores.csv'
                 class_df = df_from_url(class_filename)
                 features_clean['roi_id'] = class_df['pid']
                 class_df = class_df.set_index('pid')
