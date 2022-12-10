@@ -275,6 +275,7 @@ def IFCB_dashboard_list(localpath):
     urls = ['https://ifcb.caloos.org/', 'https://ifcb-data.whoi.edu/']
 
     # lists to be filled with the project
+    dashboard_url = [] # necessary to obtain metadata for each file in IFCB_dashboard_export function on the funcs_export_projects module
     Project_ID = []
     Project_title = []
     Project_source = []
@@ -311,6 +312,7 @@ def IFCB_dashboard_list(localpath):
                     l[0] = l[0].replace('\'', '').replace('\"', '')
                     l[1] = l[1].replace('</a', '')
                     if l[0] not in Project_ID:
+                        dashboard_url.append(urls[ds])
                         Project_ID.append(l[0])
                         Project_title.append(l[1])
                         Project_localpath.append(localpath)
@@ -344,7 +346,7 @@ def IFCB_dashboard_list(localpath):
                     pass
 
     df_projects = pd.DataFrame()
-
+    df_projects['dashboard_url'] = dashboard_url
     df_projects['Project_source']= Project_source
     df_projects['Project_localpath'] = Project_localpath
     df_projects['Project_ID'] = Project_ID
@@ -362,8 +364,9 @@ def IFCB_dashboard_list(localpath):
     df_projects = df_projects[df_projects['Latest_update'].notna()]
     #os.remove(localpath)
     df_metadata = pd.DataFrame({'Variables': df_projects.columns, 'Variable_types': df_projects.dtypes,
-                                'Units/Values': ['', '', '', '', '', '', '', '', '#', '%', '%', '', ''],
-                                'Description': ['Project_source (URL where original project files can be exported)',
+                                'Units/Values': ['', '', '', '', '', '', '', '', '', '#', '%', '%', '', ''],
+                                'Description': [' URL of dashboard, necessary to obtain metadata for the IFCB exported files',
+                                                'Project_source (URL where original project files can be exported)',
                                                 'Local path indicating the location of exported files storage',
                                                 'Project ID', 'Project title', 'Project instrument',
                                                 'Name of the project contact', 'Email of the project contact',
