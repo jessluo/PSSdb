@@ -503,9 +503,9 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 year = features_clean.loc[1, 'datetime'].strftime('%Y')
                 dataset_id = features_clean.loc[1, 'roi_id'].split('_')
                 dataset_id = dataset_id[1]
-                if Project_source == 'https://ifcb.caloos.org/':
+                if dashboard_url == 'https://ifcb.caloos.org/':
                     dashboard_id = 'CALOOS'
-                elif Project_source == 'https://ifcb-data.whoi.edu/':
+                elif dashboard_url== 'https://ifcb-data.whoi.edu/':
                     dashboard_id = 'WHOI'
 
                 df_concatenated = pd.concat([df_concatenated, features_clean], ignore_index=True)
