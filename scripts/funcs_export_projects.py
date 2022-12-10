@@ -274,3 +274,264 @@ def Ecotaxa_export(project,localpath,username,password):
     shutil.unpack_archive(path_to_zip, path_to_export)  # Unzip export file
     path_to_zip.unlink(missing_ok=True)  # Delete zip file
     path_to_log.unlink(missing_ok=True)  # Delete job log
+
+# IFCB dashboard functions here:
+## create list of dates available for the project of interest
+def get_df_list_IFCB (base_url, Project_ID,  startdate=20000101, enddate=21000101):
+    """
+    Objective: generate list of files for a dataset in the IFCB dashboard
+    :param startdate: set start date to  select data from the project, in format YYYYMMDD
+    :param enddate: set end  date to  select data from the project, in format YYYYMMDD
+    :param base_url: WHOI or CALOOS url
+    :param Project_ID: data set contained within the WHOI or CALOOS dashboard
+    :return: data frame that contains the dataset names under the 'pid' column
+    """
+    import requests
+    import json
+    import pandas as pd
+    link = base_url + 'api/list_bins?dataset=' + Project_ID # this path is for the data LIST only, modified 9/12/2022, Project_source in the project list obtained in step0  has the complete url
+    #metadata_link = "https://ifcb.caloos.org/timeline?dataset="
+    r = requests.get(link)
+    r_content = r.content
+    r_content = json.loads(r_content.decode('utf-8'))
+    all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
+    # generate a new column to index by dates:
+    date_info = []
+    for i in all_file_info.loc[:, 'sample_time']:
+        date_info.append(int(pd.to_datetime(i).date().strftime('%Y%m%d')))
+    all_file_info['date_info'] = date_info # [int(sample[1:9]) for sample in all_file_info['pid']] changed
+    # constrain date ranges for file download.
+    #start_stamp=int(startdate.strftime('%Y%m%d'))
+    #end_stamp=int(y['enddate'].strftime('%Y%m%d'))
+    file_info = all_file_info.loc[all_file_info['date_info']>= startdate].reset_index(drop =True) # | all_file_info['date_info']<= end_stamp]
+    file_info = file_info.loc[file_info['date_info']<= enddate].reset_index(drop =True)
+    return file_info
+
+# We adopted some code contributed by Joe Futrelle (WHOI): https://github.com/joefutrelle/pyifcb
+
+# make function to get datasets from urls
+def df_from_url(url):
+    """
+    Objective: use requests to build dataframes with ROI information from contents obtained from IFCB dashboards
+    :param url: url for the dataset
+    :return: a dataframe with the desired information (see outputs of IFCB dashboards)
+    """
+    import requests
+    import pandas as pd
+    data = requests.get(url)
+    data = data.content
+    data = data.decode('utf-8')
+    data = data.split('\n')
+    data_dict = {}
+    for n, r in enumerate(data):
+        roi_info = r.split(',')
+        data_dict[n] = roi_info
+    data_dict.popitem()
+    df = pd.DataFrame.from_dict(data_dict, orient='index')
+    df.columns = df.iloc[0]
+    df.drop(df.index[0], inplace = True)
+    df.columns = df.columns.str.replace('\r', '')
+    if df.columns.__contains__(None):
+        print( url + ' file does not exist')
+    else:
+        return df
+
+
+def metadata_dict(dashboard, pid_id):
+    """
+    :param dashboard: url to either the WHOI or CALOOS dashboard
+    :param pid: the identifier for the data in each time bin displayed on the timeline in the dashboard
+    :return: dictionary with the metadata
+    """
+    import requests
+    import re
+    url = f'{dashboard}api/bin/{pid_id}?include_coordinates=False'
+    r = requests.get(url)
+    assert r.ok
+    record = r.json()
+    return {
+        'scale': record['scale'],
+        'datetime': record['timestamp_iso'],
+        'previous_bin': record['previous_bin_id'],
+        'next_bin': record['next_bin_id'],
+        'latitude': record['lat'],
+        'longitude': record['lng'],
+        'depth': record['depth'],
+        'instrument': record['instrument'],
+        'number_of_rois': record['num_images'],
+        'ml_analyzed': float(re.sub(' .*', '', record['ml_analyzed'])),
+        'concentration': record['concentration'],
+        'sample_type': record['sample_type'],
+        'cruise': record['cruise'],
+        'cast': record['cast'],
+        'niskin': record['niskin'],
+    }
+
+
+def roi_number(dashboard, pid_id):
+    """
+    objective: simplified version of the function above. ideal to just get the number of ROIs
+    :param dashboard: url to either the WHOI or CALOOS dashboard
+    :param pid: the identifier for the data in each time bin displayed on the timeline in the dashboard
+    :return: dictionary with the metadata
+    """
+    import requests
+    import re
+    url = f'{dashboard}api/bin/{pid_id}?include_coordinates=False'
+    r = requests.get(url)
+    assert r.ok
+    record = r.json()
+    return record['num_images']
+
+def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date):
+
+    """
+    objective: read the project_list dataframe and export the CALOOS and WHOI IFCB dashboard datasets
+    :param df: dataframe with project source, local path to export
+    """
+    import numpy as np
+    import time
+    start = time.time()
+    METRIC = 'temperature'  # needs to be defined based on Karina's script
+    # use the file list to download data and store it locally
+    file_info = get_df_list_IFCB(dashboard_url, Project_ID,  startdate=start_date, enddate=end_date) # remember this fuction has the option to define an interval of dates
+    last_file = file_info.loc[len(file_info.index) - 1, 'pid']
+    # the loop uses the file_info dataframe to get the 'pid' (file name) and download features and class scores files
+    print ('extracting features files, metadata and top 5 class scores for timeseries ' + Project_ID +' stored in ' + Project_source)
+    file_numbers = 0
+    df_concatenated = pd.DataFrame()
+    for i in tqdm(file_info.loc[:, 'pid']): # timeit and progressbar can be used here
+        try:
+            # generate features files
+            pid_id = str(i)
+            #print(pid_id)
+            features_filename = dashboard_url  + Project_ID + '/' + pid_id + '_features.csv'
+            try:
+                features_df = df_from_url(features_filename)
+                # obtain metadata
+                met_dict = metadata_dict(dashboard=Project_source, pid_id=pid_id)
+                features_clean = pd.DataFrame()
+
+                # extract data of interest from features file:
+                features_clean['area'] = features_df['Area']
+                features_clean['biovolume'] = features_df['Biovolume']
+                features_clean['equiv_diameter'] = features_df['EquivDiameter']
+                features_clean['major_axis_length'] = features_df['MajorAxisLength']
+                features_clean['minor_axis_length'] = features_df['MinorAxisLength']
+                features_clean['solidity'] = features_df['Solidity']
+                features_clean['summed_area'] = features_df['summedArea']
+                features_clean['summed_biovolume'] = features_df['summedBiovolume']
+                features_clean['summed_major_axis_length'] = features_df['summedMajorAxisLength']
+                features_clean['summed_minor_axis_length'] = features_df['summedMinorAxisLength']
+
+                #add metadata
+                features_clean['project_ID'] = Project_ID
+                features_clean['datetime'] = met_dict['datetime']
+                #features_df['date'] = str(pd.to_datetime(met_dict['datetime']).date().strftime('%Y%m%d'))
+                #features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strftime('%H%M%S'))
+                features_clean['pixel_to_micron'] = met_dict['scale']
+                features_clean['latitude'] = met_dict['latitude']
+                features_clean['longitude'] = met_dict['longitude']
+                features_clean['depth'] = met_dict['depth']
+                features_clean['vol_analyzed'] = met_dict['ml_analyzed']
+                features_clean['sample_type'] = met_dict['sample_type']
+                features_clean['sample_cruise'] = met_dict['cruise']
+                features_clean['number_of_rois'] = met_dict['number_of_rois']
+                features_clean['concentration'] = met_dict['concentration']
+
+                # now generate dataframe for the class scores
+                class_filename = dashboard_url + str(i) + '_class_scores.csv'
+                class_df = df_from_url(class_filename)
+                features_clean['roi_id'] = class_df['pid']
+                class_df = class_df.set_index('pid')
+                class_df = class_df.astype(float)
+                # create lists for top five classes and their scores
+                class_1 = []
+                class_1_score = []
+                class_2 = []
+                class_2_score = []
+                class_3 = []
+                class_3_score = []
+                class_4 = []
+                class_4_score = []
+                class_5 = []
+                class_5_score = []
+                try:
+                    for roi in class_df.index:
+                        #print(roi)
+                        index_top5 = np.argsort(-class_df.loc[roi].values)[:5]
+                        #print(index_top5)
+                        class_1.append(class_df.columns[index_top5[0]])
+                        class_1_score.append(class_df.loc[roi, class_df.columns[index_top5[0]]])
+
+                        class_2.append(class_df.columns[index_top5[1]])
+                        class_2_score.append(class_df.loc[roi, class_df.columns[index_top5[1]]])
+
+                        class_3.append(class_df.columns[index_top5[2]])
+                        class_3_score.append(class_df.loc[roi, class_df.columns[index_top5[2]]])
+
+                        class_4.append(class_df.columns[index_top5[3]])
+                        class_4_score.append(class_df.loc[roi, class_df.columns[index_top5[3]]])
+
+                        class_5.append(class_df.columns[index_top5[4]])
+                        class_5_score.append(class_df.loc[roi, class_df.columns[index_top5[4]]])
+                except:
+                    print(i + ' does not have a class score')
+                features_clean['class_1'] = class_1
+                features_clean['class_1_score'] = class_1_score
+
+                features_clean['class_2'] = class_2
+                features_clean['class_2_score'] = class_2_score
+
+                features_clean['class_3'] = class_3
+                features_clean['class_3_score'] = class_3_score
+
+                features_clean['class_4'] = class_4
+                features_clean['class_4_score'] = class_4_score
+
+                features_clean['class_5'] = class_5
+                features_clean['class_5_score'] = class_5_score
+
+                #replace with nan the class and class scores below 0.0001
+                cols = ["class_1", "class_2", "class_3", "class_4", "class_5"]
+                cols_scores = ["class_1_score", "class_2_score", "class_3_score", "class_4_score", "class_5_score"]
+                for no, c in enumerate(cols_scores):
+                    features_clean[c] = features_clean[c].mask(features_clean[c] < 0.0001, np.nan)
+                    features_clean[cols[no]] = features_clean[cols[no]].mask(features_clean[c] < 0.0001, np.nan)
+
+                features_clean['datetime'] = pd.to_datetime(features_clean['datetime'])
+                year = features_clean.loc[1, 'datetime'].strftime('%Y')
+                dataset_id = features_clean.loc[1, 'roi_id'].split('_')
+                dataset_id = dataset_id[1]
+                if Project_source == 'https://ifcb.caloos.org/':
+                    dashboard_id = 'CALOOS'
+                elif Project_source == 'https://ifcb-data.whoi.edu/':
+                    dashboard_id = 'WHOI'
+
+                df_concatenated = pd.concat([df_concatenated, features_clean], ignore_index=True)
+
+                #if len(df_concatenated.index) <= 100000:
+                    #df_concatenated = pd.concat([df_concatenated, features_df], ignore_index=True)
+                    #pass
+                if pid_id == last_file :
+                    file_numbers = file_numbers + 1
+                    print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
+                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
+                    df_concatenated = pd.DataFrame()
+                    #pass
+                elif len(df_concatenated.index) > 500000:
+                    file_numbers = file_numbers + 1
+                    print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
+                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
+                    df_concatenated = pd.DataFrame()
+
+
+                # class_df.to_csv(path_download + '/' + str(i) + '_class_scores.csv', sep='\t') 11/16/2022 decided not to keep class scores
+                # print(str(i) + ' download done ')
+            except:
+                print('there is no features or class_scores files for ' + str(file_info.loc[i, 'pid']))
+        except:
+            pass
+    elapsed_time_fl = (time.time() - start)
+    print(Project_ID + ' download took ' + str((elapsed_time_fl/3600)) + ' hours')
+    print (Project_ID + ' download done')
