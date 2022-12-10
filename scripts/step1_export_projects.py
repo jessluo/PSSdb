@@ -148,7 +148,6 @@ elif subset == 'test':
 
 # download starts here
 for n in range (0, len(timeseries_data)):
-    start = time.time()
     Project_source = timeseries_data.loc[n, 'Project_source']
     Project_ID = timeseries_data.loc[n, 'Project_ID']
     Project_localpath = timeseries_data.loc[n, 'Project_localpath']
