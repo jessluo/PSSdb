@@ -147,6 +147,7 @@ if len(existing_project_path) != 0:
             df_metadata_ifcb_dashboard=df_ifcb_list['metadata']
             with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                 df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
+                df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
 
         elif confirmation=='N':
             df_ifcb_list={'data':df_ifcb}
@@ -157,7 +158,7 @@ if len(existing_project_path) != 0:
         df_metadata_ifcb_dashboard = df_ifcb_list['metadata']
         # Generating project_list_all file
         with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-            df_Ecotaxa_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
+            df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
             df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
 
 else:
