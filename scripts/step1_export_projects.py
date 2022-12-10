@@ -34,6 +34,7 @@ import sys
 # Dataframe/Array modules
 import pandas as pd
 import numpy as np
+import os
 
 # Ecotaxa API modules. Install module via git first
 import ecotaxa_py_client
@@ -121,5 +122,56 @@ for i in range(len(project_ids)):
     Ecopart_export(project={proj_id:project_list.loc[project_list.Project_ID==int(proj_id),'Project_title'].values[0]},username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=path_to_projects)
 
 # 3) Exporting IFCB dashboard projects:
+print("Exporting projects hosted on CALOOS (https://ifcb.caloos.org/) and WHOI (https://ifcb-data.whoi.edu/) IFCB dashboards:")
+project_list=pd.read_excel(path_to_data.parent / cfg['proj_list'],sheet_name="ifcb",usecols=[ 'dashboard_url', 'Project_source', 'Project_ID','Instrument','PSSdb_access','Project_test','Project_localpath', 'Latest_update'])
+project_ids = np.array(project_list[project_list['PSSdb_access']==True].Project_ID.astype(str))#str(cfg['proj_id'])
+path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
+
+# query pattern to restrict file download is different due to the structure of IFCB dashboard datasets,
+
+testing = input (' Do you want to download all projects or just the test? \n Enter all or test ')
+if testing == 'test':
+    timeseries_data = project_list[project_list['Project_test'] == True].reset_index(drop=True)
+
+subset = input (' Do you want to get data for all the time series or a date range or the test dates? \n Enter all, range or test ')
+if subset == 'range':
+    start_date= input(' enter starting date of the data as YYYYMMDD')
+    start_date= int(start_date)
+    end_date = input(' enter final date of the data as YYYYMMDD')
+    end_date = int(end_date)
+elif subset == 'all':
+    start_date = 20000101
+    end_date = 21000101
+elif subset == 'test':
+    start_date = 20180825
+    end_date = 20180825
+
+# download starts here
+for n in range (0, len(timeseries_data)):
+    start = time.time()
+    Project_source = timeseries_data.loc[n, 'Project_source']
+    Project_ID = timeseries_data.loc[n, 'Project_ID']
+    Project_localpath = timeseries_data.loc[n, 'Project_localpath']
+    dashboard_url = timeseries_data.loc[n, 'dashboard_url']
+    # define path for download
+    path_download = str(path_to_projects) + '/' + Project_ID  ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
+    #pathname = Project_source + Project_ID + '/'
+
+    if os.path.isdir(path_download) and len(os.listdir(path_download) ) != 0: # and  os.path.exists(path_download)
+        replace = input('There is already downloaded data in ' +path_download+ ' do you want to replace the files? \n Y/N')
+        if replace == 'Y':
+            print('Overwriting '+ Project_ID  +' file(s), please wait')
+            shutil.rmtree(path_download)
+            os.mkdir(path_download)
+        elif replace == 'N':
+            print('Skipping ' + Project_ID)
+            continue
+    elif not os.path.exists(path_download):
+        os.mkdir(path_download)
+    IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date)
+
+
+
+
 
 quit()
