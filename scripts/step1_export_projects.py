@@ -163,13 +163,13 @@ for n in range (0, len(timeseries_data)):
             print('Overwriting '+ Project_ID  +' file(s), please wait')
             shutil.rmtree(path_download)
             os.mkdir(path_download)
-            IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date)
         elif replace == 'N':
             print('Skipping ' + Project_ID)
             continue
     elif not os.path.exists(path_download):
         os.mkdir(path_download)
-        IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date)
+
+    IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date)
 
 
 
