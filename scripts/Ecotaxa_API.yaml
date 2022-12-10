@@ -17,7 +17,7 @@ Ecotaxa_subdir : 'ecotaxa'
 Ecopart_subdir : 'ecopart'
 
 #IFCB dashboard directory:
-IFCB_dir : '~/GIT/PSSdb/raw/IFCB_dashboard_downloads/'
+IFCB_dir : 'IFCB_dashboard_downloads'
 
 # General data storage sub-directory
 dataset_subdir : 'raw'
