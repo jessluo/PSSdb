@@ -731,7 +731,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
     path_files_list=[path for path in path_files_list if '_flag' not in str(path)]
     if len(path_files_list)>0: # Check for native format datafile
         # Load export tsv file
-        df = pd.read_table(path_files_list[0],usecols=fields_of_interest_series.values,encoding='latin-1')
+        df = pd.read_table(path_files_list[0],usecols=fields_of_interest_series.values) # Do not use encoding='latin-1'
         old_columns = df.columns
         # Standardize column names
         df.columns = [(list(fields_of_interest_series.index)[list(fields_of_interest_series.values).index(value)]) for value in  old_columns]  # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
