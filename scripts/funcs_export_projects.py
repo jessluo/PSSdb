@@ -93,12 +93,12 @@ def Ecopart_export(project,localpath,username,password):
             r = session.post(url_export,data={'what': 'DET', 'fileformatd': 'TSV', 'aggregatefilesd': 'Y', 'starttask': 'Y'})
             task = r.text[(r.text.find("show_url = ") + 11):(r.text.find("show_url = ") + 50)].split('\n')[0].replace('"/Task/Show/', '').replace('"', '')
             status = session.get('https://ecopart.obs-vlfr.fr/Task/GetStatus/{}'.format(task)).json()
-            with tqdm(desc='Working on Job', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
+            with tqdm(desc='Working on detailed export', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
                 while ('IsComplete' not in status['d'].keys()):
                     time.sleep(3)
                     status = session.get('https://ecopart.obs-vlfr.fr/Task/GetStatus/{}'.format(task)).json()
                     percent = status['d']['PercentComplete']
-                    bar.set_description("Working on Job %s%%" % percent, refresh=True)
+                    bar.set_description("Working on detailed export %s%%" % percent, refresh=True)
                     # and update progress bar
                     ok = bar.update(n=10)
                     if ('IsComplete' in status['d'].keys()):
@@ -139,12 +139,12 @@ def Ecopart_export(project,localpath,username,password):
             r = session.post(url_export,data={'what': 'RAW', 'includenotvalidatedr': 'Y', 'starttask': 'Y'})
             task = r.text[(r.text.find("show_url = ") + 11):(r.text.find("show_url = ") + 50)].split('\n')[0].replace('"/Task/Show/', '').replace('"', '')
             status = session.get('https://ecopart.obs-vlfr.fr/Task/GetStatus/{}'.format(task)).json()
-            with tqdm(desc='Working on Job', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
+            with tqdm(desc='Working on raw export', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
                 while ('IsComplete' not in status['d'].keys()):
                     time.sleep(3)
                     status = session.get('https://ecopart.obs-vlfr.fr/Task/GetStatus/{}'.format(task)).json()
                     percent = status['d']['PercentComplete']
-                    bar.set_description("Working on Job %s%%" % percent, refresh=True)
+                    bar.set_description("Working on raw export %s%%" % percent, refresh=True)
                     # and update progress bar
                     ok = bar.update(n=10)
                     if ('IsComplete' in status['d'].keys()):
@@ -241,7 +241,7 @@ def Ecotaxa_export(project,localpath,username,password):
     # Necessary break between step 3 and 4
     # Insert a progress bar to allow for the job to be done based on get_job status.
     # Attention, the break cannot be timed with job progress=(percentage) due to a small temporal offset between job progress and status
-    with tqdm(desc='Working on Job', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
+    with tqdm(desc='Working on project export', total=1000, bar_format='{desc}{bar}', position=0, leave=True) as bar:
             job_status = 'R'  # percent = 0
             while job_status not in ('F', 'E'):  # percent!=100:
                 time.sleep(2)  # Check the job status every 2 seconds. Modify as needed
@@ -249,7 +249,7 @@ def Ecotaxa_export(project,localpath,username,password):
                 result = thread.get()
                 job_status = result.state
                 percent = result.progress_pct
-                bar.set_description("Working on Job %s%%" % percent, refresh=True)
+                bar.set_description("Working on project export %s%%" % percent, refresh=True)
                 # and update progress bar
                 ok = bar.update(n=10)
                 if job_status == 'F':

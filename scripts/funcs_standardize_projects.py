@@ -4,7 +4,12 @@
 # (2) save interactive plot of raw ecotaxa export file to identify outliers, missing values, and units. This should facilitate the completion of the standardizer spreadsheets
 # (3) flag samples to be left out of standardized projects based on 5 criteria (missing necessary data/metadata, location on land, low ROI count, high number of bubbles and other artefacts, multiple size calibration factors) and generate corresponding interactive report
 # (4) perform EcoTaxa export files standardization (standard column names and units) and harmonization (across instruments) based on standardizer spreadsheets
-#  Running function (4) is required after project export in order to reduce (i.e. select only the raw columns necessary for further processing), harmonize (all the PSSdb projects now have similar columns, regardless of specific instrumentation and image acquisition/processing routines) standardize (All columns follow standardized notations and units according to international database) Ecotaxa project export files
+#  Running function (4) is required after project export in order to reduce (i.e. select only the raw columns necessary for further processing), harmonize (all the PSSdb projects now have similar columns, regardless of specific instrumentation and image acquisition/processing routines), and standardize (All columns follow standardized notations and units according to international database, including taxonomic annotations) project export files
+
+## Requirements: Change path on
+# l.69: configuration file with username/password information (Ecotaxa_API_pw.yaml)
+# l.93: custom units definition file (units_def.txt)
+# l.106: plankton taxonomic information (plankton_annotated_taxonomy.xlsx). File created/updated below
 
 ## TO DO: Perform standardization on other imaging sensor projects (at the moment function 3 only works for Zooscan, IFCB, and UVP)
 
@@ -62,6 +67,9 @@ from ecotaxa_py_client.api import samples_api
 from ecotaxa_py_client.model.login_req import LoginReq
 from ecotaxa_py_client.api import objects_api
 from ecotaxa_py_client.model.project_filters import ProjectFilters
+from ecotaxa_py_client.api import taxonomy_tree_api
+from ecotaxa_py_client.model.taxon_model import TaxonModel
+
 path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
@@ -71,11 +79,13 @@ with ecotaxa_py_client.ApiClient() as client:
     token = api.login(LoginReq(username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']))
 
 configuration = ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api",access_token=token, discard_unknown_keys=True)
+configuration.verify_ssl=False
+import warnings
+warnings.filterwarnings('ignore', module='urllib3')
 
 # Unit conversion
 import os
 import pint # Use pip install pint
-import warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings('ignore', module='pint')
 import pint_pandas # Use pip install pint-pandas
@@ -92,14 +102,90 @@ import re
 from scipy.stats import poisson # Estimate counts uncertainties assuming detection follows a Poisson distribution
 import math
 
-# Taxonomy
+# Standardization of taxonomic annotations
+from funcs_standardize_annotations import taxon_color_palette,annotation_in_WORMS
+import ast
+from tqdm import tqdm
+
 path_to_taxonomy=Path(Path.home()/'GIT'/'PSSdb'/'ancillary' /'plankton_annotated_taxonomy.xlsx').expanduser()
-metadata=pd.read_excel(path_to_taxonomy,sheet_name='Metadata')
-columns_types={metadata.Variables[i]:metadata.Variable_types[i] for i in metadata.index}
-df_taxonomy=pd.read_excel(path_to_taxonomy,dtype=columns_types )
-rank_categories=[rank.partition("(")[2].replace(')','') for hierarchy in pd.Series(df_taxonomy.loc[df_taxonomy['Full_hierarchy'].astype(str).str.len().nlargest(1, keep="all").index[0],'Full_hierarchy']) for rank in hierarchy.split('>')]
-df_taxonomy['Rank']=pd.Categorical(df_taxonomy.Rank,ordered=True,categories=rank_categories)
-from funcs_standardize_annotations import taxon_color_palette
+if path_to_taxonomy.exists():
+    metadata=pd.read_excel(path_to_taxonomy,sheet_name='Metadata')
+    columns_types={metadata.Variables[i]:metadata.Variable_types[i] for i in metadata.index}
+    df_taxonomy=pd.read_excel(path_to_taxonomy,dtype=columns_types )
+    rank_categories=[rank.partition("(")[2].replace(')','') for hierarchy in pd.Series(df_taxonomy.loc[df_taxonomy['Full_hierarchy'].astype(str).str.len().nlargest(1, keep="all").index[0],'Full_hierarchy']) for rank in hierarchy.split('>')]
+    df_taxonomy['Rank']=pd.Categorical(df_taxonomy.Rank,ordered=True,categories=rank_categories)
+else:
+    print ('Creating a taxonomic annotation standardization spreadsheet using the World Register of Marine Species (https://www.marinespecies.org/). Please wait')
+    # 1) Retrieve fields of interest (including taxonomic hierarchies) in EcoTaxa projects
+    # see: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#get_object_set
+    fields_of_interest = "txo.id,txo.display_name";
+    colnames = ['ROI_Annotation_ID', 'Category']
+    with ecotaxa_py_client.ApiClient(configuration) as api_client:
+        api_project_instance = projects_api.ProjectsApi(api_client)
+        project = api_project_instance.search_projects(also_others=False,  # Return visible projects with access rights
+                                                       title_filter='',  # Optional title project filter
+                                                       instrument_filter='',  # All instruments
+                                                       order_field='projid'# Sorting variable. Use instrument or projid
+                                                       )
+        project_list = list(map(lambda x: str(x.projid), project))
+        api_object_instance = objects_api.ObjectsApi(api_client)
+        objects = api_object_instance.get_object_set(project_list[0], ProjectFilters(statusfilter="PVD"),fields=fields_of_interest)
+        df = pd.DataFrame(objects.details, columns=colnames).drop_duplicates()
+        for project in project_list[1:]:
+            objects = api_object_instance.get_object_set(project, ProjectFilters(statusfilter="PVD"),fields=fields_of_interest)
+            df = pd.concat([df, pd.DataFrame(objects.details, columns=colnames)], axis=0).drop_duplicates()
+        # df['ROI_ID']=df['ROI_ID'].apply(lambda x: ''.join(re.split('([0-9]+)', x)[0:-2]) + re.split('([0-9]+)', x)[-2].zfill(6))
+        api_taxo_instance = taxonomy_tree_api.TaxonomyTreeApi(api_client)
+        df['EcoTaxa_hierarchy'] = ['>'.join(api_taxo_instance.query_taxa(int(id)).lineage[::-1]) for id in df.ROI_Annotation_ID]
+        df = df.sort_values(by=['EcoTaxa_hierarchy'])
+        df = df.reset_index()
+    # 2) Post/get annotation on World Register of Marine Species (https://www.marinespecies.org/)
+    # Loop through EcoTaxa hierarchy and merge to annotated taxonomy
+    df_taxonomy = pd.DataFrame({})
+    with tqdm(desc='', total=len(df), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+        print('Searching for taxon in World Register of Marine Species ({}):\n'.format('https://www.marinespecies.org/'))
+        try:
+            for hierarchy in df.EcoTaxa_hierarchy:
+                # print(hierarchy)
+                # Update annotated taxonomy and progress bar
+                bar.set_description(hierarchy, refresh=True)
+                # and update progress bar
+                ok = bar.update(n=1)
+                data = annotation_in_WORMS(hierarchy)
+                df_taxonomy = pd.concat([df_taxonomy, data],axis=0)
+        except KeyboardInterrupt:  # Press escape to exit loop safely
+            print('{} not found. Skipping annotation'.format(hierarchy))
+    # 3) Assign additional variables
+    df_taxonomy['URL'] = df_taxonomy.WORMS_ID.apply(lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format(id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
+    df_taxonomy['Life_stage'] = df_taxonomy.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
+    df_taxonomy['functional_group'] = df_taxonomy.Functional_group.apply(lambda group: ';'.join([dict.replace('{','').replace(', ', ' (').replace('}', ')').replace("'", "") if len(group) > 0 and len(ast.literal_eval(dict)) > 1 else dict.replace('{', '').replace(', ', ' (').replace('}', '').replace("'","") if len(group) > 0 and len(ast.literal_eval(dict)) == 1 else '' for dict in group.split( ';')]))
+    df_taxonomy = pd.merge(df[['Category', 'EcoTaxa_hierarchy']], df_taxonomy, on='EcoTaxa_hierarchy', how='right')
+    df_taxonomy = df_taxonomy[['Category', 'EcoTaxa_hierarchy', 'Full_hierarchy', 'Rank', 'Type', 'Domain', 'Phylum', 'Class', 'Order','Family', 'Genus', 'Functional_group', 'functional_group', 'Life_stage', 'WORMS_ID', 'Reference', 'Citation','URL']]
+    df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index(drop=True)
+    # 4) Save data and metadata
+    df_taxonomy_metadata = pd.DataFrame({'Variables': df_taxonomy.columns, 'Variable_types': df_taxonomy.dtypes,
+                                          'Description': ['Region of interest (object) annotation category',
+                                                          'Full hierarchy of annotation category',
+                                                          'Full taxonomic hierarchy in World Register of Marine Species (WORMS)',
+                                                          'Taxonomic rank of the annotation category in WORMS',
+                                                          'Type of particle for the annotation category (e.g. Living)',
+                                                          'Taxonomic domain/kingdom of the annotation category',
+                                                          'Taxonomic phylum of the annotation category',
+                                                          'Taxonomic class of the annotation category',
+                                                          'Taxonomic order of the annotation category',
+                                                          'Taxonomic family of the annotation category',
+                                                          'Taxonomic genus of the annotation category',
+                                                          'Functional group of the annotation category (dictionary format)',
+                                                          'Functional group of the annotation category (string format)',
+                                                          'Life stage of the annotation category in WORMS',
+                                                          'Unique ID of the annotation category in the WORMS database',
+                                                          'Reference for the annotation category description',
+                                                          'Citation for the annotation category in WORMS',
+                                                          'URL of the annotation category in WORMS']})
+    with pd.ExcelWriter(str(path_to_taxonomy), engine="xlsxwriter") as writer:
+        df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+        df_taxonomy_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+    print('Taxonomic annotations lookup table saved: {}'.format(str(path_to_taxonomy)))
 
 # Functions here:
 

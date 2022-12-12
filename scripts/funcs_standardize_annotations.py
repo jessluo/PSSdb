@@ -33,7 +33,7 @@ options.add_argument("--headless") # Hidden windows
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
-chromedriver = '/Users/dugennem/Downloads/chromedriver' # Local path to the chromedriver. Note: Deprecated
+chromedriver = '~/Downloads/chromedriver' # Local path to the chromedriver. Note: Deprecated
 #os.environ["webdriver.chrome.driver"] = chromedriver
 import time
 
@@ -45,7 +45,135 @@ import matplotlib
 import plotly
 import plotly.express as px # Use: pip install plotly==5.8.0
 
-## Useful functions:
+## Functions start here:
+
+def annotation_in_WORMS(hierarchy):
+    """
+    Objective: this function uses python requests to search taxonomic annotation on the World Register of Marine Sepcies (WORMS, https://www.marinespecies.org/).
+    Note: Only accepted names will be used.\n
+    :param hierarchy: Single or hierarchical taxonomic annotation to standardize with WORMS. If hierarchical taxonomic annotation, use > to separate taxonomic ranks
+    :return: dataframe with corresponding rank, domain, phylum, class, order, family, genus, functional group, Taxon url, reference, citation, and URL for the annotation
+    """
+    hierarchy_levels = hierarchy.split('>')
+    df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy, 'Full_hierarchy': '', 'Rank': '', 'Type': '', 'Domain': '', 'Phylum': '','Class': '', 'Order': '', 'Family': '', 'Genus': '', 'Functional_group': '', 'WORMS_ID': '', 'Reference': '','Citation': ''}, index=[0])
+    url = 'https://www.marinespecies.org/aphia.php?p=taxlist'
+
+    for annotation in hierarchy_levels[::-1]:
+        with requests.Session() as session:
+            data={'tName':annotation,'marine':'0','fossil':'0'}
+            # Turn marine only and extant only search off
+            session.post('https://www.marinespecies.org/aphia.php?p=search',data=data)
+            taxon_list=session.post(url=url,data=data)
+            soup = BeautifulSoup(taxon_list.content, "lxml")
+            if len(soup.find_all(class_="list-group-item")) == 0:  # If post results in a single page:
+                if len(soup.find_all(class_="alert alert-info")) > 0:
+                    continue  # Skip current level if annotation not found
+                else:
+                    taxo_soup=soup
+                    attributes_soup=''
+                    script=''
+                    if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in soup.findAll('a')]))) > 0:
+                        annotation_webpage_with_attributes = session.get(urljoin(taxon_list.url,'#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
+                        script = attributes_soup.find_all('script')
+                        if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
+                            if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or len([item.getText() for item in script if 'Functional group' in item.getText()])==0:
+                                attributes_soup = ''
+                                script = ''
+            else: # If post result in a list of taxa
+                search_response = pd.DataFrame({'Taxon': [item.getText() for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False],'Link': [item.find('a').get('href') for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False]})
+                if len(search_response) == 0:
+                    continue  # Skip current level if annotation not found
+                if search_response.Taxon[0].split(' ')[0].lower() != annotation.lower():
+                    continue  # Skip current level if search response different from level
+                else:
+                    annotation_webpage = session.get(urljoin(url, search_response.Link[0]), data=data)
+                    taxo_soup = BeautifulSoup(annotation_webpage.content, 'lxml')
+                    if len(taxo_soup.find_all(class_="alert alert-info")) > 0:
+                        res = session.post(urljoin(url, search_response.Link[0]), data=data)
+                        soup = BeautifulSoup(res.content, "lxml")
+                        taxo_soup = BeautifulSoup(res.content, 'lxml')
+                        attributes_soup = ''
+                        script = ''
+                        if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in taxo_soup.findAll('a')]))) > 0:  # taxo_soup.findAll('a',onclick=True)[0].get('id')=="aphia_attributes_group_show":
+                            annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                            attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
+                            script = attributes_soup.find_all('script')
+                            if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
+                                if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or len([item.getText() for item in script if 'Functional group' in item.getText()])==0:
+                                    attributes_soup = ''
+                                    script = ''
+                    else:
+                        attributes_soup=''
+                        script=''
+                        if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in taxo_soup.findAll('a')]))) > 0:
+                            annotation_webpage_with_attributes =session.get(urljoin(annotation_webpage.url,'#attributes')) #get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                            attributes_soup=BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
+                            script = attributes_soup.find_all('script')
+                            if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
+                                if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or len([item.getText() for item in script if 'Functional group' in item.getText()])==0:
+                                    attributes_soup = ''
+            fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
+            Status = re.sub(r'[' + '\n' + '\xa0' + ']', '',taxo_soup.find_all(class_="leave_image_space")[fields.index('Status')].getText()) if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
+            if Status=='' or len(re.findall(r'unaccepted|uncertain|unassessed', Status)) > 0:
+                if 'Accepted Name' not in fields:
+                    continue
+                else:
+                    annotation = re.sub(r'[' + '\n' + '\xa0' + ']', '', taxo_soup.find_all(class_="leave_image_space")[ fields.index('Accepted Name')].getText()) if len( taxo_soup.find_all(class_="alert alert-info")) == 0 and 'Accepted Name' in fields else annotation
+                    data['tName'] = annotation.split(' (')[0]
+                    taxon_list=session.post(url=url,data=data)
+                    # Transform form query into xml table and save results in dataframe
+                    soup = BeautifulSoup(taxon_list.content, "lxml")
+                    search_response = pd.DataFrame({'Taxon': [item.getText() for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False],
+                                                    'Link': [item.find('a').get('href') for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False]})
+                    if len(search_response) == 0:
+                        if len(soup.find_all(class_="alert alert-info")) > 0:
+                            continue
+                        else:
+                            taxo_soup = soup
+                            attributes_soup = ''
+                            script = ''
+                            if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in soup.findAll('a')]))) > 0:
+                                annotation_webpage_with_attributes = session.get(urljoin(taxon_list.url,'#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                                attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
+                                script = attributes_soup.find_all('script')
+                                if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
+                                    if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[ 0].getText() or len([item.getText() for item in script if 'Functional group' in item.getText()]) == 0:
+                                        attributes_soup = ''
+                                        script = ''
+                    else:
+                        annotation_webpage = session.get(urljoin(url, search_response.Link[0]), data=data)
+                        taxo_soup = BeautifulSoup(annotation_webpage.content, 'lxml')
+                        attributes_soup = ''
+                        if taxo_soup.findAll('a', onclick=True)[0].get('id') == "aphia_attributes_group_show":
+                            annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                            attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
+                            script = attributes_soup.find_all('script')
+                            if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
+                                if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or len([item.getText() for item in script if 'Functional group' in item.getText()])==0:
+                                    attributes_soup = ''
+                        fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
+
+            Functional_group =[item.getText()[substring.start():]  for item in script for substring in re.finditer('Functional group', item.getText()) if 'Functional group' in item.getText()]
+            Functional_group = ';'.join([str({'Functional group':group[group.find('Functional group') + 22:[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('Functional group') + 22 and sub.start()>group.find('nodes')][0]].replace(group[[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('Functional group') + 22 ][0]:[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('nodes') + 22 ][0]],''),group.split('&nbsp;" ,state: "" ,nodes: [{ text: "<b>')[1].split('<\\/b> ')[0] :group.split('&nbsp;" ,state: "" ,nodes: [{ text: "<b>')[1].split('<\\/b> ')[1].split('&nbsp')[0]}) if group.find('&nbsp;" ,state: "" ,nodes: [{ text: "<b>')!=-1 else str({'Functional group':group[group.find('Functional group') + 22:[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('Functional group') + 22][0]]}) for group in Functional_group])
+            Type = np.where(taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n')[1] == 'Biota','Living', 'NA').tolist() if len( taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
+            dict_hierarchy = {re.sub(r'[' + string.punctuation + ']', '', level.split('\xa0')[1]): level.split('\xa0')[0] for level in taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n') if '\xa0' in level} if len( taxo_soup.find_all(class_="alert alert-info")) == 0 else dict({'': ''})
+            full_hierarchy = '>'.join([level.split('\xa0')[0] + level.split('\xa0')[1] for level in taxo_soup.find_all(class_="leave_image_space")[1].getText().split('\n') if '\xa0' in level]) if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
+            Domain = dict_hierarchy['Kingdom'] if 'Kingdom' in dict_hierarchy.keys() else ''
+            Genus = dict_hierarchy['Genus'] if 'Genus' in dict_hierarchy.keys() else ''
+            Family = dict_hierarchy['Family'] if 'Family' in dict_hierarchy.keys() else ''
+            Order = dict_hierarchy['Order'] if 'Order' in dict_hierarchy.keys() else ''
+            Class = dict_hierarchy['Class'] if 'Class' in dict_hierarchy.keys() else ''
+            Phylum = dict_hierarchy['Phylum'] if 'Phylum' in dict_hierarchy.keys() else ''
+            Rank = re.sub(r'[' + '\n' + ' ' + ']', '',taxo_soup.find_all(class_="leave_image_space")[fields.index('Rank')].getText()) if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
+            URL = re.sub(r'[' + '(' + ')' + ']', '',taxo_soup.find_all(class_="aphia_core_cursor-help")[fields.index('AphiaID')].getText()) if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
+            Original_reference = taxo_soup.find_all(class_="correctHTML")[0].getText() if len(taxo_soup.find_all(class_="correctHTML")) > 0 else ''
+            Taxonomic_citation = [re.sub(r'[' + '\n' + ' ' + ']', '', item.getText()) for item in taxo_soup.find_all(class_="col-xs-12 col-sm-8 col-lg-10 pull-left") if item.attrs['id'] == 'Citation'][0] if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
+            df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy,'Full_hierarchy': full_hierarchy, 'Rank': Rank,'Type': Type,'Domain': Domain,'Phylum': Phylum, 'Class': Class,'Order': Order, 'Family': Family, 'Genus': Genus,'Functional_group': Functional_group if len(Functional_group) > 0 else '','WORMS_ID': URL,'Reference': Original_reference,'Citation': Taxonomic_citation}, index=[0])
+            break
+    return df_hierarchy
+
+
 def get_all_forms(url):
     """Returns all form tags found on a web page's `url` """
     with  HTMLSession() as session:
@@ -138,12 +266,13 @@ def get_attributes_output(url,id): # get_attributes_output(url='https://www.mari
 def get_form_hierarchy(hierarchy,url,form):
  """
  Objective: This functions returns the taxonomic informations of a given hierarchy stored in the World Register of Marine Species database (url)
+ Note: Functions deprecated. Use annotations_in_WORMS function instead.
  :param hierarchy: Full hierarchy to be searched on url. Use > to separate different levels.
  :param url: Path of the taxonomic database query (https://www.marinespecies.org/aphia.php?p=search)
  :param form: Form containing the input(s) to be posted on the url
  :return: dataframe with corresponding rank, domain, phylum, class, order, family, genus, functional group, Taxon url, reference, and citation
  """
- with  HTMLSession() as session:
+ with HTMLSession() as session:
     hierarchy_levels = hierarchy.split('>')
     df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy,'Full_hierarchy': '','Rank': '','Type': '','Domain': '','Phylum': '', 'Class': '','Order':'','Family':'','Genus': '','Functional_group': '','WORMS_ID': '','Reference': '','Citation': ''}, index=[0])
     # Loop through hierarchy levels starting with the last level
