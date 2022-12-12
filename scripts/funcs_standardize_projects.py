@@ -690,7 +690,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
 def standardization_func(standardizer_path,project_id,plot='diversity'):
     """
        Objective: This function uses the instrument-specific standardizer spreadsheet to standardize variable names and units
-       This should facilitate the size spectrum analysis of projects collected with UVP, IFCB, Zooscan, and ISIIS
+       This should facilitate the size spectrum analysis of projects collected with UVP, IFCB, and Zooscan
        :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
        :param project_id: unique integer for project ID to be standardized
        :return: standardized project dataframe

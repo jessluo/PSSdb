@@ -1,4 +1,4 @@
-##  Objective: Flag and standardize projects in batch
+##  Objective: Flag and standardize projects listed and exported on steps 0 and 1
 
 ## Requirements: Completion of standardizer spreadsheets (step0.list_projects.py) and projects export (step1.export_projects.py)
 
@@ -18,7 +18,7 @@ from funcs_standardize_projects import *
 path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
 standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
-
+#1) Flag samples and generate a report using the filling_standardizer_flag_func function in funcs_standardize_projects.py
 print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPSonland: GPS coordinates on land\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(0:flag, 1:no flag)')
 for standardizer in standardizer_files:
     df_standardizer=pd.read_excel(standardizer,index_col=0)
@@ -34,7 +34,7 @@ for standardizer in standardizer_files:
                print('Skipping flagging of project ',str(project),'\n',e,sep='')
         else:
             pass
-
+#2) Standardize project export files using the standardization_func function in funcs_standardize_projects.py
 print('Performing project standardization')
 for standardizer in standardizer_files:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
