@@ -46,7 +46,7 @@ for standardizer in standardizer_files:
         if standard_path.is_file() == False:
             try:
                 print('Project: {}'.format(str(project)))
-                standardization_func(standardizer_path=standardizer, project_id=int(project),plot='diversity')
+                standardization_func(standardizer_path=standardizer, project_id=project,plot='diversity')
             except Exception as e:
                 print('Skipping standardization of project ', str(project),'\n',e, sep='')
         else:

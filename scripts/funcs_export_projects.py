@@ -164,14 +164,21 @@ def Ecopart_export(project,localpath,username,password):
     shutil.unpack_archive(path_to_zip, path_to_zip.parent)  # Unzip export file
     # Concatenate and rename export files
     Path(list(path_to_zip.parent.glob('export_raw_*_Export_metadata_summary.tsv'))[0]).rename(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])))
+    # Replace particles/plankton filename in metadata
+    df_meta = pd.read_table(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])),encoding='latin-1')
+    df_meta['Particle filename'] = df_meta['Particle filename'].apply(lambda file: Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])).name if file != 'no data available' else '')
+    df_meta['Plankton filename'] = df_meta['Plankton filename'].apply(lambda file: Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])).name if file != 'no data available' else '')
+    df_meta['CTD filename'] = df_meta['CTD filename'].apply(lambda file: Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])).name if file != 'no data available' else '')
+    df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+
     if len(list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))):
-        pd.concat(map(lambda path: pd.read_csv(path, sep='\t',encoding='latin1'),list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))),axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])),sep="\t",index=False)
+        pd.concat(map(lambda path: pd.read_csv(path, sep='\t',encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_PAR_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))),axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])),sep="\t",index=False)
         [file.unlink(missing_ok=True) for file in  list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))]
     if len(list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))):
-         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1'),list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_ZOO_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))]
     if len(list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))):
-         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1'),list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_CTD_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))]
     # Delete original zip file
     path_to_zip.unlink(missing_ok=True)

@@ -108,13 +108,7 @@ import ast
 from tqdm import tqdm
 
 path_to_taxonomy=Path(Path.home()/'GIT'/'PSSdb'/'ancillary' /'plankton_annotated_taxonomy.xlsx').expanduser()
-if path_to_taxonomy.exists():
-    metadata=pd.read_excel(path_to_taxonomy,sheet_name='Metadata')
-    columns_types={metadata.Variables[i]:metadata.Variable_types[i] for i in metadata.index}
-    df_taxonomy=pd.read_excel(path_to_taxonomy,dtype=columns_types )
-    rank_categories=[rank.partition("(")[2].replace(')','') for hierarchy in pd.Series(df_taxonomy.loc[df_taxonomy['Full_hierarchy'].astype(str).str.len().nlargest(1, keep="all").index[0],'Full_hierarchy']) for rank in hierarchy.split('>')]
-    df_taxonomy['Rank']=pd.Categorical(df_taxonomy.Rank,ordered=True,categories=rank_categories)
-else:
+if not path_to_taxonomy.exists():
     print ('Creating a taxonomic annotation standardization spreadsheet using the World Register of Marine Species (https://www.marinespecies.org/). Please wait')
     # 1) Retrieve fields of interest (including taxonomic hierarchies) in EcoTaxa projects
     # see: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ObjectsApi.md#get_object_set
@@ -186,6 +180,11 @@ else:
         df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
         df_taxonomy_metadata.to_excel(writer, sheet_name='Metadata', index=False)
     print('Taxonomic annotations lookup table saved: {}'.format(str(path_to_taxonomy)))
+metadata=pd.read_excel(path_to_taxonomy,sheet_name='Metadata')
+columns_types={metadata.Variables[i]:metadata.Variable_types[i] for i in metadata.index}
+df_taxonomy=pd.read_excel(path_to_taxonomy,dtype=columns_types )
+rank_categories=[rank.partition("(")[2].replace(')','') for hierarchy in pd.Series(df_taxonomy.loc[df_taxonomy['Full_hierarchy'].astype(str).str.len().nlargest(1, keep="all").index[0],'Full_hierarchy']) for rank in hierarchy.split('>')]
+df_taxonomy['Rank']=pd.Categorical(df_taxonomy.Rank,ordered=True,categories=rank_categories)
 
 # Functions here:
 
@@ -728,11 +727,11 @@ def standardization_func(standardizer_path,project_id,plot='diversity'):
           flagged_samples =['']
 
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
-    path_files_list=list(path_to_data.glob('ecotaxa_export_{}_*'.format(str(project_id))))
+    path_files_list=list(path_to_data.glob('**/*_{}_*'.format(str(project_id))))
     path_files_list=[path for path in path_files_list if '_flag' not in str(path)]
     if len(path_files_list)>0: # Check for native format datafile
         # Load export tsv file
-        df = pd.read_table(path_files_list[0],usecols=fields_of_interest_series.values)
+        df = pd.read_table(path_files_list[0],usecols=fields_of_interest_series.values) # Do not use encoding='latin-1'
         old_columns = df.columns
         # Standardize column names
         df.columns = [(list(fields_of_interest_series.index)[list(fields_of_interest_series.values).index(value)]) for value in  old_columns]  # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
