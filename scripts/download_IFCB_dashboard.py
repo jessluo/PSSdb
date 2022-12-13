@@ -70,7 +70,6 @@ for n in range (0, len(timeseries_data)):
         os.mkdir(path_download)
 
     # PROCESSING HERE
-    start_processing = time.time()
 
     METRIC = 'temperature'  # needs to be defined based on Karina's script
     # use the file list to download data and store it locally
@@ -90,6 +89,7 @@ for n in range (0, len(timeseries_data)):
             #print(pid_id)
             features_filename = pathname + pid_id + '_features.csv'
             try:
+                start_processing = time.time()
                 start_df_metadata = time.time()
                 features_df = df_from_url(features_filename)
                 # obtain metadata
@@ -217,6 +217,8 @@ for n in range (0, len(timeseries_data)):
                     df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
                     df_concatenated = pd.DataFrame()
 
+                elapsed_time_processing = (time.time() - start_processing)
+                print('all processing took ' + str(elapsed_time_processing) + ' seconds')
 
                 # class_df.to_csv(path_download + '/' + str(i) + '_class_scores.csv', sep='\t') 11/16/2022 decided not to keep class scores
                 # print(str(i) + ' download done ')
