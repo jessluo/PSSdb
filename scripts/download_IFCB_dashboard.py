@@ -70,9 +70,14 @@ for n in range (0, len(timeseries_data)):
         os.mkdir(path_download)
 
     # PROCESSING HERE
+    start_processing = time.time()
+
     METRIC = 'temperature'  # needs to be defined based on Karina's script
     # use the file list to download data and store it locally
+    start_get_df_list = time.time()
     file_info = get_df_list_IFCB(base_url=Project_source, dataset=Project_ID, startdate=start_date, enddate=end_date) # remember this fuction has the option to define an interval of dates
+    elapsed_time_df_list = (time.time() - start_get_df_list)
+    print('getting df_list took ' + str(elapsed_time_df_list) + ' seconds')
     last_file = file_info.loc[len(file_info.index) - 1, 'pid']
     # the loop uses the file_info dataframe to get the 'pid' (file name) and download features and class scores files
     print ('extracting features files, metadata and top 5 class scores for timeseries ' + timeseries_data.loc[n, 'Project_title'] +' stored in ' + pathname)
@@ -85,9 +90,12 @@ for n in range (0, len(timeseries_data)):
             #print(pid_id)
             features_filename = pathname + pid_id + '_features.csv'
             try:
+                start_df_metadata = time.time()
                 features_df = df_from_url(features_filename)
                 # obtain metadata
                 met_dict = metadata_dict(dashboard=Project_source, pid_id=pid_id)
+                elapsed_time_df_list = (time.time() - start_df_metadata)
+                print('getting features and metadata took ' + str(elapsed_time_df_list) + ' seconds')
                 features_clean = pd.DataFrame()
 
                 # extract data of interest from features file:
@@ -119,7 +127,13 @@ for n in range (0, len(timeseries_data)):
 
                 # now generate dataframe for the class scores
                 class_filename = pathname + str(i) + '_class_scores.csv'
+
+                start_df_scores = time.time()
                 class_df = df_from_url(class_filename)
+
+                elapsed_time_scores = (time.time() - start_df_scores)
+                print('getting class scores took ' + str(elapsed_time_scores) + ' seconds')
+
                 features_clean['roi_id'] = class_df['pid']
                 class_df = class_df.set_index('pid')
                 class_df = class_df.astype(float)
@@ -210,6 +224,8 @@ for n in range (0, len(timeseries_data)):
                 print('there is no features or class_scores files for ' + str(file_info.loc[i, 'pid']))
         except:
             pass
+        elapsed_time_processing = (time.time() - start_processing)
+        print('all processing took ' + str(elapsed_time_processing) + ' seconds')
 
     elapsed_time_fl = (time.time() - start)
     print(timeseries_data.loc[n, 'Project_title'] + ' download took ' + str((elapsed_time_fl/3600)) + ' hours')
