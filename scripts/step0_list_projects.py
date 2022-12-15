@@ -130,7 +130,7 @@ else:
 
 #Appending Ecopart/Ecotaxa project ID to standardizer
 df_projects_list['External_project']=df_projects_list.Project_ID.astype(str).apply(lambda id: ';'.join(df_Ecopart_list['data'][df_Ecopart_list['data'].Ecotaxa_ID.astype(str)==str(id)].Project_ID.astype(str).values.tolist()))
-df_projects_list=pd.concat([df_projects_list,df_Ecopart_list['data'].rename(columns={'Ecotaxa_ID':'External_project'})[['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','External_project']]],axis=0)
+df_projects_list=pd.concat([df_projects_list,df_Ecopart_list['data'].rename(columns={'Ecotaxa_ID':'External_project'})[['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','External_project']]],axis=0).reset_index(drop=True)
 
 #3) List IFCB dashboard projects using Scripts.funcs_list_projects.py function: IFCB_dashboard_list
 existing_project_path = list(path_to_data.glob('project_list_all.xlsx'))
@@ -173,15 +173,15 @@ else:
         df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
         df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
-df_projects_list=pd.concat([df_projects_list,df_ifcb_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
+df_projects_list=pd.concat([df_projects_list,df_ifcb_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0).reset_index(drop=True)
 
 #df_projects_list=pd.concat([df_projects_list,df_IFCB_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
 
 #4) Generate an instrument-specific standardizer for  accessible projects ()
 dict_instruments={'IFCB':['IFCB'],'UVP':['UVP5','UVP5HD','UVP5SD','UVP5Z','UVP6','UVP6REMOTE'],'Zooscan':['Zooscan'],'Unknown':['?'],'AMNIS':['AMNIS'],'CPICS':['CPICS'],'CytoSense':['CytoSense'],'FastCam':['FastCam'],'FlowCam':['FlowCam'],'ISIIS':['ISIIS'],'LISST':['LISST','LISST-Holo'],'Loki':['Loki'],'Other':['Other camera','Other flowcytometer','Other microscope','Other scanner'],'PlanktoScope':['PlanktoScope'],'VPR':['VPR'],'ZooCam':['ZooCam'],'eHFCM':['eHFCM']}
-df_projects_list['instrument']=df_projects_list.Instrument.apply(lambda instrument: [key for key,values in dict_instruments.items() if instrument in values][0])
+df_projects_list['instrument']=df_projects_list.Instrument.apply(lambda instrument: [key for key,values in dict_instruments.items() if instrument in values][0] if str(instrument)!='nan' else '')
 if df_projects_list.PSSdb_access.dtypes!='bool':
-    df_projects_list.PSSdb_access=df_projects_list.PSSdb_access=='True'
+    df_projects_list.PSSdb_access=df_projects_list.PSSdb_access.astype(str).str.capitalize()=='True'
 inst=list(set(df_projects_list[df_projects_list.PSSdb_access==True].instrument.tolist()))
 inst_all=df_projects_list.instrument.tolist()
 
@@ -280,7 +280,7 @@ for instrument in inst:
                              'Name of the annotation status column in project file (e.g predicted, validated)',
                              'Path of the file containing the ID of flagged samples to be removed from standardized project. Automatic flagging available in funcs_standardize_projects.py',
                              'Character for missing values',
-                             'ID of corresponding EcoPart project(s) (*UVP-only). Use comma to separate multiple projects',
+                             'ID of corresponding EcoPart/Ecotaxa project(s) (*UVP-only). Use semicolon to separate multiple projects',
                              'Name of the sampling type column in project file (e.g. platform, gear, strategy). Used to describe the sampling method',
                              'Name of the smallest sampled size column in project file (e.g. mesh size). Used to describe the sampling collection threshold',
                              'Unit of the smallest sampled size column in project file (e.g. mesh size). Used to describe the sampling collection threshold',
@@ -288,13 +288,25 @@ for instrument in inst:
                              'Unit of the largest sampled size column in project file (e.g. mesh size). Used to describe the sampling collection threshold',
                              'Additional description of the sampling method or protocol (e.g. net_aperture:{field:net_surf,unit:square_meter}, fixative:{chemical:glutaraldehyde,concentration:0.1%}, reference: {https://doi.org/...,https://www.protocols.io/view/zooscan-protocol-yxmvmk8j9g3p/v1})']})
         print("Creating project_", instrument, "_standardizer file, please wait", sep="")
-        # Generating instrument-specific standardizer file
-        with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))), engine="xlsxwriter") as writer:
-            subset_df_instrument.to_excel(writer, sheet_name='Data', index=False)
-            subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+        if instrument=='UVP':
+            # Generating instrument-specific and portal standardizer file
+            with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))), engine="xlsxwriter") as writer:
+                for portal in subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower()).unique():
+                    subset_df_instrument_portal=subset_df_instrument[subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower())==portal]
+                    subset_df_instrument_portal.to_excel(writer, sheet_name=portal, index=False)
+                subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+        else:
+            # Generating instrument-specific standardizer file
+            with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))), engine="xlsxwriter") as writer:
+                subset_df_instrument.to_excel(writer, sheet_name='Data', index=False)
+                subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
 
     else:
-            subset_df_instrument=pd.read_excel(list(path_to_data.glob('project_{}_standardizer*'.format(str(instrument))))[0], sheet_name='Data')
+            if instrument != 'UVP':
+                subset_df_instrument=pd.read_excel(list(path_to_data.glob('project_{}_standardizer*'.format(str(instrument))))[0], sheet_name='Data')
+            else:
+                subset_df_instrument = pd.concat([pd.read_excel(list(path_to_data.glob('project_{}_standardizer*'.format(str(instrument))))[0],sheet_name='ecotaxa'), pd.read_excel(list(path_to_data.glob('project_{}_standardizer*'.format(str(instrument))))[0],sheet_name='ecopart')], axis=0)
+
             subset_df_instrument_metadata=pd.read_excel(list(path_to_data.glob('project_{}_standardizer*'.format(str(instrument))))[0], sheet_name='Metadata')
             print("Updating project_", instrument, "_standardizer file, please wait", sep="")
             if any((subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin(subset_df_instrument.Project_ID.to_list())==False)):
@@ -338,7 +350,7 @@ for instrument in inst:
                               'Annotation_field': '',
                               'Flag_path': '',
                               'NA_value':'',
-                              'EcoPart_project': subset_df[(subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin([y]))]['Ecopart_project'].values.tolist()[0],
+                              'External_project': subset_df[(subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin([y]))]['External_project'].values.tolist()[0],
                               'Sampling_type_field':'',
                               'Sampling_lower_size_field': '',
                               'Sampling_lower_size_unit':'',
@@ -351,7 +363,15 @@ for instrument in inst:
                subset_df_instrument=pd.concat([subset_df_instrument, df], axis=0)
             else:
                df=subset_df_instrument
-         # Generating instrument-specific standardizer file
-            with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))),engine="xlsxwriter") as writer:
+            # Generating instrument-specific standardizer file
+            if instrument != 'UVP':
+                with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))),engine="xlsxwriter") as writer:
                        subset_df_instrument.to_excel(writer, sheet_name='Data', index=False)
                        subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+            else:
+                with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))),engine="xlsxwriter") as writer:
+                    for portal in subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower()).unique():
+                        subset_df_instrument_portal = subset_df_instrument[subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower()) == portal]
+                        subset_df_instrument_portal.to_excel(writer, sheet_name=portal, index=False)
+                    subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+
