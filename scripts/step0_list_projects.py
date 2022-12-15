@@ -128,26 +128,27 @@ else:
         df_Ecopart_list['data'].to_excel(writer, sheet_name='ecopart', index=False)
         df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
-#Appending Ecopart project ID to standardizer and skipping Ecopart projects for standardizer since standardization/ NBSS computation need to occur after binning
-df_projects_list['Ecopart_project']=df_projects_list.Project_ID.astype(str).apply(lambda id: ';'.join(df_Ecopart_list['data'][df_Ecopart_list['data'].Ecotaxa_ID.astype(str)==str(id)].Project_ID.astype(str).values.tolist()))
+#Appending Ecopart/Ecotaxa project ID to standardizer
+df_projects_list['External_project']=df_projects_list.Project_ID.astype(str).apply(lambda id: ';'.join(df_Ecopart_list['data'][df_Ecopart_list['data'].Ecotaxa_ID.astype(str)==str(id)].Project_ID.astype(str).values.tolist()))
+df_projects_list=pd.concat([df_projects_list,df_Ecopart_list['data'].rename(columns={'Ecotaxa_ID':'External_project'})[['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','External_project']]],axis=0)
 
 #3) List IFCB dashboard projects using Scripts.funcs_list_projects.py function: IFCB_dashboard_list
 existing_project_path = list(path_to_data.glob('project_list_all.xlsx'))
 if len(existing_project_path) != 0:
     sheets = pd.ExcelFile(existing_project_path[0]).sheet_names
-    if ('ifcb' in sheets) & ('metadata_ifcb_dashboard' in sheets):
-        df_metadata_ifcb_dashboard=pd.read_excel(existing_project_path[0],sheet_name='metadata_ifcb_dashboard')
-        df_ifcb = pd.read_excel(existing_project_path[0], sheet_name='ifcb',dtype=dict(zip(df_metadata_ifcb_dashboard.Variables, df_metadata_ifcb_dashboard.Variable_types)))
+    if ('ifcb' in sheets) & ('metadata' in sheets):
+        df_metadata=pd.read_excel(existing_project_path[0],sheet_name='metadata')
+        df_ifcb = pd.read_excel(existing_project_path[0], sheet_name='ifcb')
 
         confirmation = input("List of IFCB dashboard projects already created. Do you wish to overwrite the existing list? Enter Y or N\n")
         if confirmation == 'Y':
             print("Overwriting list of IFCB projects. Please wait")
             # get projects list
             df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
-            df_metadata_ifcb_dashboard=df_ifcb_list['metadata']
+            df_metadata = pd.concat([df_metadata, df_ifcb_list['metadata'].reset_index(drop=True)], axis=0).drop_duplicates(['Variables'])
             with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                 df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
-                df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
+                df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
         elif confirmation=='N':
             df_ifcb_list={'data':df_ifcb}
@@ -155,29 +156,29 @@ if len(existing_project_path) != 0:
         print("Creating list of IFCB projects. Please wait")
         # get projects list
         df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
-        df_metadata_ifcb_dashboard = df_ifcb_list['metadata']
+        df_metadata = pd.concat([df_metadata,  df_ifcb_list['metadata'].reset_index(drop=True)], axis=0).drop_duplicates(['Variables'])
         # Generating project_list_all file
         with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
             df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
-            df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
+            df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
 else:
     print("Creating list of projects hosted on Ecotaxa, Ecopart, or IFCB dashboard. Please wait")
     # get projects list
     df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
-    df_metadata_ifcb_dashboard = df_ifcb_list['metadata']
+    df_metadata = pd.concat([df_metadata, df_ifcb_list['metadata'].reset_index(drop=True)], axis=0).drop_duplicates(['Variables'])
 
     # Generating project_list_all file
     with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'),engine="xlsxwriter") as writer:
         df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
-        df_metadata_ifcb_dashboard.to_excel(writer, sheet_name='metadata_ifcb_dashboard', index=False)
+        df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
 df_projects_list=pd.concat([df_projects_list,df_ifcb_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
 
 #df_projects_list=pd.concat([df_projects_list,df_IFCB_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
 
 #4) Generate an instrument-specific standardizer for  accessible projects ()
-dict_instruments={'IFCB':['IFCB'],'UVP':['UVP5HD','UVP5SD','UVP5Z','UVP6'],'Zooscan':['Zooscan'],'Unknown':['?'],'AMNIS':['AMNIS'],'CPICS':['CPICS'],'CytoSense':['CytoSense'],'FastCam':['FastCam'],'FlowCam':['FlowCam'],'ISIIS':['ISIIS'],'LISST':['LISST','LISST-Holo'],'Loki':['Loki'],'Other':['Other camera','Other flowcytometer','Other microscope','Other scanner'],'PlanktoScope':['PlanktoScope'],'VPR':['VPR'],'ZooCam':['ZooCam'],'eHFCM':['eHFCM']}
+dict_instruments={'IFCB':['IFCB'],'UVP':['UVP5','UVP5HD','UVP5SD','UVP5Z','UVP6','UVP6REMOTE'],'Zooscan':['Zooscan'],'Unknown':['?'],'AMNIS':['AMNIS'],'CPICS':['CPICS'],'CytoSense':['CytoSense'],'FastCam':['FastCam'],'FlowCam':['FlowCam'],'ISIIS':['ISIIS'],'LISST':['LISST','LISST-Holo'],'Loki':['Loki'],'Other':['Other camera','Other flowcytometer','Other microscope','Other scanner'],'PlanktoScope':['PlanktoScope'],'VPR':['VPR'],'ZooCam':['ZooCam'],'eHFCM':['eHFCM']}
 df_projects_list['instrument']=df_projects_list.Instrument.apply(lambda instrument: [key for key,values in dict_instruments.items() if instrument in values][0])
 if df_projects_list.PSSdb_access.dtypes!='bool':
     df_projects_list.PSSdb_access=df_projects_list.PSSdb_access=='True'

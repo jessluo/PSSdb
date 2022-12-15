@@ -365,7 +365,7 @@ def IFCB_dashboard_list(localpath):
     #os.remove(localpath)
     df_metadata = pd.DataFrame({'Variables': df_projects.columns, 'Variable_types': df_projects.dtypes,
                                 'Units/Values': ['', '', '', '', '', '', '', '', '', '#', '%', '%', '', ''],
-                                'Description': [' URL of dashboard, necessary to obtain metadata for the IFCB exported files',
+                                'Description': ['URL of IFCB dashboard, necessary to obtain metadata for the IFCB exported files',
                                                 'Project_source (URL where original project files can be exported)',
                                                 'Local path indicating the location of exported files storage',
                                                 'Project ID', 'Project title', 'Project instrument',
