@@ -169,6 +169,8 @@ def Ecopart_export(project,localpath,username,password):
     df_meta['Particle filename'] = df_meta['Particle filename'].apply(lambda file: Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])).name if file != 'no data available' else '')
     df_meta['Plankton filename'] = df_meta['Plankton filename'].apply(lambda file: Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])).name if file != 'no data available' else '')
     df_meta['CTD filename'] = df_meta['CTD filename'].apply(lambda file: Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])).name if file != 'no data available' else '')
+    # Correcting newline character created in ctd desc column for some files
+    df_meta['ctd_desc'] = df_meta.ctd_desc.str.replace('\r|\n', '', regex=True)
     df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
 
     if len(list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))):
