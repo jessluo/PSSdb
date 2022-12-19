@@ -146,6 +146,13 @@ elif subset == 'test':
     start_date = 20180825
     end_date = 20180825
 
+dashboard = input (' Do you want to get data from WHOI or CALOOS dashboards? \n Enter WHOI or CALOOS')
+if dashboard == 'CALOOS':
+    timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb.caloos.org/'].reset_index(drop=True)
+    timeseries_data
+if dashboard == 'WHOI':
+    timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb-data.whoi.edu/'].reset_index(drop=True)
+
 # download starts here
 for n in range (0, len(timeseries_data)):
     Project_source = timeseries_data.loc[n, 'Project_source']
