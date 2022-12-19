@@ -132,6 +132,9 @@ path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 testing = input (' Do you want to download all projects or just the test? \n Enter all or test ')
 if testing == 'test':
     timeseries_data = project_list[project_list['Project_test'] == True].reset_index(drop=True)
+elif testing == 'all':
+    timeseries_data = project_list
+
 
 subset = input (' Do you want to get data for all the time series or a date range or the test dates? \n Enter all, range or test ')
 if subset == 'range':
@@ -146,7 +149,7 @@ elif subset == 'test':
     start_date = 20180825
     end_date = 20180825
 
-dashboard = input (' Do you want to get data from WHOI or CALOOS dashboards? \n Enter WHOI or CALOOS')
+dashboard = input (' Do you want to get data from WHOI or CALOOS dashboards? \n Enter WHOI or CALOOS ')
 if dashboard == 'CALOOS':
     timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb.caloos.org/'].reset_index(drop=True)
     timeseries_data
