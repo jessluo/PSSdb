@@ -91,6 +91,38 @@ def metadata_dict(dashboard, pid_id):
         'niskin': record['niskin'],
     }
 
+def ifcb_config(dashboard, Project_ID, pid_id):
+    """
+    :param dashboard: url to either the WHOI or CALOOS dashboard
+    :param Project_ID: name of the dataset
+    :param pid_id: the identifier for the data in each time bin displayed on the timeline in the dashboard
+    :return: dictionary with the metadata
+    NOTE: # follow instructions to install on : https://github.com/joefutrelle/pyifcb.
+    Make sure to clone the git repository, and run the commands from the directory where the repo files are downloaded
+    """
+    import ifcb
+    url = f'{dashboard}/{Project_ID}/{pid_id}.hdr'
+    with ifcb.open_url(url, images=False) as sample_bin:
+        minBlobArea = sample_bin.headers['minimumBlobArea']
+        PMTAhighVoltage = sample_bin.headers['PMTAhighVoltage']
+        PMTBhighVoltage = sample_bin.headers['PMTBhighVoltage']
+        PMTChighVoltage = sample_bin.headers['PMTChighVoltage']
+        SyringeSampleVolume = sample_bin.headers['SyringeSampleVolume']
+        PMTAtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTAtriggerThreshold_DAQ_MCConly']
+        PMTBtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTBtriggerThreshold_DAQ_MCConly']
+        PMTCtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTCtriggerThreshold_DAQ_MCConly']
+    return{
+        'minBlobArea': minBlobArea,
+        'PMTAhighVoltage': PMTAhighVoltage,
+        'PMTBhighVoltage': PMTBhighVoltage,
+        'PMTChighVoltage': PMTChighVoltage,
+        'SyringeSampleVolume': SyringeSampleVolume,
+        'PMTAtriggerThreshold_DAQ_MCConly': PMTAtriggerThreshold_DAQ_MCConly,
+        'PMTBtriggerThreshold_DAQ_MCConly': PMTBtriggerThreshold_DAQ_MCConly,
+        'PMTCtriggerThreshold_DAQ_MCConly': PMTCtriggerThreshold_DAQ_MCConly
+    }
+
+
 
 def roi_number(dashboard, pid_id):
     """
