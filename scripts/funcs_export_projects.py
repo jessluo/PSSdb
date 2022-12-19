@@ -376,6 +376,36 @@ def metadata_dict(dashboard, pid_id):
         'niskin': record['niskin'],
     }
 
+def ifcb_config(dashboard_url, Project_ID, pid_id):
+    """
+    :param dashboard: url to either the WHOI or CALOOS dashboard
+    :param Project_ID: name of the dataset
+    :param pid_id: the identifier for the data in each time bin displayed on the timeline in the dashboard
+    :return: dictionary with the metadata
+    NOTE: # follow instructions to install on : https://github.com/joefutrelle/pyifcb.
+    Make sure to clone the git repository, and run the commands from the directory where the repo files are downloaded
+    """
+    import ifcb
+    url = f'{dashboard_url}{Project_ID}/{pid_id}.hdr'
+    with ifcb.open_url(url, images=False) as sample_bin:
+        minBlobArea = sample_bin.headers['minimumBlobArea']
+        PMTAhighVoltage = sample_bin.headers['PMTAhighVoltage']
+        PMTBhighVoltage = sample_bin.headers['PMTBhighVoltage']
+        PMTChighVoltage = sample_bin.headers['PMTChighVoltage']
+        SyringeSampleVolume = sample_bin.headers['SyringeSampleVolume']
+        PMTAtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTAtriggerThreshold_DAQ_MCConly']
+        PMTBtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTBtriggerThreshold_DAQ_MCConly']
+        PMTCtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTCtriggerThreshold_DAQ_MCConly']
+    return{
+        'minBlobArea': minBlobArea,
+        'PMTAhighVoltage': PMTAhighVoltage,
+        'PMTBhighVoltage': PMTBhighVoltage,
+        'PMTChighVoltage': PMTChighVoltage,
+        'SyringeSampleVolume': SyringeSampleVolume,
+        'PMTAtriggerThreshold_DAQ_MCConly': PMTAtriggerThreshold_DAQ_MCConly,
+        'PMTBtriggerThreshold_DAQ_MCConly': PMTBtriggerThreshold_DAQ_MCConly,
+        'PMTCtriggerThreshold_DAQ_MCConly': PMTCtriggerThreshold_DAQ_MCConly
+    }
 
 def roi_number(dashboard, pid_id):
     """
@@ -419,6 +449,7 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 features_df = df_from_url(features_filename)
                 # obtain metadata
                 met_dict = metadata_dict(dashboard=dashboard_url, pid_id=pid_id)
+                sample_desc = ifcb_config(dashboard_url=dashboard_url, Project_ID =Project_ID, pid_id=pid_id)
                 features_clean = pd.DataFrame()
 
                 # extract data of interest from features file:
@@ -447,6 +478,17 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 features_clean['sample_cruise'] = met_dict['cruise']
                 features_clean['number_of_rois'] = met_dict['number_of_rois']
                 features_clean['concentration'] = met_dict['concentration']
+
+                #add sampling description:
+                features_clean['minBlobArea'] = sample_desc['minBlobArea']
+                features_clean['PMTAhighVoltage'] = sample_desc['PMTAhighVoltage']
+                features_clean['PMTBhighVoltage'] = sample_desc['PMTBhighVoltage']
+                features_clean['PMTChighVoltage'] = sample_desc['PMTChighVoltage']
+                features_clean['SyringeSampleVolume'] = sample_desc['SyringeSampleVolume']
+                features_clean['PMTAtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTAtriggerThreshold_DAQ_MCConly']
+                features_clean['PMTBtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTBtriggerThreshold_DAQ_MCConly']
+                features_clean['PMTCtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTCtriggerThreshold_DAQ_MCConly']
+
 
                 # now generate dataframe for the class scores
                 class_filename = dashboard_url + Project_ID + '/' + pid_id + '_class_scores.csv'
