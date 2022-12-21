@@ -560,6 +560,7 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                     dashboard_id = 'WHOI'
 
                 df_concatenated = pd.concat([df_concatenated, features_clean], ignore_index=True)
+                print('concatenation done')
 
                 #if len(df_concatenated.index) <= 100000:
                     #df_concatenated = pd.concat([df_concatenated, features_df], ignore_index=True)
