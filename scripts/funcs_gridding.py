@@ -7,7 +7,9 @@ from pathlib import Path
 from glob import glob
 import yaml
 
-def biovol_func(df, instrument, area_type= 'object_area', remove_cat='none'):
+# NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
+#get biovolume
+def biovol_func_old(df, instrument, area_type= 'object_area', remove_cat='none'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object, only for UVP and Zooscan projects, following
     the volume of  a sphere. Also, determine which area will be used to calculate the biovolume.
@@ -73,6 +75,51 @@ def biovol_func(df, instrument, area_type= 'object_area', remove_cat='none'):
         df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
 
     return df
+
+def biovol_func(df, instrument, keep_cat='none'):
+    """
+    Objective: calculate biovolume (in cubic micrometers) of each object  following
+    the volume of  a sphere.
+        :param df: a STANDARDIZED dataframe (output of step2_standardize_projects)
+    This function by default removes objects based on 'Category':
+       instrument = 'IFCB': removes 'beads' and 'artefact'
+       instrument = 'Zooscan': removes 'detritus' and 'artefact'
+       instrument = 'UVP': removes 'detritus' and 'artefact'
+    :param keep_cat: list of strings that determines if categories that should be removed are kept
+    :return: the original dataframe Biovolume in cubic micrometers
+    """
+    import math as m
+    if instrument == 'IFCB':
+        cat_remove = ['beads','detritus', 'artefact', 'bubble']
+        if keep_cat == 'none':
+            cat_remove = cat_remove
+        else:
+            cat_remove = [x for x in cat_remove if x not in keep_cat]
+        for i in cat_remove:
+            try:
+                df = df[df['Category'].str.contains(i) == False]
+                df = df.reset_index(drop=True)
+            except:
+                pass
+    elif (instrument == 'Zooscan' or instrument == 'UVP'):
+        cat_remove = ['artefacts','detritus']
+        if keep_cat == 'none':
+            cat_remove = cat_remove
+        else:
+            cat_remove = [x for x in cat_remove if x not in keep_cat]
+        for i in cat_remove:
+            try:
+                df = df[df['Category'].str.contains(i) == False]
+                df = df.reset_index(drop=True)
+            except:
+                pass
+    for i in range(0, len(df)):
+        r = m.sqrt((df.loc[i, ['Area']]/m.pi))
+        #df.loc[i, 'ESD'] = r*2
+        df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
+
+    return df
+
 
 
 
