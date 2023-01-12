@@ -9,8 +9,7 @@ def proj_id_list_func(instrument, data_status):
     generate a list and create the path  of the standardized Ecotaxa projects
     :param instrument: the device used for image adcquisition. important since the path will change according to it
     :return path_to_data: string where the tsv files are stores
-    :return id_list: list with the ecotaxa project identifiers (might not be relevant once we expand
-    to get data from other platforms)
+    :return file_list: list with the filenames that have data
     """
     import pandas as pd
     import yaml
@@ -24,16 +23,23 @@ def proj_id_list_func(instrument, data_status):
     # prepare storage based on path stored in the yaml config file and instrument type
     if data_status == 'standardized':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument
+        file_list = os.listdir(path_to_data)
+        file_list = [x for x in file_list if not 'metadata' in x and '.tsv' in x]
     elif data_status == 'gridded':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['gridded_subdir']
+        file_list = os.listdir(path_to_data)
+        file_list = [x for x in file_list if not 'metadata' in x and '.tsv' in x]
     elif data_status == 'NBSS':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['gridded_subdir'] / 'NBSS_data'
-    # create a list  projects that we have access to, based on project_list_all.xlsx
-    path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
-    proj_list = pd.read_excel(path_to_proj_id_list)
-    id_list = proj_list['Project_ID'].loc[ (proj_list['Instrument'] == str(instrument)) & (proj_list['PSSdb_access'] == True)].tolist() # instrument type filtered here
+        file_list = os.listdir(path_to_data)
+        file_list = [x for x in file_list if not 'metadata' in x and '.tsv' in x]
 
-    return path_to_data, id_list
+    # DEPRECATED 1/12/2023 create a list  projects that we have access to, based on project_list_all.xlsx
+    #path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
+    #proj_list = pd.read_excel(path_to_proj_id_list)
+    #id_list = proj_list['Project_ID'].loc[ (proj_list['Instrument'] == str(instrument)) & (proj_list['PSSdb_access'] == True)].tolist() # instrument type filtered here
+
+    return path_to_data, file_list
 
 
 # 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
@@ -45,10 +51,8 @@ def read_func(path_to_data, ID):
     """
     import pandas as pd
     from glob import glob
-    search_pattern = path_to_data / ("*" + str(ID) + "*.tsv") #'[^metadata]'
-    filename = glob(str(search_pattern))
-    filename = [x for x in filename if 'metadata' not in x]
-    df = pd.read_csv(filename[0], sep='\t',  header=0, index_col=[0]) #
+    filename = path_to_data / ID #  DEPRECATED: 1/12/2023 ("*" + str(ID) + "*.tsv") #'[^metadata]'
+    df = pd.read_csv(filename, sep='\t',  header=0) #
     df = df.loc[:, ~df.columns.str.match("Unnamed")]
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
