@@ -11,49 +11,82 @@ from glob import glob
 import yaml  # requires installation of PyYAML package
 import os
 import shutil
+from tqdm import tqdm
 
-## define parameters for gridding:
-instrument = 'IFCB'
-removecat = 'none'
-area_type = 'object_area'
-date_group = 'yyyymm'
-ignore_depth = 'yes'
+## set up queries :
+instrument = input ('for which instrument do you want to grid the standardized dataset? \n Enter IFCB, Zooscan or UVP ')
+cats = input ('the gridding process by default removes ROIs that have been identified as \n '
+                    'BEADS, DETRITUS, ARTEFACTS or BUBBLES, would you like to keep any of these categories?'
+                    '  \n Enter Y/N ')
+if cats == 'Y':
+    keep_cat=[]
+    n = int(input("how many categories do you want to keep? : "))
+    # iterating till the range
+    for i in range(0, n):
+        ele = input('type category to keep')
+        keep_cat.append(ele)  # adding the element
+elif cats == 'N':
+    keep_cat = 'none'
+
+date_group = input ('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n mm by month or \n None to keep all time information as is')
+depth_binning = input ('Would you like to bin the data by depth? \n Enter Y/N')
+if depth_binning == 'Y':
+    custom_depth_bin = input ('default depth binning is done at depths: 0, 25, 50, 100, 200, 500, 1000, 3000, 8000 \n '
+                              'Would you like to bin data using different depths \n Enter Y/N ')
+    if custom_depth_bin == 'Y':
+        depth_bins = []
+        n = int(input("how many depths would you like to use for binning? : "))
+        # iterating till the range
+        for i in range(0, n):
+            ele = int(input('type depth #' + str(i+1) ))
+            depth_bins .append(ele)  # adding the element
+    elif custom_depth_bin == 'N':
+        depth_bins = [0, 25, 50, 100, 200, 500, 1000, 3000, 8000]
+
 
 ## processing starts here
 path_to_data, df_list = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
-if instrument == 'IFCB':  # this removal is only for testing,
+#if instrument == 'IFCB':  # this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
-    IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
-    for element in IFCB_empty_rows:
-        if element in df_list:
-            df_list.remove(element)
+    #IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
+    #for element in IFCB_empty_rows:
+        #if element in df_list:
+            #df_list.remove(element)
 dirpath = str(path_to_data) + '/gridded_data/'
-if os.path.exists(dirpath) and os.path.isdir(dirpath):
-    shutil.rmtree(dirpath)
-os.mkdir(dirpath)
 
-for i in df_list:
+if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
+    replace = input('There is already gridded data in ' + dirpath + ' do you want to replace the files? \n Y/N')
+    if replace == 'Y':
+        print('Overwriting gridded file(s), please wait')
+        shutil.rmtree(dirpath)
+        os.mkdir(dirpath)
+    elif replace == 'N':
+        print('previously gridded files will be kept')
+elif not os.path.exists(dirpath):
+    os.mkdir(dirpath)
+
+for i in tqdm(df_list):
     df = read_func(path_to_data, i)
     df = df.dropna(subset = ['Latitude']).reset_index(drop = True)
     df = df[df['Area'] != 0].reset_index(drop=True)
-    df = biovol_func(df, instrument= instrument, area_type= area_type, remove_cat=removecat)
+    df = biovol_func(df, instrument, keep_cat='none')
     df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], group_by =  date_group)
     df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(df['Latitude'], df['Longitude'])
-    if ignore_depth == 'yes':
+    if depth_binning == 'N':
         metadata_bins = pd.DataFrame({'Variables':['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
                                  'Variable_types': ['float64',  'int64', 'object', 'float64', 'float64'],
                                  'Units/Values/Timezone': ['cubic_micrometer',  date_group, 'lat_lon', 'degree', 'degree'],
-                                 'Description': ['Biovolume calculated as a spherical projection of ' + area_type ,
+                                 'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
                                                  'binned date information',
                                                  'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                                                  'latitude of the center point of the 1x1 degree cell',
                                                  'longitude of the center point of the 1x1 degree cell']})
-    elif ignore_depth == 'no':
-        df['midDepthBin'] = depth_binning_func(df['Depth_max'])
+    elif depth_binning == 'Y':
+        df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins =depth_bins)
         metadata_bins = pd.DataFrame({'Variables':['Biovolume',  'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'midDepthBin'],
                                  'Variable_types': ['float64',  'int64', 'object', 'float64', 'float64', 'float64'],
                                  'Units/Values/Timezone': ['cubic_micrometer',  date_group, 'lat_lon', 'degree', 'degree', 'meters'],
-                                 'Description': ['Biovolume calculated as a spherical projection of ' + area_type ,
+                                 'Description': ['Biovolume calculated as a spherical projection of of Area in cubic micrometers',
                                                  'binned date information',
                                                  'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                                                  'latitude of the center point of the 1x1 degree cell',
