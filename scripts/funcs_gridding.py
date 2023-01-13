@@ -161,7 +161,7 @@ def gridding_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
 
     return Station_ID, midLat_bin, midLon_bin
 
-def date_binning_func(date, time, group_by= 'yyyymm'):
+def date_binning_func(date, group_by= 'yyyymm'): # consider adding a day/night column, this will have to consider latitude and month
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -171,10 +171,19 @@ def date_binning_func(date, time, group_by= 'yyyymm'):
     """
     import pandas as pd
     date = date.astype(str)
-    time = time.astype(str)
-    date_bin = (date + time)
-    date_bin = date_bin.astype(int)
-    date_bin = pd.to_datetime(date_bin, format='%Y%m%d%H%M%S')
+    date_bin = pd.to_datetime(date, format='%Y%m%d')
+    #time = time.astype(str)
+
+    # time of day is not considered due to discrepancies of the time format
+    #if time.any() == 0:
+        #date_bin = date
+        #date_bin = date_bin.astype(int)
+        #date_bin = pd.to_datetime(date_bin, format='%Y%m%d')
+    #else:
+        #date_bin = (date + time)
+        #date_bin = date_bin.astype(int)
+        #date_bin = pd.to_datetime(date_bin, format='%Y%m%d%H%M%S')
+
     if group_by == 'yyyy':
         date_bin = date_bin.dt.strftime('%Y')
     elif group_by == 'yyyymm':
