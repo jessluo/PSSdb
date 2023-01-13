@@ -94,10 +94,9 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                                                   'longitude of the center point of the 1x1 degree cell',
                                                   'middle point within a depth bin']})
 
-            df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded.tsv', sep='\t')
-            metadata_bins.to_csv(
-                str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded_metadata.tsv',
-                sep='\t')
+            i = i.replace("standardized", "gridded")
+            df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i), sep='\t')
+            metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + 'metadata_' + str(i), sep='\t')
     elif replace == 'N':
         print('previously gridded files will be kept')
 elif not os.path.exists(dirpath):
@@ -132,10 +131,9 @@ elif not os.path.exists(dirpath):
                                  'latitude of the center point of the 1x1 degree cell',
                                  'longitude of the center point of the 1x1 degree cell',
                                  'middle point within a depth bin']})
-
-        df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded.tsv', sep='\t')
-        metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded_metadata.tsv',
-                             sep='\t')
+        i = i.replace("standardized", "gridded")
+        df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i), sep='\t')
+        metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' +'metadata_'+ str(i),sep='\t')
 
 
     #return df, metadata_bins
