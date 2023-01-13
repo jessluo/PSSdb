@@ -60,40 +60,82 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         print('Overwriting gridded file(s), please wait')
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
+        for i in tqdm(df_list):
+            print('gridding and binning ' + i)
+            df = read_func(path_to_data, i)
+            df = df.dropna(subset=['Latitude']).reset_index(drop=True)
+            df = df[df['Area'] != 0].reset_index(drop=True)
+            df = biovol_func(df, instrument, keep_cat='none')
+            df['date_bin'] = date_binning_func(df['Sampling_date'], group_by=date_group)
+            df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(df['Latitude'], df['Longitude'])
+            if depth_binning == 'N':
+                metadata_bins = pd.DataFrame(
+                    {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
+                     'Variable_types': ['float64', 'int64', 'object', 'float64', 'float64'],
+                     'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree'],
+                     'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
+                                     'binned date information',
+                                     'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                     'latitude of the center point of the 1x1 degree cell',
+                                     'longitude of the center point of the 1x1 degree cell']})
+            elif depth_binning == 'Y':
+                df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
+                metadata_bins = pd.DataFrame({'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin',
+                                                            'midLonBin', 'midDepthBin'],
+                                              'Variable_types': ['float64', 'int64', 'object', 'float64', 'float64',
+                                                                 'float64'],
+                                              'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon',
+                                                                        'degree', 'degree', 'meters'],
+                                              'Description': [
+                                                  'Biovolume calculated as a spherical projection of of Area in cubic micrometers',
+                                                  'binned date information',
+                                                  'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                                  'latitude of the center point of the 1x1 degree cell',
+                                                  'longitude of the center point of the 1x1 degree cell',
+                                                  'middle point within a depth bin']})
+
+            df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded.tsv', sep='\t')
+            metadata_bins.to_csv(
+                str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded_metadata.tsv',
+                sep='\t')
     elif replace == 'N':
         print('previously gridded files will be kept')
 elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
+    for i in tqdm(df_list):
+        print('gridding and binning ' + i)
+        df = read_func(path_to_data, i)
+        df = df.dropna(subset=['Latitude']).reset_index(drop=True)
+        df = df[df['Area'] != 0].reset_index(drop=True)
+        df = biovol_func(df, instrument, keep_cat='none')
+        df['date_bin'] = date_binning_func(df['Sampling_date'], group_by=date_group)
+        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(df['Latitude'], df['Longitude'])
+        if depth_binning == 'N':
+            metadata_bins = pd.DataFrame(
+                {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
+                 'Variable_types': ['float64', 'int64', 'object', 'float64', 'float64'],
+                 'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree'],
+                 'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
+                                 'binned date information',
+                                 'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                 'latitude of the center point of the 1x1 degree cell',
+                                 'longitude of the center point of the 1x1 degree cell']})
+        elif depth_binning == 'Y':
+            df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
+            metadata_bins = pd.DataFrame(
+                {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'midDepthBin'],
+                 'Variable_types': ['float64', 'int64', 'object', 'float64', 'float64', 'float64'],
+                 'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree', 'meters'],
+                 'Description': ['Biovolume calculated as a spherical projection of of Area in cubic micrometers',
+                                 'binned date information',
+                                 'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                 'latitude of the center point of the 1x1 degree cell',
+                                 'longitude of the center point of the 1x1 degree cell',
+                                 'middle point within a depth bin']})
 
-for i in tqdm(df_list):
-    df = read_func(path_to_data, i)
-    df = df.dropna(subset = ['Latitude']).reset_index(drop = True)
-    df = df[df['Area'] != 0].reset_index(drop=True)
-    df = biovol_func(df, instrument, keep_cat='none')
-    df['date_bin'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], group_by =  date_group)
-    df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(df['Latitude'], df['Longitude'])
-    if depth_binning == 'N':
-        metadata_bins = pd.DataFrame({'Variables':['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
-                                 'Variable_types': ['float64',  'int64', 'object', 'float64', 'float64'],
-                                 'Units/Values/Timezone': ['cubic_micrometer',  date_group, 'lat_lon', 'degree', 'degree'],
-                                 'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
-                                                 'binned date information',
-                                                 'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
-                                                 'latitude of the center point of the 1x1 degree cell',
-                                                 'longitude of the center point of the 1x1 degree cell']})
-    elif depth_binning == 'Y':
-        df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins =depth_bins)
-        metadata_bins = pd.DataFrame({'Variables':['Biovolume',  'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'midDepthBin'],
-                                 'Variable_types': ['float64',  'int64', 'object', 'float64', 'float64', 'float64'],
-                                 'Units/Values/Timezone': ['cubic_micrometer',  date_group, 'lat_lon', 'degree', 'degree', 'meters'],
-                                 'Description': ['Biovolume calculated as a spherical projection of of Area in cubic micrometers',
-                                                 'binned date information',
-                                                 'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
-                                                 'latitude of the center point of the 1x1 degree cell',
-                                                 'longitude of the center point of the 1x1 degree cell',
-                                                 'middle point within a depth bin']})
+        df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded.tsv', sep='\t')
+        metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded_metadata.tsv',
+                             sep='\t')
 
-    df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded.tsv', sep='\t')
-    metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i) + '_gridded_metadata.tsv',
-                           sep='\t')
+
     #return df, metadata_bins
