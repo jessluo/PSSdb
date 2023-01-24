@@ -4,6 +4,7 @@ from sklearn.metrics import r2_score
 import numpy as np
 from sklearn.impute import SimpleImputer
 import cartopy.crs as ccrs
+from funcs_read import *
 
 path_to_IFCB, df_list_IFCB =  df_list_func('IFCB', data_status = 'NBSS')
 
