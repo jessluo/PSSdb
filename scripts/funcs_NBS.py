@@ -14,8 +14,9 @@ def size_binning_func(df_subset):
     :return: a binned dataframe by sizes, containing the range of the size bin for each
     """
     import numpy as np
-
+    from pathlib import Path
     import pandas as pd
+    import yaml
     # open dataframe with the size bins
     path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
     # open the metadata of the standardized files
