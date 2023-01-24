@@ -75,7 +75,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                 {'Variables': Variables, 'Variable_types': Variable_types, 'Units_Values': Units_Values,
                  'Description': Description})
             i = i.replace( "gridded", "NBSS")
-            df.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+            NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
             i = i.replace("NBSS", "metadata_NBSS")
             NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/'  + str(i), sep='\t')
 
@@ -131,7 +131,7 @@ elif not os.path.exists(dirpath):
              'Description': Description})
 
         i = i.replace("gridded", "NBSS")
-        df.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+        NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
         i = i.replace("NBSS", "metadata_NBSS")
         NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
 
