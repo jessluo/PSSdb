@@ -5,14 +5,19 @@ import numpy as np
 from sklearn.impute import SimpleImputer
 import cartopy.crs as ccrs
 from funcs_read import *
+import pandas as pd
+import seaborn as sns
 
 path_to_IFCB, df_list_IFCB =  df_list_func('IFCB', data_status = 'NBSS')
 
 path_to_Zooscan, df_list_Zooscan =  df_list_func('Zooscan', data_status = 'NBSS')
 
+path_to_UVP, df_list_UVP =  df_list_func('UVP', data_status = 'NBSS')
+
 IFCB_dict={}
 for i in df_list_IFCB:
     df = pd.read_csv(i, sep='\t', header=0, index_col=[0])
+    df['instrument'] = 'IFCB'
     st_list = list(set(df['Station_location']))
     for n in st_list:
         IFCB_dict[n] = df[df['Station_location']==n]
@@ -20,25 +25,54 @@ for i in df_list_IFCB:
 Zooscan_dict = {}
 for i in df_list_Zooscan:
     df = pd.read_csv(i, sep='\t', header=0, index_col=[0])
+    df['instrument'] = 'Zooscan'
     st_list = list(set(df['Station_location']))
     for n in st_list:
         Zooscan_dict[n] = df[df['Station_location'] == n]
 
+UVP_dict = {}
+for i in df_list_UVP:
+    df = pd.read_csv(i, sep='\t', header=0, index_col=[0])
+    df['instrument'] = 'UVP'
+    st_list = list(set(df['Station_location']))
+    for n in st_list:
+        UVP_dict[n] = df[df['Station_location'] == n]
+
+
+# merge data based on location. 1/24/2023: there are no sites that have all three instruments. Only Zooscan + UVP and Zooscan + IFCB
 merged_dfs={}
 for i in Zooscan_dict:
     try:
-        merged_st_df =  pd.concat([IFCB_dict[i], Zooscan_dict[i]], axis=0)
+        merged_st_df =  pd.concat([UVP_dict[i], Zooscan_dict[i]],  axis=0) #UVP_dict[i]],
         merged_st_df = merged_st_df.reset_index(drop=True)
         merged_dfs[i] = merged_st_df
     except:
         pass
 
+# this is where I get the common stations across instruments
+IFCB_keys = set(IFCB_dict.keys())
+Zooscan_keys = set(Zooscan_dict.keys())
+UVP_keys = set(UVP_dict.keys())
+set1 = Zooscan_keys.intersection(IFCB_keys)
+set2 = Zooscan_keys.intersection(UVP_keys)
+common = set1.intersection(set2)
+common
+
+
 fig, ax1 = plt.subplots(1,1)
-for i in ['72.5_44.5', '78.5_79.5', '70.5_-53.5']: #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
-    ax1.plot(merged_dfs[i]['logSize'], merged_dfs[i]['logNBSS'], marker='.', label=i)
+for i in merged_dfs.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    ax1.plot(merged_dfs[i]['logSize'], merged_dfs[i]['logNBSS'], marker='.', label=merged_dfs[i]['instrument'])
 ax1.set_ylabel('log (NBS)')
 ax1.set_xlabel('log (Biovolume)')
 ax1.legend()
+
+# with seaborn:
+for i in merged_dfs.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    sns.lineplot(data = merged_dfs[i], x = 'logSize', y = 'logNBSS', marker='.', hue='instrument')
+
+
+
+
 
 intercept = []
 slope = []
