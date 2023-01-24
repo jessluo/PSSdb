@@ -22,8 +22,8 @@ def size_binning_func(df_subset):
     # open the metadata of the standardized files
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
-    path_to_bins = str(Path(cfg['raw_dir']).expanduser() / 'ecopart_size_bins.txt')
-    bins_df = pd.read_csv(path_to_bins, sep='\t')
+    path_to_bins = str(Path(cfg['raw_dir']).expanduser() / 'ecopart_size_bins.tsv')
+    bins_df = pd.read_csv(path_to_bins)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume, append bin range and bin class to the dataframe
     df_subset.loc[:, 'sizeClasses']= pd.cut(x=df_subset['Biovolume'], bins=bins_df['biovol_um3'], include_lowest=True)# size classes defined by biovolume
