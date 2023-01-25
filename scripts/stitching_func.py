@@ -70,9 +70,16 @@ ax1.legend()
 for i in merged_dfs.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
     sns.lineplot(data = merged_dfs[i], x = 'logSize', y = 'logNBSS', marker='.', hue='instrument')
 
+# separate instruments:
 
+for i in IFCB_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    sns_plot = sns.lineplot(data = IFCB_dict[i], x = 'logSize', y = 'logNBSS', marker='.', color='blue', linewidth = 0.5)
 
+for i in Zooscan_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    sns_plot = sns.lineplot(data = Zooscan_dict[i], x = 'logSize', y = 'logNBSS', marker='.', color='red', linewidth = 0.5)
 
+for i in UVP_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    sns_plot = sns.lineplot(data = UVP_dict[i], x = 'logSize', y = 'logNBSS', marker='.', color='grey', linewidth = 0.5)
 
 intercept = []
 slope = []
