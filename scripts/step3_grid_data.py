@@ -67,6 +67,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             df = df[df['Area'] != 0].reset_index(drop=True)
             df = biovol_func(df, instrument, keep_cat='none')
             df['date_bin'] = date_binning_func(df['Sampling_date'], group_by=date_group)
+            df['date_bin'] = df['date_bin'].astype(str)
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(df['Latitude'], df['Longitude'])
             if depth_binning == 'N':
                 metadata_bins = pd.DataFrame(
