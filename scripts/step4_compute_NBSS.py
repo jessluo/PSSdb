@@ -24,7 +24,7 @@ path_to_data, id_list = proj_id_list_func(instrument, data_status ='gridded')#ge
 
 dirpath = str(path_to_data) + '/NBSS_data/'
 if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
-    replace = input('There is already gridded data in ' + dirpath + ' do you want to replace the files? \n Y/N')
+    replace = input('There is already NBS data in ' + dirpath + ' do you want to replace the files? \n Y/N')
     if replace == 'Y':
         print('Overwriting normalized biomass data file(s), please wait')
         shutil.rmtree(dirpath)
@@ -48,9 +48,9 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             # metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
             # and generate the NBSS WITH THRESHOLDING INCLUDED
             if depth_binning == 'Y':
-                NBS_data_binned = parse_NBS_func(df, parse_by=['Station_location', 'date_bin', 'midDepthBin'])
+                NBS_data_binned = parse_NBS_func(df, parse_by = ['Station_location','date_bin'], depth_bin= True)
             else:
-                NBS_data_binned = parse_NBS_func(df, parse_by=['Station_location', 'date_bin'])
+                NBS_data_binned = parse_NBS_func(df, parse_by = [ 'Station_location', 'date_bin'], depth_bin= False)
 
             # generate metadata for the NBS files
             Variables = NBS_data_binned.columns.to_list()
