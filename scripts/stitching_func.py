@@ -17,15 +17,15 @@ path_to_UVP, df_list_UVP =  df_list_func('UVP', data_status = 'NBSS')
 
 
 IFCB_dict={}
-date_IFCB = []
+#date_IFCB = []
 for i in df_list_IFCB:
     df = pd.read_csv(i, sep='\t', header=0, index_col=[0])
     df['instrument'] = 'IFCB'
     st_list = list(set(df['Station_location']))
-    date_list = list(set(df['date_bin'])) # next three lines are to query the dates
-    date_IFCB.append([n for n in set(df['date_bin'])])
-    dates_IFCB = [val for sublist in date_IFCB for val in sublist]
-
+    date_list = list(set(df['date_bin']))
+    #date_list = list(set(df['date_bin'])) # next three lines are to query the dates
+    #date_IFCB.append([n for n in set(df['date_bin'])])
+    #dates_IFCB = [val for sublist in date_IFCB for val in sublist]
     for st in st_list:
         IFCB_dict[st] = {}
         for d in date_list:
