@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 #define the instrument to calculate NBS:
 
-instrument = input ('for which instrument do you want to grid the standardized dataset? \n Enter IFCB, Zooscan or UVP ')
+instrument = input ('for which instrument do you want to calculate the size spectra? \n Enter IFCB, Zooscan or UVP ')
 depth_binning  = input ('Would you like to bin the data by depth? \n Enter Y/N')
 
 # processing starts here
