@@ -59,22 +59,25 @@ def parse_NBS_func(df, parse_by = ['Station_location','date_bin'], depth_bin= Fa
         df['midDepthBin'] = df['midDepthBin'].astype(str)
     df['date_bin'] = df['date_bin'].astype(str)
     NBSS_binned_all = pd.DataFrame()
-    for st in list(set(df[parse_by[0]])):
-        df_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
-        for t in list(set(df_subset[parse_by[1]])):
-            df_subset = df_subset[df_subset[parse_by[1]] == t].reset_index(drop=True)
+    stations = list(set(df[parse_by[0]]))
+    for st in stations:
+        #print(st)
+        df_st_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
+        for t in list(set(df_st_subset[parse_by[1]])):
+            #print(t)
+            df_st_t_subset = df_st_subset[df_st_subset[parse_by[1]] == t].reset_index(drop=True)
             if depth_bin == True:
-                for d in list(set(df_subset[parse_by[2]])):
-                    df_subset = df_subset[df_subset[parse_by[2]] == d].reset_index(drop=True)
-                    df_binned, df_bins = size_binning_func(df_subset)  # create size bins
+                for d in list(set(df_st_t_subset[parse_by[2]])):
+                    df_st_t_d_subset = df_st_t_subset[df_st_t_subset[parse_by[2]] == d].reset_index(drop=True)
+                    df_binned, df_bins = size_binning_func(df_st_t_d_subset)  # create size bins
                     NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='no', dates='date_bin', station='Station_location',
                                depths='midDepthBin', size_range='range_size_bin', sizeClasses='sizeClasses',
                                biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
                                project_ID='Project_ID', vol_filtered='Volume_analyzed')  # calculate NBSS
                     NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
             else:
-                print ('getting NBS for station ' + st + 'and date' + t)
-                df_binned, df_bins = size_binning_func(df_subset)  # create size bins
+                #print ('getting NBS for station ' + st + 'and date' + t)
+                df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
                 NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='yes', dates='date_bin', station='Station_location',
                             size_range='range_size_bin', sizeClasses='sizeClasses',
                             biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
