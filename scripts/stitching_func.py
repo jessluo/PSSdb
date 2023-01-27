@@ -29,40 +29,40 @@ for i in df_list_IFCB:
     for st in st_list:
         IFCB_dict[st] = {}
         for d in date_list:
-            IFCB_dict[st][d] = df[df['Station_location']==st & df['date_bin']==d]
+            IFCB_dict[st][d] = df[(df['Station_location']==st) & (df['date_bin']==d)]
 
 
-Zooscan_dict = {}
-date_Zooscan = []
+Zooscan_dict={}
+#date_Zooscan = []
 for i in df_list_Zooscan:
     df = pd.read_csv(i, sep='\t', header=0, index_col=[0])
     df['instrument'] = 'Zooscan'
     st_list = list(set(df['Station_location']))
-    date_list = list(set(df['date_bin'])) # next three lines are to query the dates
-    date_Zooscan.append([n for n in set(df['date_bin'])])
-    dates_Zooscan = [val for sublist in date_Zooscan for val in sublist]
-    for n in st_list:
-        Zooscan_dict[n] = df[df['Station_location'] == n]
+    date_list = list(set(df['date_bin']))
+    #date_list = list(set(df['date_bin'])) # next three lines are to query the dates
+    #date_Zooscan.append([n for n in set(df['date_bin'])])
+    #dates_Zooscan = [val for sublist in date_Zooscan for val in sublist]
+    for st in st_list:
+        Zooscan_dict[st] = {}
+        for d in date_list:
+            Zooscan_dict[st][d] = df[(df['Station_location']==st) & (df['date_bin']==d)]
 
-UVP_dict = {}
-date_UVP = []
+UVP_dict={}
+#date_UVP = []
 for i in df_list_UVP:
     df = pd.read_csv(i, sep='\t', header=0, index_col=[0])
     df['instrument'] = 'UVP'
     st_list = list(set(df['Station_location']))
-    date_list = list(set(df['date_bin'])) # next three lines are to query the dates
-    date_UVP.append([n for n in set(df['date_bin'])])
-    dates_UVP= [val for sublist in date_UVP for val in sublist]
-    for n in st_list:
-        UVP_dict[n] = df[df['Station_location'] == n]
+    date_list = list(set(df['date_bin']))
+    #date_list = list(set(df['date_bin'])) # next three lines are to query the dates
+    #date_UVP.append([n for n in set(df['date_bin'])])
+    #dates_UVP = [val for sublist in date_UVP for val in sublist]
+    for st in st_list:
+        UVP_dict[st] = {}
+        for d in date_list:
+            UVP_dict[st][d] = df[(df['Station_location']==st) & (df['date_bin']==d)]
 
 
-min(dates_IFCB)
-max(dates_IFCB)
-min(dates_Zooscan)
-max(dates_Zooscan)
-min(dates_UVP)
-max(dates_UVP)
 
 # merge data based on location. 1/24/2023: there are no sites that have all three instruments. Only Zooscan + UVP and Zooscan + IFCB
 merged_dfs={}
@@ -97,14 +97,17 @@ for i in merged_dfs.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
 
 # separate instruments:
 
-for i in IFCB_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
-    sns_plot = sns.lineplot(data = IFCB_dict[i], x = 'logSize', y = 'logNBSS', marker='.', color='blue', linewidth = 0.5)
+for st in IFCB_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    for d in IFCB_dict[st].keys():
+        sns_plot = sns.lineplot(data = IFCB_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='blue', linewidth = 0.5)
 
-for i in Zooscan_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
-    sns_plot = sns.lineplot(data = Zooscan_dict[i], x = 'logSize', y = 'logNBSS', marker='.', color='red', linewidth = 0.5)
+for st in Zooscan_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    for d in Zooscan_dict[st].keys():
+        sns_plot = sns.lineplot(data = Zooscan_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='green', linewidth = 0.5)
 
-for i in UVP_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
-    sns_plot = sns.lineplot(data = UVP_dict[i], x = 'logSize', y = 'logNBSS', marker='.', color='grey', linewidth = 0.5)
+for st in UVP_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
+    for d in UVP_dict[st].keys():
+        sns_plot = sns.lineplot(data = UVP_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='red', linewidth = 0.5)
 
 intercept = []
 slope = []
