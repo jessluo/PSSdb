@@ -29,6 +29,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         print('Overwriting normalized biomass data file(s), please wait')
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
+        lin_fit_all = pd.DataFrame()
         for i in tqdm(id_list):
             print('calculating normalized biomass size spectra for ' + i)
             df = read_func(path_to_data, i)  # get a dataframe for each project
@@ -48,9 +49,9 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             # metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
             # and generate the NBSS WITH THRESHOLDING INCLUDED
             if depth_binning == 'Y':
-                NBS_data_binned = parse_NBS_func(df, parse_by = ['Station_location','date_bin'], depth_bin= True)
+                NBS_data_binned, lin_fit_data = parse_NBS_linfit_func(df, parse_by = ['Station_location','date_bin'], depth_bin= True)
             else:
-                NBS_data_binned = parse_NBS_func(df, parse_by = [ 'Station_location', 'date_bin'], depth_bin= False)
+                NBS_data_binned, lin_fit_data = parse_NBS_linfit_func(df, parse_by = [ 'Station_location', 'date_bin'], depth_bin= False)
 
             # generate metadata for the NBS files
             Variables = NBS_data_binned.columns.to_list()
@@ -64,7 +65,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                            'minimum and maximum biovolume value of the size bin, calculated from biovolume using a projection of a sphere',
                            'difference between max and min value of a size bin',
                            'latitude of the center point of the 1x1 degree cell',
-                           'longitude of the center point of the 1x1 degree cell', 'Project ID in Ecotaxa',
+                           'longitude of the center point of the 1x1 degree cell', 'Project identifier',
                            'Volume analyzed (not accounting for sample dilution and/or fractionation)',
                            'Sum of the biovolume of individual objects classified into a biovolume based size bin',
                            'number of objects assigned into the size bin', 'mean biovolume for each size bin',
@@ -78,6 +79,31 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
             i = i.replace("NBSS", "metadata_NBSS")
             NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/'  + str(i), sep='\t')
+
+            # save the Linear regression results
+
+            lin_fit_Variables = lin_fit_data.columns.to_list()
+            lin_fit_Variable_types = lin_fit_data.dtypes.to_list()
+            lin_fit_Units_Values = ['', 'degree', 'degree', 'refer to gridded metadata', '', '', '', ''] # NOTE for the future, binning information should be cinluded here
+            lin_fit_Description = ['Project Identifier',
+                           'latitude of the center point of the 1x1 degree cell',
+                           'longitude of the center point of the 1x1 degree cell',
+                           'binned date information',
+                           'slope of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                           'intercept of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                           'Root mean square error of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                           'Coefficiento of determination of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',]
+           lin_fit_metadata = pd.DataFrame(
+                {'Variables': lin_fit_Variables, 'Variable_types': lin_fit_Variable_types, 'Units_Values': lin_fit_Units_Values,
+                 'Description': lin_fit_Description})
+            # saving only needs to happen once for each isntrument, yes?
+            i = i.replace("gridded", "NBSS")
+            NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+            i = i.replace("NBSS", "metadata_NBSS")
+            lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+
+
+
 
     elif replace == 'N':
         print('previously calculated normalized biomass files will be kept')
