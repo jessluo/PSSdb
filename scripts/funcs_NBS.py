@@ -179,3 +179,15 @@ def threshold_func(binned_data):
 
     return binned_data_filt
 
+def linear_fit_func(df):
+    """
+    Objective: perform linear fit of NBSS. method of linear fit might change, current one is Least squares regression
+    :param df: a dataframe with size bins and NBSS belonging to only one sample (one unique station, date and depth)
+    """
+    import numpy as np
+    import pandas as pd
+    x = df['logSize'].values.reshape(-1, 1)
+    y = df['logNBSS'].values.reshape(-1, 1)
+    # Model 1 -linear model
+    #y = m*x + b
+    
