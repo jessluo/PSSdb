@@ -44,49 +44,6 @@ def size_binning_func(df_subset):
     return df_subset, df_bins
 
 
-def parse_NBS_func(df, parse_by = ['Station_location','date_bin'], depth_bin= False):
-    """
-    Objective: parse out any df that come from files that include multiple stations, dates and depths.
-    dataframe needs to be already binned. Steps are: 1) parse the data 2) bin ROIs by size and 3) calculate the NBS
-    (threshold included)
-    :param df: a standardized, binned dataframe
-    :param parse_by: list of columns that will be used to parse the dataframe
-    :return: a binned, tresholded NBS dataframe
-    """
-    import pandas as pd
-    if depth_bin == True:
-        parse_by.append('midDepthBin')
-        df['midDepthBin'] = df['midDepthBin'].astype(str)
-    df['date_bin'] = df['date_bin'].astype(str)
-    NBSS_binned_all = pd.DataFrame()
-    stations = list(set(df[parse_by[0]]))
-    for st in stations:
-        #print(st)
-        df_st_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
-        for t in list(set(df_st_subset[parse_by[1]])):
-            #print(t)
-            df_st_t_subset = df_st_subset[df_st_subset[parse_by[1]] == t].reset_index(drop=True)
-            if depth_bin == True:
-                for d in list(set(df_st_t_subset[parse_by[2]])):
-                    df_st_t_d_subset = df_st_t_subset[df_st_t_subset[parse_by[2]] == d].reset_index(drop=True)
-                    df_binned, df_bins = size_binning_func(df_st_t_d_subset)  # create size bins
-                    NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='no', dates='date_bin', station='Station_location',
-                               depths='midDepthBin', size_range='range_size_bin', sizeClasses='sizeClasses',
-                               biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
-                               project_ID='Project_ID', vol_filtered='Volume_analyzed')  # calculate NBSS
-                    NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
-            else:
-                #print ('getting NBS for station ' + st + 'and date' + t)
-                df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
-                NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='yes', dates='date_bin', station='Station_location',
-                            size_range='range_size_bin', sizeClasses='sizeClasses',
-                            biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
-                            project_ID='Project_ID', vol_filtered='Volume_analyzed')  # calculate NBSS
-                NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
-
-
-    return NBSS_binned_all
-
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
 # inputs: a dataframe and the volume sampled of each (in cubic meters). other inputs are the column names
 # from the original dataset that want to be retained (i.e;  proj ID, station ID, depth, size classes,
@@ -129,7 +86,9 @@ def NB_SS_func(df, df_bins, ignore_depth = 'no', dates='date_bin', station= 'Sta
     elif ignore_depth == 'yes':
         NBS_biovol_df = df.groupby([dates, station, sizeClasses]).agg(
             {size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
-             biovolume:['sum', 'count' , 'mean'] }).reset_index()
+             biovolume:['sum', 'count' , 'mean']}).reset_index()
+
+    # apply(lambda x: pd.Series( {'volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})) # don't understand why sampl
 
     NBS_biovol_df.columns = NBS_biovol_df.columns.map('_'.join).str.removesuffix("first")
     NBS_biovol_df.columns = NBS_biovol_df.columns.str.removesuffix("_")
@@ -179,15 +138,147 @@ def threshold_func(binned_data):
 
     return binned_data_filt
 
-def linear_fit_func(df):
+def linear_fit_func(df1, depth_bin = False):
     """
     Objective: perform linear fit of NBSS. method of linear fit might change, current one is Least squares regression
     :param df: a dataframe with size bins and NBSS belonging to only one sample (one unique station, date and depth)
+    from https://www.edureka.co/blog/least-square-regression/
     """
     import numpy as np
     import pandas as pd
-    x = df['logSize'].values.reshape(-1, 1)
-    y = df['logNBSS'].values.reshape(-1, 1)
-    # Model 1 -linear model
-    #y = m*x + b
-    
+    import matplotlib.pyplot as plt
+
+    #remove Nans
+    df1 = df1.dropna()
+
+    # extract x and y
+    X = df1['logSize'].values#.reshape(-1, 1)
+    Y = df1['logNBSS'].values#.reshape(-1, 1)
+    # Mean X and Y
+    mean_x = np.mean(X)
+    mean_y = np.mean(Y)
+    # Total number of values
+    n = len(X)
+    # Model 1 -linear model : Y = m*X + b
+    numer = 0 # numerator
+    denom = 0 # denominator
+    for i in range(n):
+        numer += (X[i] - mean_x) * (Y[i] - mean_y)
+        denom += (X[i] - mean_x) ** 2
+    m = numer / denom # slope
+    b = mean_y - (m * mean_x) # intercept
+    #print("Coefficients")
+    #print(m, c)
+    # Calculating Root Mean Squares Error and R2 score
+    rmse = 0 # root mean square error
+    ss_tot = 0 # total sum of squares
+    ss_res = 0 # total sum of squares of residuals
+    for i in range(n):
+        y_pred = b + m * X[i]
+        rmse += (Y[i] - y_pred) ** 2
+        ss_tot += (Y[i] - mean_y) ** 2
+        ss_res += (Y[i] - y_pred) ** 2
+    rmse = np.sqrt(rmse / n)
+    #print("RMSE")
+    #print(rmse)
+    R2 = 1 - (ss_res / ss_tot)
+    #print("R2 Score")
+    #print(R2)
+
+    # generate dataframe and append the results in the corresponding variable
+    if depth_bin == True:
+        lin_fit = pd.DataFrame()
+        lin_fit.loc[0, 'Project_ID'] = df1.loc[0, 'Project_ID']
+        lin_fit.loc[0, 'Latitude'] = df1.loc[0, 'midLatBin']
+        lin_fit.loc[0, 'Longitude'] = df1.loc[0, 'midLonBin']
+        lin_fit.loc[0, 'Depth'] = df1.loc[0, 'midDepthBin']
+        lin_fit.loc[0, 'Date'] = df1.loc[0, 'date_bin']
+        lin_fit.loc[0, 'Slope'] = m
+        lin_fit.loc[0, 'Intercept'] = b
+        lin_fit.loc[0, 'RMSE'] = rmse
+        lin_fit.loc[0, 'R2'] = R2
+
+    else:
+        lin_fit = pd.DataFrame()
+        lin_fit.loc[0, 'Project_ID'] = df1.loc[0, 'Project_ID']
+        lin_fit.loc[0, 'Latitude'] = df1.loc[0, 'midLatBin']
+        lin_fit.loc[0, 'Longitude'] = df1.loc[0, 'midLonBin']
+
+        lin_fit.loc[0, 'Date'] = df1.loc[0, 'date_bin']
+        lin_fit.loc[0, 'Slope'] = m
+        lin_fit.loc[0, 'Intercept'] = b
+        lin_fit.loc[0, 'RMSE'] = rmse
+        lin_fit.loc[0, 'R2'] = R2
+
+    return (lin_fit)
+
+def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], depth_bin=False):
+    """
+    Objective: parse out any df that come from files that include multiple stations, dates and depths.
+    dataframe needs to be already binned. Steps are: 1) parse the data 2) bin ROIs by size  3) calculate the NBS
+    (threshold included) and 4) create a dataframe with the Least squares regression result
+    :param df: a standardized, binned dataframe
+    :param parse_by: list of columns that will be used to parse the dataframe
+    :return: a binned, tresholded NBS dataframe
+    """
+    import pandas as pd
+    if depth_bin == True:
+        parse_by.append('midDepthBin')
+        df['midDepthBin'] = df['midDepthBin'].astype(str)
+    df['date_bin'] = df['date_bin'].astype(str)
+    NBSS_binned_all = pd.DataFrame()  # NBSS dataset
+    lin_fit_data = pd.DataFrame()  # linear fit (least-squares) dataset
+    for st in list(set(df[parse_by[0]])):
+        # print(st)
+        df_st_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
+        for t in list(set(df_st_subset[parse_by[1]])):
+            # print(t)
+            df_st_t_subset = df_st_subset[df_st_subset[parse_by[1]] == t].reset_index(drop=True)
+            if depth_bin == True:
+                for d in list(set(df_st_t_subset[parse_by[2]])):
+                    df_st_t_d_subset = df_st_t_subset[df_st_t_subset[parse_by[2]] == d].reset_index(drop=True)
+                    df_binned, df_bins = size_binning_func(df_st_t_d_subset)  # create size bins
+                    NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='no', dates='date_bin',
+                                                station='Station_location',
+                                                depths='midDepthBin', size_range='range_size_bin',
+                                                sizeClasses='sizeClasses',
+                                                biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
+                                                project_ID='Project_ID',
+                                                vol_filtered='Volume_analyzed')  # calculate NBSS
+                    lin_fit = linear_fit_func(NBS_biovol_df, depth_bin=True)
+                    NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
+            else:
+                # print ('getting NBS for station ' + st + 'and date' + t)
+                df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
+                NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='yes', dates='date_bin',
+                                            station='Station_location',
+                                            size_range='range_size_bin', sizeClasses='sizeClasses',
+                                            biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
+                                            project_ID='Project_ID',
+                                            vol_filtered='Volume_analyzed')  # calculate NBSS
+
+                # Create new dataset with slope, intercept, and R2 score for each linear fit
+                lin_fit = linear_fit_func(NBS_biovol_df, depth_bin = False )
+                NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
+                lin_fit_data = pd.concat([lin_fit_data, lin_fit])
+
+    return NBSS_binned_all, lin_fit_data
+
+
+
+
+
+# Plotting Values and Regression Line
+#max_x = np.max(X) + 100
+#min_x = np.min(X) - 100
+# Calculating line values x and y
+#x = np.linspace(min_x, max_x, 1000)
+#y = c + m * x
+# Ploting Line
+#plt.plot(x, y, color='#58b970', label='Regression Line')
+# Ploting Scatter Points
+#plt.scatter(X, Y, c='#ef5423', label='Scatter Plot')
+#plt.xlabel('logSize')
+#plt.ylabel('logNBSS')
+#plt.legend()
+#plt.show()
