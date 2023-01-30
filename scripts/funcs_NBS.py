@@ -188,11 +188,11 @@ def linear_fit_func(df1, depth_bin = False):
     # generate dataframe and append the results in the corresponding variable
     if depth_bin == True:
         lin_fit = pd.DataFrame()
-        lin_fit.loc[0, 'Project_ID'] = df1.loc[0, 'Project_ID']
+        lin_fit.loc[0, 'Project_ID'] = str(df1.loc[0, 'Project_ID'])
         lin_fit.loc[0, 'Latitude'] = df1.loc[0, 'midLatBin']
         lin_fit.loc[0, 'Longitude'] = df1.loc[0, 'midLonBin']
         lin_fit.loc[0, 'Depth'] = df1.loc[0, 'midDepthBin']
-        lin_fit.loc[0, 'Date'] = df1.loc[0, 'date_bin']
+        lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
         lin_fit.loc[0, 'Slope'] = m
         lin_fit.loc[0, 'Intercept'] = b
         lin_fit.loc[0, 'RMSE'] = rmse
@@ -200,11 +200,11 @@ def linear_fit_func(df1, depth_bin = False):
 
     else:
         lin_fit = pd.DataFrame()
-        lin_fit.loc[0, 'Project_ID'] = df1.loc[0, 'Project_ID']
+        lin_fit.loc[0, 'Project_ID'] = str(df1.loc[0, 'Project_ID'])
         lin_fit.loc[0, 'Latitude'] = df1.loc[0, 'midLatBin']
         lin_fit.loc[0, 'Longitude'] = df1.loc[0, 'midLonBin']
 
-        lin_fit.loc[0, 'Date'] = df1.loc[0, 'date_bin']
+        lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
         lin_fit.loc[0, 'Slope'] = m
         lin_fit.loc[0, 'Intercept'] = b
         lin_fit.loc[0, 'RMSE'] = rmse
