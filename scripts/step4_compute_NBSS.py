@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import statistics as st
 import os
 
 from pathlib import Path
@@ -12,6 +13,10 @@ import yaml  # requires installation of PyYAML package
 from funcs_read import *
 from funcs_NBS import *
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+#look for coastline layer and add it to that map, UNABLE to import cartopy, see issue
+import cartopy.crs as ccrs
+
 
 #define the instrument to calculate NBS:
 
@@ -79,28 +84,28 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
             i = i.replace("NBSS", "metadata_NBSS")
             NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/'  + str(i), sep='\t')
+            # append linear regression results to the dataset of slopes per instrument:
+            lin_fit_all = pd.concat([lin_fit_all, lin_fit_data])
 
-            # save the Linear regression results
+        # save the Linear regression results
 
-            lin_fit_Variables = lin_fit_data.columns.to_list()
-            lin_fit_Variable_types = lin_fit_data.dtypes.to_list()
-            lin_fit_Units_Values = ['', 'degree', 'degree', 'refer to gridded metadata', '', '', '', ''] # NOTE for the future, binning information should be cinluded here
-            lin_fit_Description = ['Project Identifier',
-                           'latitude of the center point of the 1x1 degree cell',
-                           'longitude of the center point of the 1x1 degree cell',
-                           'binned date information',
-                           'slope of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
-                           'intercept of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
-                           'Root mean square error of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
-                           'Coefficiento of determination of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',]
-           lin_fit_metadata = pd.DataFrame(
-                {'Variables': lin_fit_Variables, 'Variable_types': lin_fit_Variable_types, 'Units_Values': lin_fit_Units_Values,
-                 'Description': lin_fit_Description})
-            # saving only needs to happen once for each isntrument, yes?
-            i = i.replace("gridded", "NBSS")
-            NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
-            i = i.replace("NBSS", "metadata_NBSS")
-            lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+        lin_fit_Variables = lin_fit_data.columns.to_list()
+        lin_fit_Variable_types = lin_fit_data.dtypes.to_list()
+        lin_fit_Units_Values = ['', 'degree', 'degree', 'refer to gridded metadata', '', '', '', ''] # NOTE for the future, binning information should be cinluded here
+        lin_fit_Description = ['Project Identifier',
+                        'latitude of the center point of the 1x1 degree cell',
+                        'longitude of the center point of the 1x1 degree cell',
+                        'binned date information',
+                        'slope of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                        'intercept of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                        'Root mean square error of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                        'Coefficiento of determination of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',]
+        lin_fit_metadata = pd.DataFrame(
+            {'Variables': lin_fit_Variables, 'Variable_types': lin_fit_Variable_types, 'Units_Values': lin_fit_Units_Values,
+                'Description': lin_fit_Description})
+        # saving only needs to happen once for each instrument, yes?
+        lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_results.tsv', sep='\t')
+        lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_metadata.tsv', sep='\t')
 
 
 
@@ -110,6 +115,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
 
 elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
+    lin_fit_all = pd.DataFrame()
     for i in tqdm(id_list):
         print('calculating normalized biomass size spectra for ' + i)
         df = read_func(path_to_data, i)  # get a dataframe for each project
@@ -129,9 +135,9 @@ elif not os.path.exists(dirpath):
         # metadata_binned = pd.concat([metadata_std, metadata_bins], axis=0)
         # and generate the NBSS WITH THRESHOLDING INCLUDED
         if depth_binning == 'Y':
-            NBS_data_binned = parse_NBS_func(df, parse_by=['Station_location', 'date_bin', 'midDepthBin'])
+            NBS_data_binned, lin_fit_data = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin', 'midDepthBin'])
         else:
-            NBS_data_binned = parse_NBS_func(df, parse_by=['Station_location', 'date_bin'])
+            NBS_data_binned, lin_fit_data = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'])
 
         # generate metadata for the NBS files
         Variables = NBS_data_binned.columns.to_list()
@@ -160,6 +166,70 @@ elif not os.path.exists(dirpath):
         NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
         i = i.replace("NBSS", "metadata_NBSS")
         NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+        # append linear regression results to the dataset of slopes per instrument:
+        lin_fit_all = pd.concat([lin_fit_all, lin_fit_data])
+
+    # save the Linear regression results
+    lin_fit_Variables = lin_fit_data.columns.to_list()
+    lin_fit_Variable_types = lin_fit_data.dtypes.to_list()
+    lin_fit_Units_Values = ['', 'degree', 'degree', 'refer to gridded metadata', '', '', '',
+                                '']  # NOTE for the future, binning information should be cinluded here
+    lin_fit_Description = ['Project Identifier',
+                               'latitude of the center point of the 1x1 degree cell',
+                               'longitude of the center point of the 1x1 degree cell',
+                               'binned date information',
+                               'slope of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                               'intercept of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                               'Root mean square error of the least-squares linear regression performed on the datased defined by the gridding and binning configuration',
+                               'Coefficiento of determination of the least-squares linear regression performed on the datased defined by the gridding and binning configuration', ]
+    lin_fit_metadata = pd.DataFrame(
+            {'Variables': lin_fit_Variables, 'Variable_types': lin_fit_Variable_types,
+             'Units_Values': lin_fit_Units_Values,
+             'Description': lin_fit_Description})
+        # saving only needs to happen once for each instrument, yes?
+    lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_results.tsv', sep='\t')
+    lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_metadata.tsv',
+                                sep='\t')
 
 ### NOTE: 'refer to gridded metadata' units in the metadata needs to be replaced, perhaps it might be worth keeping everythin as it was before (gridded and NBS files produced in one call)
 
+
+lat = lin_fit_all['Latitude']
+lon = lin_fit_all['Longitude']
+slope = lin_fit_all['Slope']
+intercept_t = lin_fit_all['Intercept']
+
+intercept_plot = [x*3 for x in intercept_t]
+ax = plt.axes(projection=ccrs.PlateCarree())
+plt.gca().coastlines('50m')
+g1=ax.gridlines(draw_labels=True)
+g1.xlines = False
+g1.ylines = False
+plt.scatter(lon, lat, label=None, c=slope, cmap='viridis', s=intercept_plot, linewidth=0, alpha=0.5, transform=ccrs.PlateCarree())
+plt.gca().coastlines('50m')
+ax.set_extent([-180, 180, -90, 90])
+#ax.xlabel('longitude')
+#ax.ylabel('latitude')
+plt.colorbar(label='slope', orientation='horizontal', anchor=(0.5, 1))
+#ax.clim(min(slope), max(slope))
+
+
+labels = [str(np.round(min(intercept_t), decimals=2)),
+          str(np.round(st.median(intercept_t), decimals=2)),
+          str(np.round(max(intercept_t), decimals=2))]
+
+for n, area in enumerate([18, 28.5, 73.5]):
+    plt.scatter([], [], c='k', alpha=0.3, s=area, label=labels[n], transform=ccrs.PlateCarree())
+
+plt.legend(bbox_to_anchor=(0.75, 0), ncol = 3, scatterpoints=1, frameon=False,
+           labelspacing=1, title='intercept')
+
+figname = 'step4_slopes_intercept_' + instrument + '.pdf'
+
+path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+with open(path_to_config, 'r') as config_file:
+    cfg = yaml.safe_load(config_file)
+
+savepath = Path(cfg['git_dir']).expanduser() / 'figures' / figname
+
+plt.savefig(savepath)
