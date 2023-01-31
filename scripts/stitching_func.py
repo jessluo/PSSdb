@@ -99,15 +99,15 @@ for i in merged_dfs.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
 
 for st in IFCB_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
     for d in IFCB_dict[st].keys():
-        sns_plot = sns.lineplot(data = IFCB_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='blue', linewidth = 0.5)
+        sns_plot = sns.lineplot(data = IFCB_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='red', linewidth = 0.5)
 
 for st in Zooscan_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
     for d in Zooscan_dict[st].keys():
-        sns_plot = sns.lineplot(data = Zooscan_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='green', linewidth = 0.5)
+        sns_plot = sns.lineplot(data = Zooscan_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='cyan', linewidth = 0.5)
 
 for st in UVP_dict.keys(): #['72.5_44.5', '78.5_79.5', '70.5_-53.5']
     for d in UVP_dict[st].keys():
-        sns_plot = sns.lineplot(data = UVP_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='red', linewidth = 0.5)
+        sns_plot = sns.lineplot(data = UVP_dict[st][d], x = 'logSize', y = 'logNBSS', marker='.', color='green', linewidth = 0.5)
 
 intercept = []
 slope = []
