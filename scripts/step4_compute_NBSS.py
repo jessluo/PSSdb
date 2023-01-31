@@ -34,6 +34,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         print('Overwriting normalized biomass data file(s), please wait')
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
+        os.mkdir(dirpath + 'Lin_regress/')
         lin_fit_all = pd.DataFrame()
         for i in tqdm(id_list):
             print('calculating normalized biomass size spectra for ' + i)
@@ -61,22 +62,28 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             # generate metadata for the NBS files
             Variables = NBS_data_binned.columns.to_list()
             Variable_types = NBS_data_binned.dtypes.to_list()
-            Units_Values = ['refer to gridded metadata', 'lat_lon', 'cubic micrometers', 'cubic micrometers', 'degree',
-                            'degree', '', 'cubic decimeters', 'cubic micrometers', '', 'cubic micrometers',
-                            'counts/ cubic decimeters', 'log(counts/ cubic decimeters)',
-                            'log (cubic micrometers)']  # notice that we dont have date unit info here, fix this eventually
-            Description = ['binned date information',
-                           'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+            Units_Values = ['cubic micrometers (range)', 'cubic micrometers',
+                            'log(cubic micrometers)','yyyy or yyyymm (user defined)',
+                            'lat_lon (string)', 'degree','degree',
+                            '','cubic decimeters',
+                            'cubic micrometers', '',
+                            'cubic micrometers','cubic decimeters',
+                            'counts/ cubic decimeters', 'log(counts/ cubic decimeters)']  # notice that we dont have date unit info here, fix this eventually
+            Description = ['size bins in which particles are classified',
                            'minimum and maximum biovolume value of the size bin, calculated from biovolume using a projection of a sphere',
-                           'difference between max and min value of a size bin',
+                           'logarithmic transformation of the size bin range',
+                            'binned date information',
+                           'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                            'latitude of the center point of the 1x1 degree cell',
-                           'longitude of the center point of the 1x1 degree cell', 'Project identifier',
+                           'longitude of the center point of the 1x1 degree cell',
+                           'Project identifier',
                            'Volume analyzed (not accounting for sample dilution and/or fractionation)',
                            'Sum of the biovolume of individual objects classified into a biovolume based size bin',
-                           'number of objects assigned into the size bin', 'mean biovolume for each size bin',
+                           'number of objects assigned into the size bin',
+                           'mean biovolume for each size bin',
+                           'sum of the volumes analyzed within a 1x1 degree space, used to calculate NBSS',
                            'Normalized biomass size spectra based on biovolume',
-                           'logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis',
-                           'logarithmic transformation of the median of a size bin, use as x axis when performing size spectra analysis']
+                           'logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis']
             NBS_metadata = pd.DataFrame(
                 {'Variables': Variables, 'Variable_types': Variable_types, 'Units_Values': Units_Values,
                  'Description': Description})
@@ -104,8 +111,8 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             {'Variables': lin_fit_Variables, 'Variable_types': lin_fit_Variable_types, 'Units_Values': lin_fit_Units_Values,
                 'Description': lin_fit_Description})
         # saving only needs to happen once for each instrument, yes?
-        lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_results.tsv', sep='\t')
-        lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_metadata.tsv', sep='\t')
+        lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_results.tsv', sep='\t')
+        lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_metadata.tsv', sep='\t')
 
 
 
@@ -115,6 +122,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
 
 elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
+    os.mkdir(dirpath + 'Lin_regress/')
     lin_fit_all = pd.DataFrame()
     for i in tqdm(id_list):
         print('calculating normalized biomass size spectra for ' + i)
@@ -187,8 +195,8 @@ elif not os.path.exists(dirpath):
              'Units_Values': lin_fit_Units_Values,
              'Description': lin_fit_Description})
         # saving only needs to happen once for each instrument, yes?
-    lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_results.tsv', sep='\t')
-    lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + instrument + '_Linear_regression_metadata.tsv',
+    lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_results.tsv', sep='\t')
+    lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_metadata.tsv',
                                 sep='\t')
 
 ### NOTE: 'refer to gridded metadata' units in the metadata needs to be replaced, perhaps it might be worth keeping everythin as it was before (gridded and NBS files produced in one call)
