@@ -156,10 +156,15 @@ if dashboard == 'CALOOS':
 if dashboard == 'WHOI':
     timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb-data.whoi.edu/'].reset_index(drop=True)
 
+specify_proj = input (' Would you like to automatically download all data or data of just one project? \n Enter ALL or ONE ')
+if specify_proj == 'ONE':
+    Project_ID= input(' Would you like to automatically download all data or data of just one project? \n Enter project ID ')
+
 # download starts here
 for n in range (0, len(timeseries_data)):
     Project_source = timeseries_data.loc[n, 'Project_source']
-    Project_ID = timeseries_data.loc[n, 'Project_ID']
+    if specify_proj == 'ALL':
+        Project_ID = timeseries_data.loc[n, 'Project_ID']
     Project_localpath = timeseries_data.loc[n, 'Project_localpath']
     dashboard_url = timeseries_data.loc[n, 'dashboard_url']
     # define path for download
