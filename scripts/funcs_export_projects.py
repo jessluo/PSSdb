@@ -466,6 +466,7 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
 
                 #add metadata
                 features_clean['project_ID'] = Project_ID
+                features_clean['sample_id'] = pid_id
                 features_clean['datetime'] = met_dict['datetime']
                 #features_df['date'] = str(pd.to_datetime(met_dict['datetime']).date().strftime('%Y%m%d'))
                 #features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strftime('%H%M%S'))
@@ -542,6 +543,16 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
 
                 features_clean['class_5'] = class_5
                 features_clean['class_5_score'] = class_5_score
+
+                #add sampling description:
+                features_clean['minBlobArea'] = sample_desc['minBlobArea']
+                features_clean['PMTAhighVoltage'] = sample_desc['PMTAhighVoltage']
+                features_clean['PMTBhighVoltage'] = sample_desc['PMTBhighVoltage']
+                features_clean['PMTChighVoltage'] = sample_desc['PMTChighVoltage']
+                features_clean['SyringeSampleVolume'] = sample_desc['SyringeSampleVolume']
+                features_clean['PMTAtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTAtriggerThreshold_DAQ_MCConly']
+                features_clean['PMTBtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTBtriggerThreshold_DAQ_MCConly']
+                features_clean['PMTCtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTCtriggerThreshold_DAQ_MCConly']
 
                 #replace with nan the class and class scores below 0.0001
                 cols = ["class_1", "class_2", "class_3", "class_4", "class_5"]
