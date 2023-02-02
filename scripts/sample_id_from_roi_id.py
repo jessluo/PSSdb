@@ -22,7 +22,8 @@ files_list = [s for s in files_list if '.tsv' in s]
 
 for d in tqdm(files_list):
     print('looking for sample_id column in' + d)
-    df = pd.read_csv(d, sep='\t',  header=0)
+    df = pd.read_csv(d, sep='\t',  header=0, index_col=[0])
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     if 'sample_id' not in df.columns.values:
         print('generating sample_id')
         df['sample_id'] = ''
@@ -31,6 +32,28 @@ for d in tqdm(files_list):
             id_split = roi_id.split('_')
             sample_id = id_split [0] + '_' + id_split[1]
             df.loc[i, 'sample_id'] = sample_id
-        df.to_csv(d, sep='\t')
+        col = df.pop('sample_id')
+        df.insert(12, col.name, col)
+        df.to_csv(d, sep='\t', index = False)
     else:
-        print(d + ' already has sample_id')
+        print(d + ' already has sample_id, checking and relocating sample_id column')
+        col_index_id = df.columns.get_loc("project_ID")
+        print('relocating sample_id for ' +d)
+        sample_id_col = df.pop('sample_id')
+        df.insert(col_index_id+1, sample_id_col.name, sample_id_col)
+
+        print('relocating sampling columns info for ' + d)
+        minArea_col = df.pop('minBlobArea')
+        sampling_index_id = df.columns.get_loc("class_5_score")
+        df.insert(sampling_index_id + 1, minArea_col.name, minArea_col)
+        sampling_desc = ['minBlobArea','PMTAhighVoltage', 'PMTBhighVoltage', 'PMTChighVoltage', 'SyringeSampleVolume',
+                             'PMTAtriggerThreshold_DAQ_MCConly', 'PMTBtriggerThreshold_DAQ_MCConly', 'PMTCtriggerThreshold_DAQ_MCConly']
+        for i, s in enumerate(sampling_desc):
+            if s == 'minBlobArea':
+                pass
+            else:
+                col = df.pop(s)
+                n = df.columns.get_loc(sampling_desc[i-1])
+                df.insert(n+1, col.name, col)
+        df.to_csv(d, sep='\t', index = False)
+
