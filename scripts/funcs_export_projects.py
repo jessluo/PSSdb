@@ -472,7 +472,9 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 #features_df['time'] = str(pd.to_datetime(met_dict['datetime']).time().strftime('%H%M%S'))
                 features_clean['pixel_to_micron'] = met_dict['scale']
                 features_clean['latitude'] = met_dict['latitude']
+                features_clean=features_clean.replace({'latitude': {0: float('nan'), -9999999: float('nan')}})# replace 0 lat values with Nan
                 features_clean['longitude'] = met_dict['longitude']
+                features_clean=features_clean.replace({'longitude': {0: float('nan'), -9999999: float('nan')}})  # replace 0 lat values with Nan
                 features_clean['depth'] = met_dict['depth']
                 features_clean['vol_analyzed'] = met_dict['ml_analyzed']
                 features_clean['sample_type'] = met_dict['sample_type']
