@@ -161,31 +161,61 @@ def gridding_func(st_increment, lat= 'Latitude', lon= 'Longitude'):
 
     return Station_ID, midLat_bin, midLon_bin
 
-def date_binning_func(date, group_by= 'yyyymm'): # consider adding a day/night column, this will have to consider latitude and month
+def date_binning_func(date, time, lat, lon,  group_by= 'yyyymm'): # consider adding a day/night column, this will have to consider latitude and month
     """
-    Objective: reduce the date information, so that the data can be binned by month, year, or month and year
+    Objective: reduce the date information, so that the data can be binned by month, year, or month and year. Also create a column that assigns a 'day' or 'night' category to each ROI
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
-    with format yyyymmdd (GMT)
+    with format yyyymmdd (UTC)
+    :param time: column of a  standardized dataframe containing time ('Sampling_time' in standardized ecotaxa projects)
+    with format HHMMSS  (UTC)
+    :param lat:
+    :param lon:
     :param group_by: range of time to bin the data, options are: 'year', 'month' and 'year_month'
     :return:
     """
     import pandas as pd
     import calendar
     import numpy as np
+    import datetime as dt
+    import pytz # to define the timezone of the time info
+    from datetime import datetime
+    from astral.sun import sun #run pip install astral
     calendar.setfirstweekday(6)
     date = date.astype(str)
+    time = time.astype(str)
+    Time = date+time
     date_bin = pd.to_datetime(date, format='%Y%m%d')
-    #time = time.astype(str)
+    #create a merged timestamp with date and time, useful for getting day and night info
+    Time_bin = pd.to_datetime(Time, format='%Y%m%d%H%M%S')
+    utc = pytz.UTC #this and next two lines: set the time info to UTC format. Necessary to compare it with the sunrise/sunset information
+    Time_bin_UTC=[]
+    for i in Time_bin:
+        Time_bin_UTC.append(utc.localize(i))
+    # we also need to define timezone based on lat/lon. See https://www.geeksforgeeks.org/get-time-zone-of-a-given-location-using-python/
+    from timezonefinder import TimezoneFinder # run pip install timezonefinder
+    obj = TimezoneFinder()
+    # to assign day/night to an ROI, first create a LocationInfo element. See instructions: https://astral.readthedocs.io/en/latest/
+    from astral import LocationInfo
+    light_cond = []
+    for i in range(0, len(Time_bin_UTC)):
+        try:
+            l = LocationInfo()
+            l.name = 'station'
+            l.region = 'region'
+            l.timezone = obj.timezone_at(lng=lat[0], lat=lon[0])
+            l.latitude = lat[i]
+            l.longitude = lon[i]
+            # use the created l object to get times of sunrise and sunset for that location
+            s = sun(l.observer, date=Time_bin_UTC[i])
+            sunrise = s['sunrise']
+            sunset = s['sunset']
+            if sunrise <= Time_bin_UTC[i] <= sunset:
+                light_cond.append('day')
+            else:
+                light_cond.append('night')
+        except: # this is necessary because at high latitudes we might have issues defining day/night i.e Tara polar oceans: ValueError: Sun never reaches 6 degrees below the horizon, at this location.
+            light_cond.append('high_lat')
 
-    # time of day is not considered due to discrepancies of the time format
-    #if time.any() == 0:
-        #date_bin = date
-        #date_bin = date_bin.astype(int)
-        #date_bin = pd.to_datetime(date_bin, format='%Y%m%d')
-    #else:
-        #date_bin = (date + time)
-        #date_bin = date_bin.astype(int)
-        #date_bin = pd.to_datetime(date_bin, format='%Y%m%d%H%M%S')
 
     if group_by == 'yyyy':
         date_bin = date_bin.dt.strftime('%Y')
@@ -211,5 +241,7 @@ def date_binning_func(date, group_by= 'yyyymm'): # consider adding a day/night c
     elif group_by == 'None':
         date_bin == date_bin
 
-    return date_bin
+
+
+    return date_bin, light_cond
 
