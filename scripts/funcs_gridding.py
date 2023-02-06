@@ -134,15 +134,15 @@ def depth_binning_func(depth='Depth_min', depth_bins=[0, 25, 50, 100, 200, 500, 
     return midDepth_bin
 
     #6.3 by station (geographical location)
-def gridding_func(lat= 'Latitude', lon= 'Longitude', st_increment=1):
+def gridding_func(st_increment, lat= 'Latitude', lon= 'Longitude'):
     import numpy as np
     import pandas as pd
     # create a categorical variable that will serve as the station ID based on binned lat and lon
     # 1) create arrays that will serve to bin lat and long with 1 degree increments
     lat_increments = np.arange(np.floor(min(lat) - st_increment),
-                               np.ceil(max(lat) + st_increment), 1)
+                               np.ceil(max(lat) + st_increment), st_increment)
     lon_increments = np.arange(np.floor(min(lon) - st_increment),
-                               np.ceil(max(lon) + st_increment), 1)
+                               np.ceil(max(lon) + st_increment), st_increment)
     # 2) create bins
     lat_bin = pd.cut(x=lat, bins=lat_increments, include_lowest=True)
 
@@ -170,6 +170,9 @@ def date_binning_func(date, group_by= 'yyyymm'): # consider adding a day/night c
     :return:
     """
     import pandas as pd
+    import calendar
+    import numpy as np
+    calendar.setfirstweekday(6)
     date = date.astype(str)
     date_bin = pd.to_datetime(date, format='%Y%m%d')
     #time = time.astype(str)
@@ -190,7 +193,23 @@ def date_binning_func(date, group_by= 'yyyymm'): # consider adding a day/night c
         date_bin = date_bin.dt.strftime('%Y%m')
     elif group_by == 'mm':
         date_bin = date_bin.dt.strftime('%m')
+    elif group_by == 'week':
+        def get_week_of_month(year, month, day):
+            x = np.array(calendar.monthcalendar(year, month))
+            week_of_month = np.where(x == day)[0][0]
+            if week_of_month == 0:
+                week_of_month = week_of_month +1
+            elif week_of_month == 5:
+                week_of_month = week_of_month - 1
+            return (week_of_month)
+        day = date_bin.dt.day
+        month = date_bin.dt.month
+        year = date_bin.dt.year
+        for i in range(0, len(date_bin)):
+            week=get_week_of_month(year[i], month[i], day[i])
+            date_bin[i] = str(year[i]) + str(month[i]) + str(week)
     elif group_by == 'None':
         date_bin == date_bin
+
     return date_bin
 
