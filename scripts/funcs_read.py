@@ -52,7 +52,7 @@ def read_func(path_to_data, ID):
     import pandas as pd
     from glob import glob
     filename = path_to_data / ID #  DEPRECATED: 1/12/2023 ("*" + str(ID) + "*.tsv") #'[^metadata]'
-    df = pd.read_csv(filename, sep='\t',  header=0, index_col=0) #
+    df = pd.read_csv(filename, sep='\t',  header=0) #
     df = df.loc[:, ~df.columns.str.match("Unnamed")]
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
