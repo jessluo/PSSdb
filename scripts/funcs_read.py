@@ -28,11 +28,11 @@ def proj_id_list_func(instrument, data_status):
     elif data_status == 'gridded':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['gridded_subdir']
         file_list = os.listdir(path_to_data)
-        file_list = [x for x in file_list if not 'metadata' in x and '.tsv' in x]
+        file_list = [x for x in file_list if not 'metadata' in x and '.csv' in x]
     elif data_status == 'NBSS':
         path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['gridded_subdir'] / 'NBSS_data'
         file_list = os.listdir(path_to_data)
-        file_list = [x for x in file_list if not 'metadata' in x and '.tsv' in x]
+        file_list = [x for x in file_list if not 'metadata' in x and '.csv' in x]
 
     # DEPRECATED 1/12/2023 create a list  projects that we have access to, based on project_list_all.xlsx
     #path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
@@ -43,7 +43,7 @@ def proj_id_list_func(instrument, data_status):
 
 
 # 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
-def read_func(path_to_data, ID):
+def read_func(path_to_data, ID, data_status='gridded'):
     """
     Objective: returns a dataframe for each STANDARDIZED project
     :param path_to_data: path where the standardized files are stored
@@ -52,7 +52,10 @@ def read_func(path_to_data, ID):
     import pandas as pd
     from glob import glob
     filename = path_to_data / ID #  DEPRECATED: 1/12/2023 ("*" + str(ID) + "*.tsv") #'[^metadata]'
-    df = pd.read_csv(filename, sep='\t',  header=0) #
+    if data_status == 'standardized':
+        df = pd.read_csv(filename, sep='\t',  header=0) #
+    else:
+        df = pd.read_csv(filename, header=0)
     df = df.loc[:, ~df.columns.str.match("Unnamed")]
     # convert taxonomic Id column into categorical.
     # NOTE all of these column names might need to be modified after standardization of datasets
