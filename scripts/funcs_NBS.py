@@ -274,6 +274,41 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], depth_b
     return NBSS_binned_all, lin_fit_data
 
 
+def stats_linfit_func(df):
+    """
+    Objective: create summary statistics for the linear fit dataframes
+    param df: a dataframe containing the results of the linear fits for each station, time and depth for a given imaging instrument
+    """
+    from funcs_gridding import gridding_func
+    bin_loc =input('Group data by location? \n Enter Y/N ')
+    if bin_loc == 'Y':
+        st_increment = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
+        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
+    bin_date =input('Group data by date? \n Enter Y/N ')
+    if bin_date == 'Y':
+        group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n mm by month \n ')
+        date_bin = []
+        if group_by == 'yyyy':
+            for i in df['Date']:
+                date_bin.append(i[0:4])
+            df['date_bin']=date_bin
+        elif group_by == 'yyyymm':
+            for i in df['Date']:
+                date_bin.append(i[0:5])
+            df['date_bin'] = date_bin
+        elif group_by == 'mm':
+            for i in df['Date']:
+                date_bin.append(i[5:6])
+            df['date_bin'] = date_bin
+
+    lin_fit_stats = df.groupby(['Station_location', 'date_bin']).agg(
+        {'Project_ID': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'date_bin': 'first',
+         'Slope': ['count', 'mean', 'std'], 'Intercept': ['count', 'mean', 'std'], 'R2': ['count', 'mean', 'std']}).reset_index()
+
+    lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
+    lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
+
+    return lin_fit_stats
 
 
 
