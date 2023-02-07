@@ -22,6 +22,7 @@ import cartopy.crs as ccrs
 
 instrument = input ('for which instrument do you want to calculate the size spectra? \n Enter IFCB, Zooscan or UVP ')
 depth_binning  = input ('Would you like to bin the data by depth? \n Enter Y/N')
+summary_stats = input ('Would you like the summary statistics of the linear regression results? \n Enter Y/N')
 
 # processing starts here
 
@@ -88,16 +89,16 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                 {'Variables': Variables, 'Variable_types': Variable_types, 'Units_Values': Units_Values,
                  'Description': Description})
             i = i.replace( "gridded", "NBSS")
-            NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+            NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), index=False)
             i = i.replace("NBSS", "metadata_NBSS")
-            NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/'  + str(i), sep='\t')
+            NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/'  + str(i), index=False)
             # append linear regression results to the dataset of slopes per instrument:
-            lin_fit_all = pd.concat([lin_fit_all, lin_fit_data])
+            lin_fit_all = pd.concat([lin_fit_all, lin_fit_data], ignore_index=True)
 
-        # save the Linear regression results
 
-        lin_fit_Variables = lin_fit_data.columns.to_list()
-        lin_fit_Variable_types = lin_fit_data.dtypes.to_list()
+        # save the Linear regression results and metadata
+        lin_fit_Variables = lin_fit_all.columns.to_list()
+        lin_fit_Variable_types = lin_fit_all.dtypes.to_list()
         lin_fit_Units_Values = ['', 'degree', 'degree', 'refer to gridded metadata', '', '', '', ''] # NOTE for the future, binning information should be cinluded here
         lin_fit_Description = ['Project Identifier',
                         'latitude of the center point of the 1x1 degree cell',
@@ -111,10 +112,13 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             {'Variables': lin_fit_Variables, 'Variable_types': lin_fit_Variable_types, 'Units_Values': lin_fit_Units_Values,
                 'Description': lin_fit_Description})
         # saving only needs to happen once for each instrument, yes?
-        lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_results.tsv', sep='\t')
-        lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_metadata.tsv', sep='\t')
+        lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_results.csv', index=False)
+        lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_metadata.csv', index=False)
 
-
+        # create summary statistics for the linear regressions:
+        if summary_stats == 'Y':
+            lin_fit_stats = stats_linfit_func(lin_fit_all)
+            lin_fit_stats.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_summary.csv', index=False)
 
 
     elif replace == 'N':
@@ -171,15 +175,15 @@ elif not os.path.exists(dirpath):
              'Description': Description})
 
         i = i.replace("gridded", "NBSS")
-        NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+        NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), index=False)
         i = i.replace("NBSS", "metadata_NBSS")
-        NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), sep='\t')
+        NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), index=False)
         # append linear regression results to the dataset of slopes per instrument:
-        lin_fit_all = pd.concat([lin_fit_all, lin_fit_data])
+        lin_fit_all = pd.concat([lin_fit_all, lin_fit_data], ignore_index=True)
 
     # save the Linear regression results
-    lin_fit_Variables = lin_fit_data.columns.to_list()
-    lin_fit_Variable_types = lin_fit_data.dtypes.to_list()
+    lin_fit_Variables = lin_fit_all.columns.to_list()
+    lin_fit_Variable_types = lin_fit_all.dtypes.to_list()
     lin_fit_Units_Values = ['', 'degree', 'degree', 'refer to gridded metadata', '', '', '',
                                 '']  # NOTE for the future, binning information should be cinluded here
     lin_fit_Description = ['Project Identifier',
@@ -195,9 +199,12 @@ elif not os.path.exists(dirpath):
              'Units_Values': lin_fit_Units_Values,
              'Description': lin_fit_Description})
         # saving only needs to happen once for each instrument, yes?
-    lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_results.tsv', sep='\t')
-    lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_metadata.tsv',
-                                sep='\t')
+    lin_fit_all.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_results.csv', index=False)
+    lin_fit_metadata.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_metadata.csv', index=False)
+    # create summary statistics for the linear regressions:
+    if summary_stats == 'Y':
+        lin_fit_stats = stats_linfit_func(lin_fit_all)
+        lin_fit_stats.to_csv(str(path_to_data) + '/NBSS_data/Lin_regress/' + instrument + '_Linear_regression_summary.csv', index=False)
 
 ### NOTE: 'refer to gridded metadata' units in the metadata needs to be replaced, perhaps it might be worth keeping everythin as it was before (gridded and NBS files produced in one call)
 
