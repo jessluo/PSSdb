@@ -389,6 +389,9 @@ def ifcb_config(dashboard_url, Project_ID, pid_id):
     url = f'{dashboard_url}{Project_ID}/{pid_id}.hdr'
     with ifcb.open_url(url, images=False) as sample_bin:
         minBlobArea = sample_bin.headers['minimumBlobArea']
+        imageResizeFactor = sample_bin.headers['imageResizeFactor']
+        blobXgrowAmount = sample_bin.headers['blobXgrowAmount']
+        blobYgrowAmount = sample_bin.headers['blobYgrowAmount']
         PMTAhighVoltage = sample_bin.headers['PMTAhighVoltage']
         PMTBhighVoltage = sample_bin.headers['PMTBhighVoltage']
         PMTChighVoltage = sample_bin.headers['PMTChighVoltage']
@@ -398,6 +401,9 @@ def ifcb_config(dashboard_url, Project_ID, pid_id):
         PMTCtriggerThreshold_DAQ_MCConly = sample_bin.headers['PMTCtriggerThreshold_DAQ_MCConly']
     return{
         'minBlobArea': minBlobArea,
+        'imageResizeFactor': imageResizeFactor,
+        'blobXgrowAmount': blobXgrowAmount,
+        'blobYgrowAmount': blobYgrowAmount,
         'PMTAhighVoltage': PMTAhighVoltage,
         'PMTBhighVoltage': PMTBhighVoltage,
         'PMTChighVoltage': PMTChighVoltage,
@@ -484,6 +490,9 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
 
                 #add sampling description:
                 features_clean['minBlobArea'] = sample_desc['minBlobArea']
+                features_clean['imageResizeFactor'] = sample_desc['imageResizeFactor']
+                features_clean['blobXgrowAmount'] = sample_desc['blobXgrowAmount']
+                features_clean['blobYgrowAmount'] = sample_desc['blobYgrowAmount']
                 features_clean['PMTAhighVoltage'] = sample_desc['PMTAhighVoltage']
                 features_clean['PMTBhighVoltage'] = sample_desc['PMTBhighVoltage']
                 features_clean['PMTChighVoltage'] = sample_desc['PMTChighVoltage']
@@ -491,6 +500,7 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 features_clean['PMTAtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTAtriggerThreshold_DAQ_MCConly']
                 features_clean['PMTBtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTBtriggerThreshold_DAQ_MCConly']
                 features_clean['PMTCtriggerThreshold_DAQ_MCConly'] = sample_desc['PMTCtriggerThreshold_DAQ_MCConly']
+
 
 
                 # now generate dataframe for the class scores
