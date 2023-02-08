@@ -294,7 +294,7 @@ def stats_linfit_func(df):
             df['date_bin']=date_bin
         elif group_by == 'yyyymm':
             for i in df['Date']:
-                date_bin.append(i[0:5])
+                date_bin.append(i[0:6])
             df['date_bin'] = date_bin
         elif group_by == 'mm':
             for i in df['Date']:
