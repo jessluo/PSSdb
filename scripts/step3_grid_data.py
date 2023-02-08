@@ -68,7 +68,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
             df = df[df['Area'] != 0].reset_index(drop=True)
             df = biovol_func(df, instrument, keep_cat='none')
-            df['date_bin'], df['light_cond'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], df['Latitude'], df['Longitude'], group_by=date_group)
+            df = date_binning_func(df, group_by=date_group)
             df['date_bin'] = df['date_bin'].astype(str)
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
             if depth_binning == 'N':
@@ -113,7 +113,7 @@ elif not os.path.exists(dirpath):
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
         df = biovol_func(df, instrument, keep_cat='none')
-        df['date_bin'], df['light_cond'] = date_binning_func(df['Sampling_date'], df['Sampling_time'], df['Latitude'], df['Longitude'], group_by=date_group)
+        df = date_binning_func(df, group_by=date_group)
         df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
         if depth_binning == 'N':
             metadata_bins = pd.DataFrame(
