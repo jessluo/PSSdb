@@ -109,7 +109,7 @@ elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
     for i in tqdm(df_list):
         print('gridding and binning ' + i)
-        df = read_func(path_to_data, i)
+        df = read_func(path_to_data, i, data_status='standardized')
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
         df = biovol_func(df, instrument, keep_cat='none')
