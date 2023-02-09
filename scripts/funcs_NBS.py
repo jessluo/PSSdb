@@ -280,33 +280,42 @@ def stats_linfit_func(df):
     param df: a dataframe containing the results of the linear fits for each station, time and depth for a given imaging instrument
     """
     from funcs_gridding import gridding_func
+    import numpy as np
     bin_loc =input('Group data by location? \n Enter Y/N ')
     if bin_loc == 'Y':
         st_increment = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
         df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
     bin_date =input('Group data by date? \n Enter Y/N ')
     if bin_date == 'Y':
-        group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n mm by month \n ')
-        date_bin = []
+        group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
+        date_df= df['Date'].str.split("_", expand=True)
         if group_by == 'yyyy':
-            for i in df['Date']:
-                date_bin.append(i[0:4])
-            df['date_bin']=date_bin
+            df['date_bin'] = date_df[0]
         elif group_by == 'yyyymm':
-            for i in df['Date']:
-                date_bin.append(i[0:6])
-            df['date_bin'] = date_bin
-        elif group_by == 'mm':
-            for i in df['Date']:
-                date_bin.append(i[5:6])
-            df['date_bin'] = date_bin
+            df['year_week'] = date_df[0] + '_' + date_df[2]
+            df['month'] = date_df[1]
+            week_dict = {key:None for key in df['year_week'].unique()}
+            for i in df['year_week'].unique():
+                week_dict[i] =list(df['month'].where(df['year_week'] == i).dropna().unique()) #.astype(int)
+                if len(week_dict[i]) == 1:
+                    week_dict[i] = week_dict[i][0]
+                else:
+                    week_dict[i] = list(map(int, week_dict[i]))
+                    week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
+            df['year'] = date_df[0]
+            df['month'] = df['year_week'].map(week_dict)
+            df['date_bin'] = date_df[0] + '_' + df['month']
+            df = df.drop(columns=['Date', 'year_week'])
+
 
     lin_fit_stats = df.groupby(['Station_location', 'date_bin']).agg(
-        {'Project_ID': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'date_bin': 'first',
+        {'Project_ID': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'year':'first', 'month': 'first',
          'Slope': ['count', 'mean', 'std'], 'Intercept': ['count', 'mean', 'std'], 'R2': ['count', 'mean', 'std']}).reset_index()
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
+    lin_fit_stats= lin_fit_stats.rename(columns={'Slope_count': 'Sample_size'})
+    lin_fit_stats= lin_fit_stats[lin_fit_stats.columns.drop(list(lin_fit_stats.filter(regex='count')))]
 
     return lin_fit_stats
 
