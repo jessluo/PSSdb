@@ -289,33 +289,33 @@ def date_binning_func(df, group_by= 'yyyymm'): # consider adding a day/night col
     elif group_by == 'None':
         df['date_bin'] == str(date_bin)
 
-    light_cond = []
+    #light_cond = []
     #create a merged timestamp with date and time, useful for getting day and night info, which is done in lines 189-217
-    for n, i in enumerate(dateTime):
-        try:
-            Time_bin = pd.to_datetime(i, format='%Y%m%d%H%M%S')
-            utc = pytz.UTC #this and next two lines: set the time info to UTC format. Necessary to compare it with the sunrise/sunset information
-            Time_bin=Time_bin.replace(tzinfo=utc)
-            l = LocationInfo()
-            l.name = 'station'
-            l.region = 'region'
-            l.timezone = obj.timezone_at(lng=lat[n], lat=lon[n])
-            l.latitude = lat[n]
-            l.longitude = lon[n]
+    #for n, i in enumerate(dateTime):
+       # try:
+            #Time_bin = pd.to_datetime(i, format='%Y%m%d%H%M%S')
+            #utc = pytz.UTC #this and next two lines: set the time info to UTC format. Necessary to compare it with the sunrise/sunset information
+            #Time_bin=Time_bin.replace(tzinfo=utc)
+            #l = LocationInfo()
+            #l.name = 'station'
+            #l.region = 'region'
+            #l.timezone = obj.timezone_at(lng=lat[n], lat=lon[n])
+            #l.latitude = lat[n]
+            #l.longitude = lon[n]
             # use the created l object to get times of sunrise and sunset for that location
-            try:
-                s = sun(l.observer, date=Time_bin)
-                sunrise = s['sunrise']
-                sunset = s['sunset']
-                if sunrise <= Time_bin <= sunset:
-                    light_cond.append('day')
-                else:
-                    light_cond.append('night')
-            except: # this is necessary because at high latitudes we might have issues defining day/night i.e Tara polar oceans: ValueError: Sun never reaches 6 degrees below the horizon, at this location.
-                light_cond.append('high_lat')
-        except:
-            light_cond.append(float('nan'))
-    df['light_cond']= light_cond
+            #try:
+                #s = sun(l.observer, date=Time_bin)
+                #sunrise = s['sunrise']
+                #sunset = s['sunset']
+                #if sunrise <= Time_bin <= sunset:
+                   # light_cond.append('day')
+                #else:
+                   # light_cond.append('night')
+            #except: # this is necessary because at high latitudes we might have issues defining day/night i.e Tara polar oceans: ValueError: Sun never reaches 6 degrees below the horizon, at this location.
+                #light_cond.append('high_lat')
+        #except:
+            #light_cond.append(float('nan'))
+    #df['light_cond']= light_cond
 
     return df
 
