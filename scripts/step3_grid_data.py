@@ -73,27 +73,27 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
             if depth_binning == 'N':
                 metadata_bins = pd.DataFrame(
-                    {'Variables': ['Biovolume', 'date_bin', 'light_cond', 'Station_location', 'midLatBin', 'midLonBin'],
-                     'Variable_types': ['float64', 'int64', 'str', 'object', 'float64', 'float64'],
-                     'Units/Values/Timezone': ['cubic_micrometer', date_group, '', 'lat_lon', 'degree', 'degree'],
+                    {'Variables': ['Biovolume', 'date_bin',  'Station_location', 'midLatBin', 'midLonBin'], # 'light_cond',
+                     'Variable_types': ['float64', 'int64',  'object', 'float64', 'float64'], # 'str',
+                     'Units/Values/Timezone': ['cubic_micrometer', date_group,  'lat_lon', 'degree', 'degree'], #'',
                      'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
                                      'binned date information',
-                                     'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
+                                     #'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
                                      'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                                      'latitude of the center point of the 1x1 degree cell',
                                      'longitude of the center point of the 1x1 degree cell']})
             elif depth_binning == 'Y':
                 df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
-                metadata_bins = pd.DataFrame({'Variables': ['Biovolume', 'date_bin', 'light_cond', 'Station_location', 'midLatBin',
+                metadata_bins = pd.DataFrame({'Variables': ['Biovolume', 'date_bin',  'Station_location', 'midLatBin', # 'light_cond',
                                                             'midLonBin', 'midDepthBin'],
-                                              'Variable_types': ['float64', 'int64', 'str', 'object', 'float64', 'float64',
+                                              'Variable_types': ['float64', 'int64',  'object', 'float64', 'float64', #'str',
                                                                  'float64'],
-                                              'Units/Values/Timezone': ['cubic_micrometer', date_group, '', 'lat_lon',
+                                              'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', # '',
                                                                         'degree', 'degree', 'meters'],
                                               'Description': [
                                                   'Biovolume calculated as a spherical projection of of Area in cubic micrometers',
                                                   'binned date information',
-                                                  'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
+                                                  #'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
                                                   'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                                                   'latitude of the center point of the 1x1 degree cell',
                                                   'longitude of the center point of the 1x1 degree cell',
@@ -117,28 +117,28 @@ elif not os.path.exists(dirpath):
         df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
         if depth_binning == 'N':
             metadata_bins = pd.DataFrame(
-                {'Variables': ['Biovolume', 'date_bin', 'light_cond', 'Station_location', 'midLatBin', 'midLonBin'],
-                 'Variable_types': ['float64', 'int64', 'str', 'object', 'float64', 'float64'],
-                 'Units/Values/Timezone': ['cubic_micrometer', date_group, '', 'lat_lon', 'degree', 'degree'],
+                {'Variables': ['Biovolume', 'date_bin',  'Station_location', 'midLatBin', 'midLonBin'], # 'light_cond',
+                 'Variable_types': ['float64', 'int64',  'object', 'float64', 'float64'], # 'str',
+                 'Units/Values/Timezone': ['cubic_micrometer', date_group,  'lat_lon', 'degree', 'degree'], # '',
                  'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
                                  'binned date information',
-                                 'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
+                                 #'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
                                  'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                                  'latitude of the center point of the 1x1 degree cell',
                                  'longitude of the center point of the 1x1 degree cell']})
         elif depth_binning == 'Y':
             df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
             metadata_bins = pd.DataFrame(
-                {'Variables': ['Biovolume', 'date_bin', 'light_cond', 'Station_location', 'midLatBin',
+                {'Variables': ['Biovolume', 'date_bin',  'Station_location', 'midLatBin', # 'light_cond',
                                'midLonBin', 'midDepthBin'],
-                 'Variable_types': ['float64', 'int64', 'str', 'object', 'float64', 'float64',
+                 'Variable_types': ['float64', 'int64',  'object', 'float64', 'float64', # 'str',
                                     'float64'],
-                 'Units/Values/Timezone': ['cubic_micrometer', date_group, '', 'lat_lon',
+                 'Units/Values/Timezone': ['cubic_micrometer', date_group,  'lat_lon', # '',
                                            'degree', 'degree', 'meters'],
                  'Description': [
                      'Biovolume calculated as a spherical projection of of Area in cubic micrometers',
                      'binned date information',
-                     'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
+                     #'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
                      'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                      'latitude of the center point of the 1x1 degree cell',
                      'longitude of the center point of the 1x1 degree cell',
