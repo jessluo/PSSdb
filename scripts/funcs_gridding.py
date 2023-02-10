@@ -1,11 +1,20 @@
 
 
-import numpy as np
-import pandas as pd
+
 import os
 from pathlib import Path
 from glob import glob
 import yaml
+import pandas as pd
+import calendar
+import numpy as np
+import datetime as dt
+import pytz # to define the timezone of the time info
+from datetime import datetime
+from astral.sun import sun #run pip install astral
+# to assign day/night to an ROI, first create a LocationInfo element. See instructions: https://astral.readthedocs.io/en/latest/
+from astral import LocationInfo
+
 
 # NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
 #get biovolume
@@ -253,26 +262,19 @@ def date_binning_func(df, group_by= 'yyyymm'): # consider adding a day/night col
     :param group_by: range of time to bin the data, options are: 'year', 'month' and 'year_month'
     :return:
     """
-    import pandas as pd
-    import calendar
-    import numpy as np
-    import datetime as dt
-    import pytz # to define the timezone of the time info
-    from datetime import datetime
-    from astral.sun import sun #run pip install astral
+
     # we also need to define timezone based on lat/lon. See https://www.geeksforgeeks.org/get-time-zone-of-a-given-location-using-python/
     from timezonefinder import TimezoneFinder # run pip install timezonefinder
-    obj = TimezoneFinder()
-    # to assign day/night to an ROI, first create a LocationInfo element. See instructions: https://astral.readthedocs.io/en/latest/
-    from astral import LocationInfo
+    #obj = TimezoneFinder()
+
 
     calendar.setfirstweekday(6)
 
     date = df['Sampling_date'].astype(str)
     time = df['Sampling_time'].astype(str)
-    lat = df['Latitude']
-    lon = df['Longitude']
-    dateTime = date+time
+    #lat = df['Latitude']
+    #lon = df['Longitude']
+    #dateTime = date+time
     date_bin = pd.to_datetime(date, format='%Y%m%d')
     year = np.char.array(pd.DatetimeIndex(date_bin).year.values)
     month = np.char.array(pd.DatetimeIndex(date_bin).month.values).zfill(2)
