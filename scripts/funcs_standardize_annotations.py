@@ -72,8 +72,8 @@ def annotation_in_WORMS(hierarchy):
                     taxo_soup=soup
                     attributes_soup=''
                     script=''
-                    if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in soup.findAll('a')]))) > 0:
-                        annotation_webpage_with_attributes = session.get(urljoin(taxon_list.url,'#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                    annotation_webpage_with_attributes = session.get(urljoin(taxon_list.url, '#attributes'))
+                    if annotation_webpage_with_attributes.ok:#len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in soup.findAll('a')]))) > 0:
                         attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
                         script = attributes_soup.find_all('script')
                         if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
@@ -95,8 +95,8 @@ def annotation_in_WORMS(hierarchy):
                         taxo_soup = BeautifulSoup(res.content, 'lxml')
                         attributes_soup = ''
                         script = ''
-                        if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in taxo_soup.findAll('a')]))) > 0:  # taxo_soup.findAll('a',onclick=True)[0].get('id')=="aphia_attributes_group_show":
-                            annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url,'#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        if annotation_webpage_with_attributes.ok:#len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in taxo_soup.findAll('a')]))) > 0:  # taxo_soup.findAll('a',onclick=True)[0].get('id')=="aphia_attributes_group_show":
                             attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
                             script = attributes_soup.find_all('script')
                             if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
@@ -106,8 +106,8 @@ def annotation_in_WORMS(hierarchy):
                     else:
                         attributes_soup=''
                         script=''
-                        if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in taxo_soup.findAll('a')]))) > 0:
-                            annotation_webpage_with_attributes =session.get(urljoin(annotation_webpage.url,'#attributes')) #get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        if annotation_webpage_with_attributes.ok:#len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in taxo_soup.findAll('a')]))) > 0:
                             attributes_soup=BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
                             script = attributes_soup.find_all('script')
                             if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
@@ -115,13 +115,13 @@ def annotation_in_WORMS(hierarchy):
                                     attributes_soup = ''
             fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
             Status = re.sub(r'[' + '\n' + '\xa0' + ']', '',taxo_soup.find_all(class_="leave_image_space")[fields.index('Status')].getText()) if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else ''
-            if Status=='' or len(re.findall(r'unaccepted|uncertain|unassessed', Status)) > 0:
+            if Status=='' or len(re.findall(r'unaccepted', Status)) > 0: #|uncertain|unassessed
                 if 'Accepted Name' not in fields:
                     continue
                 else:
-                    annotation = re.sub(r'[' + '\n' + '\xa0' + ']', '', taxo_soup.find_all(class_="leave_image_space")[ fields.index('Accepted Name')].getText()) if len( taxo_soup.find_all(class_="alert alert-info")) == 0 and 'Accepted Name' in fields else annotation
-                    data['tName'] = annotation.split(' (')[0]
-                    taxon_list=session.post(url=url,data=data)
+                    #annotation = re.sub(r'[' + '\n' + '\xa0' + ']', '', taxo_soup.find_all(class_="leave_image_space")[ fields.index('Accepted Name')].getText()) if len( taxo_soup.find_all(class_="alert alert-info")) == 0 and 'Accepted Name' in fields else annotation
+                    #data['tName'] = annotation.split(' (')[0]
+                    taxon_list=session.get(urljoin(url, taxo_soup.find_all(class_="leave_image_space")[ fields.index('Accepted Name')].find_all('a')[0]['href']), data=data.fromkeys(['marine','fossil']))#session.post(url=url,data=data)
                     # Transform form query into xml table and save results in dataframe
                     soup = BeautifulSoup(taxon_list.content, "lxml")
                     search_response = pd.DataFrame({'Taxon': [item.getText() for item in soup.find_all(class_="list-group-item") if any(re.findall(r'unaccepted|uncertain|unassessed',item.getText())) == False],
@@ -133,8 +133,8 @@ def annotation_in_WORMS(hierarchy):
                             taxo_soup = soup
                             attributes_soup = ''
                             script = ''
-                            if len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in soup.findAll('a')]))) > 0:
-                                annotation_webpage_with_attributes = session.get(urljoin(taxon_list.url,'#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                            annotation_webpage_with_attributes = session.get(urljoin(taxon_list.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                            if annotation_webpage_with_attributes.ok:#len(list(filter(None,[id.get('id') if id.get('id') == "aphia_attributes_group_show" else id.get('href') if id.get('href') == '#attributes' else None for id in soup.findAll('a')]))) > 0:
                                 attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
                                 script = attributes_soup.find_all('script')
                                 if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
@@ -145,14 +145,14 @@ def annotation_in_WORMS(hierarchy):
                         annotation_webpage = session.get(urljoin(url, search_response.Link[0]), data=data)
                         taxo_soup = BeautifulSoup(annotation_webpage.content, 'lxml')
                         attributes_soup = ''
-                        if taxo_soup.findAll('a', onclick=True)[0].get('id') == "aphia_attributes_group_show":
-                            annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        annotation_webpage_with_attributes = session.get(urljoin(annotation_webpage.url, '#attributes'))  # get_attributes_output(url='https://www.marinespecies.org/aphia.php?p=search&adv=1',id=annotation_webpage.url.split('id=')[-1])
+                        if annotation_webpage_with_attributes.ok: #taxo_soup.findAll('a', onclick=True)[0].get('id') == "aphia_attributes_group_show":
                             attributes_soup = BeautifulSoup(annotation_webpage_with_attributes.content, 'lxml')
                             script = attributes_soup.find_all('script')
                             if len(attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})):
                                 if 'No attributes found on lower taxonomic level' in attributes_soup.findAll(attrs={'id': 'aphia_attributes_group'})[0].getText() or len([item.getText() for item in script if 'Functional group' in item.getText()])==0:
                                     attributes_soup = ''
-                        fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
+                    fields = [item.getText() if len(taxo_soup.find_all(class_="alert alert-info")) == 0 else '' for item in taxo_soup.find_all(class_="col-xs-12 col-sm-4 col-lg-2 control-label")]
 
             Functional_group =[item.getText()[substring.start():]  for item in script for substring in re.finditer('Functional group', item.getText()) if 'Functional group' in item.getText()]
             Functional_group = ';'.join([str({'Functional group':group[group.find('Functional group') + 22:[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('Functional group') + 22 and sub.start()>group.find('nodes')][0]].replace(group[[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('Functional group') + 22 ][0]:[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('nodes') + 22 ][0]],''),group.split('&nbsp;" ,state: "" ,nodes: [{ text: "<b>')[1].split('<\\/b> ')[0] :group.split('&nbsp;" ,state: "" ,nodes: [{ text: "<b>')[1].split('<\\/b> ')[1].split('&nbsp')[0]}) if group.find('&nbsp;" ,state: "" ,nodes: [{ text: "<b>')!=-1 else str({'Functional group':group[group.find('Functional group') + 22:[sub.start() for sub in re.finditer('&nbsp', group) if sub.start() > group.find('Functional group') + 22][0]]}) for group in Functional_group])
