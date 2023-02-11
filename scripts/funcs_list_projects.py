@@ -260,7 +260,7 @@ def Ecopart_list(username,password,localpath):
     df_projects['Project_localpath']=localpath
     df_projects['Project_test']=df_projects['Ecotaxa_ID'].isin(['3315', '3318', '3326', '377', '378', '714', '560', '579', '5693']).astype(str)  # Add boolean variable to identify fixed test set (3 projects per instrument)
     df_projects['Project_ID'] =df_projects['Project_ID'].astype(int)
-    df_projects=df_projects.sort_values(['PSSdb_access','Project_ID'],ascending=False)
+    df_projects=df_projects.sort_values(['PSSdb_access','Project_ID'],ascending=[False,True])
     df_projects=df_projects[['Project_source','Project_localpath','Project_ID','Project_title','Instrument','Contact_name','Contact_email','Access_code','Plankton_export','PSSdb_access','Project_test','Ecotaxa_ID','Percentage_validated']]
     df_metadata = pd.DataFrame({'Variables': df_projects.columns, 'Variable_types': df_projects.dtypes,
                                 'Units/Values': ['','', '', '', '','','','YY: particles/plankton exportable if logged in (green), VY: particles/plankton exportable (login not necessary), VN: not exportable (red), YN: particles exportable if logged in (orange), NN: not exportable (black), NY: not exportable (green)','','','','',''],

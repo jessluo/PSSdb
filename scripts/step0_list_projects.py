@@ -230,7 +230,7 @@ for instrument in inst:
             'Annotation_field':'',
             'Flag_path':'',
             'NA_value':'',
-            'EcoPart_project': subset_df[(subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin([y]))]['Ecopart_project'].values.tolist()[0],
+            'External_project': subset_df[(subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin([y]))]['External_project'].values.tolist()[0],
             'Sampling_type_field':'',
             'Sampling_lower_size_field': '',
             'Sampling_lower_size_unit':'',
