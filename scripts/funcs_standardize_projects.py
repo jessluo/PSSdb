@@ -412,9 +412,9 @@ def flag_func(dataframe):
         :return: dataframe with flags
     """
     # Flag #1: Missing required data/metadata
-    dataframe['Flag_missing']=1
+    dataframe['Flag_missing']=0
     index_flag=pd.isnull(dataframe).any(1).to_numpy().nonzero()[0]
-    dataframe.loc[index_flag,'Flag_missing']=0
+    dataframe.loc[index_flag,'Flag_missing']=1
     dataframe['Missing_field'] =''
     dataframe['Missing_field'] = pd.isnull(dataframe).apply(lambda x: ';'.join(x.index[x == True].tolist()), axis=1)
 
@@ -423,38 +423,41 @@ def flag_func(dataframe):
         dataframe['Sample']=dataframe['Profile']
     if 'Sample' in dataframe.columns:
         # Flag #2: anomalous GPS location
-        dataframe['Flag_GPSonland'] = 1
+        dataframe['Flag_GPScoordinatesonland'] = 0
         world = gpd.read_file(path_to_zip.with_suffix('') / 'ne_10m_admin_0_countries.shp') #gpd.datasets.get_path("naturalearth_lowres")
         world_polygon = unary_union(world.geometry.tolist())
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
         # gdf=unary_union(gdf.geometry.tolist())
         gdf['Flag_GPSonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
-        dataframe['Flag_GPSonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPSonland']==True]['Sample'].tolist()),0,1)
+        dataframe['Flag_GPScoordinatesonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPScoordinatesonland'] == True]['Sample'].tolist()), 1, 0)
+        dataframe['Flag_dubiousGPScoordinates'] = 0
+        dataframe['Flag_dubiousGPScoordinates'] = np.where(dataframe['Sample'].isin(gdf.get('Sample')[list(map(lambda x: x.contains(Point(0, 0)), gdf.geometry.tolist()))]), 1,dataframe['Flag_dubiousGPScoordinates'])
+
         # Calculate count uncertainties assuming Poisson distribution. Upper-lower count limit are based on 5% uncertainty
         summary=dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI))})).reset_index()
         # kwargs={'mapping':'x:Sample,y:ROI_count,ymin:Count_lower,ymax:Count_upper','scale_y_log10()':'','theme(axis_text_x=element_blank())':''}
         # ggplot_funcs(dataframe=summary,output_path='~/GIT/PSSdb_LOV_orga/Plots/EcoTaxa_3315_count_uncertainty.png',xlab='Sample ID',ylab='Number of pictures per sample',geom='geom_pointrange',**kwargs)
-        dataframe['Flag_count'] = 1
-        dataframe['Flag_count'] = np.where(dataframe['Sample'].isin(summary[summary.Count_uncertainty>0.05].Sample.tolist()),0,dataframe['Flag_count'])
+        dataframe['Flag_count'] = 0
+        dataframe['Flag_count'] = np.where(dataframe['Sample'].isin(summary[summary.Count_uncertainty > 0.05].Sample.tolist()), 1,dataframe['Flag_count'])
         # dataframe'0' in dataframe['Flag_count'].astype('str')].Sample.unique()
         # Flag #4: Presence of artefacts (>20% of the total sample ROIs)
-        dataframe['Flag_artefacts'] = 1
+        dataframe['Flag_artefacts'] = 0
         if 'Category' in dataframe.columns:
             # Extract number of artefacts per samples
-            summary = dataframe.groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[x['Category'].isin(['bead', 'bubble', 'artefact'])].ROI),'Artefacts_percentage': len(x[x['Category'].isin(['bead', 'bubble', 'artefact'])].ROI) / len(x.ROI)})).reset_index()
-            dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > 0.2].Sample.tolist()),0, dataframe['Flag_artefacts'])
-            # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
+            summary = dataframe.groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI), 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI)})).reset_index()
+            dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > 0.2].Sample.tolist()), 1, dataframe['Flag_artefacts'])
+        # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
         # Flag #5: Multiple size calibration factors
         if 'Pixel' in dataframe.columns:
-            dataframe['Flag_size']=1
+            dataframe['Flag_size']=0
             # Extract pixel size per sample/profile
             summary=dataframe.groupby(['Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
             summary=summary.sort_values(by=['Profile_percentage'],ascending=False).reset_index()
             pixel_list=summary.loc[1:,'Pixel'].astype('str').to_list() if len(summary.Pixel.values)>1 else ['inf']
-            dataframe['Flag_size'] = np.where(dataframe['Pixel'].astype('str').isin(pixel_list),0, dataframe['Flag_size'])
+            dataframe['Flag_size'] = np.where(dataframe['Pixel'].astype('str').isin(pixel_list),1, dataframe['Flag_size'])
             # dataframe['0' in dataframe['Flag_size'].astype('str')].Sample.unique()
 
-    dataframe['Flag']=dataframe[[column for column in dataframe.columns if 'Flag_' in column]].prod(axis=1) # Default is 0, aka no anomaly
+    dataframe['Flag']=np.where(dataframe[[column for column in dataframe.columns if 'Flag_' in column]].sum(axis=1)==0,0,1) # Default is 0, aka no anomaly
     return dataframe
 
 #filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb_LOV/Reports')
