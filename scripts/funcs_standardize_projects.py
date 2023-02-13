@@ -882,10 +882,10 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='meter':
             pixel_size_ratio = PQ(list(1/(df.Pixel*ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to('millimeter'))), 'pixel/millimeter')
 
-        image_resize_factor = df_method['image_resize_factor'] if 'image_resize_factor' in df_method.columns else 8
-        blob_x_grow = df_method['blob_x_grow'] if 'blob_x_grow' in df_method.columns else 20
-        blob_y_grow = df_method['blob_y_grow'] if 'blob_y_grow' in df_method.columns else 5
-        min_blob_area = df['Sampling_lower_size'] if 'Sampling_lower_size' in df.columns else 2000
+        image_resize_factor = np.where(df_method['image_resize_factor'].isna(),8,df_method['image_resize_factor'].isna()) if 'image_resize_factor' in df_method.columns else 8
+        blob_x_grow = np.where(df_method['blob_x_grow'].isna(),20,df_method['blob_x_grow']) if 'blob_x_grow' in df_method.columns else 20
+        blob_y_grow = np.where(df_method['blob_y_grow'].isna(),5,df_method['blob_y_grow']) if 'blob_y_grow' in df_method.columns else 5
+        min_blob_area = np.where(df['Sampling_lower_size'].isna(),2000,df['Sampling_lower_size']) if 'Sampling_lower_size' in df.columns else 2000
 
         # Convert pixel to millimeter for upper/lower size
         if units_of_interest['Sampling_upper_size_unit'] == 'pixel':
@@ -895,11 +895,11 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
                 units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
         # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
-        if (df_standardizer.loc[project_id]['Instrument']=='IFCB') and (Path(df_standardizer.loc[project_id]['Project_localpath']).stem==cfg['IFCB_subdir']):
+        if (df_standardizer.loc[project_id]['Instrument']=='IFCB') and (Path(df_standardizer.loc[project_id]['Project_localpath']).stem==cfg['IFCB_dir']):
             df['Sampling_lower_size'] = np.nan
             units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
 
-        camera_resolution = {'IFCB': {'Sampling_lower_size': image_resize_factor* min_blob_area / (blob_x_grow * blob_y_grow), 'Sampling_upper_size':1360}, # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
+        camera_resolution = {'IFCB': {'Sampling_lower_size': image_resize_factor* min_blob_area, 'Sampling_upper_size':1360}, # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
                              'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
                              'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
                              'UVP6': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2464},
@@ -935,7 +935,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         if 'Category' in df.columns:
             new_categories = df.Category[df.Category.isin(list(df_taxonomy.Category)) == False].unique()
             if len(new_categories):
-                df_taxonomy_new = pd.concat( map(lambda hierarchy: annotations_in_WORMS(hierarchy.replace("_", " ")).assign(Category=hierarchy), new_categories))
+                df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace("_", " ")).assign(Category=hierarchy), new_categories))
                 df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
                 df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
                 df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
@@ -956,7 +956,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
                        Depth_min=list(df.Depth_min) * ureg(units_of_interest['Depth_min_unit']).to(ureg.meter) if 'Depth_min' in df.columns else pd.NA,  # meter
                        Depth_max=list(df.Depth_max) * ureg(units_of_interest['Depth_max_unit']).to(ureg.meter) if 'Depth_max' in df.columns else pd.NA,  # meter
-                       Annotation=df.Annotation if 'Annotation' in df.columns else 'unclassified',
+                       Annotation=np.where(df.Annotation.astype(str).str.len()>0,df.Annotation,'unclassified') if 'Annotation' in df.columns else 'unclassified',
                        Category=df.Category.astype(str) if 'Category' in df.columns else '',
                        Area=1e06*((df.Area*[1*ureg(units_of_interest['Area_unit']).to(ureg.square_pixel).magnitude for ntimes in range(df[['Area']].shape[1])])/((np.vstack([pixel_size_ratio**2 for ntimes in range(df[['Area']].shape[1])]).T)[0,:])) if all(pd.Series(['Area','Pixel']).isin(df.columns)) else pd.NA, # square micrometers
                        Biovolume=1e09*(df.Biovolume*[1*ureg(units_of_interest['Biovolume_unit']).to(ureg.cubic_pixel).magnitude for ntimes in range(df[['Biovolume']].shape[1])]/((np.vstack([pixel_size_ratio**3 for ntimes in range(df[['Biovolume']].shape[1])]).T)[0,:])) if all(pd.Series(['Biovolume','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
