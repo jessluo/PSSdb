@@ -10,6 +10,9 @@ git_dir : '~/GIT/PSSdb/'
 #raw subdirectory
 raw_dir : '~/GIT/PSSdb/raw/'
 
+#standardized raw subdirectory
+standardized_raw_subdir : 'raw_standardized'
+
 # Ecotaxa exported files storage sub-direcotry :
 Ecotaxa_subdir : 'ecotaxa'
 

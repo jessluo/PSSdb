@@ -75,7 +75,7 @@ path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_to_git=Path(cfg['git_dir']).expanduser()
-path_to_project_list=path_to_git / cfg['dataset_subdir'] / cfg['proj_list']
+path_to_project_list=path_to_git / cfg['proj_list']
 
 path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
@@ -435,7 +435,7 @@ def flag_func(dataframe):
         world_polygon = unary_union(world.geometry.tolist())
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
         # gdf=unary_union(gdf.geometry.tolist())
-        gdf['Flag_GPSonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
+        gdf['Flag_GPScoordinatesonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
         dataframe['Flag_GPScoordinatesonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPScoordinatesonland'] == True]['Sample'].tolist()), 1, 0)
         dataframe['Flag_dubiousGPScoordinates'] = 0
         dataframe['Flag_dubiousGPScoordinates'] = np.where(dataframe['Sample'].isin(gdf.get('Sample')[list(map(lambda x: x.contains(Point(0, 0)), gdf.geometry.tolist()))]), 1,dataframe['Flag_dubiousGPScoordinates'])
@@ -717,7 +717,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          summary_df['Flag_missing']=summary_df.apply( lambda x: str(x.Flag_missing) + ' (' + x.Missing_field + ')' if x.Flag_missing == 1 else x.Flag_missing,axis=1)
          fig.add_trace(go.Table(header=dict(values=['Sample/Profile ID<br>']+[column+'<br>' for column in summary_df.columns if 'Flag' in column],align=np.repeat('center',1+len([column for column in summary_df.columns if 'Flag' in column])),
                                        line_color='rgba(255,255,255,0)',fill_color='rgba(255,255,255,1)'),
-                           cells=dict(values=summary_df[summary_df.Flag==0][['Sample_URL']+[column for column in summary_df.columns if 'Flag' in column]].T)), row=3, col=1)
+                           cells=dict(values=summary_df[summary_df.Flag==1][['Sample_URL']+[column for column in summary_df.columns if 'Flag' in column]].T)), row=3, col=1)
          # Update subplot domains for small table
          if len(summary_df[summary_df.Flag==0][['Sample_URL']])<8: # scrolling threshold
              fig.layout['geo2']['domain']['y'] = [ 0.02 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.95]  # fig.update_geos(domain={'y':[0.02+0.42-(0.384/8)*max([1,8-len(summary_df[summary_df.Flag==0][['Sample_URL']])]), 1.0]}) # Update map
@@ -818,7 +818,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
         # Check for existing standardized file(s):
-        path_to_standard_dir = path_to_data.parent / 'raw_standardized' / path_to_data.stem / path_files_list[0].parent.stem
+        path_to_standard_dir = path_to_data.parent / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}*.csv'.format(str(project_id))))
         if len(path_to_standard_file):
