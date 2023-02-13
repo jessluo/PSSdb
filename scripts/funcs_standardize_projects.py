@@ -899,7 +899,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df['Sampling_lower_size'] = np.nan
             units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
 
-        camera_resolution = {'IFCB': {'Sampling_lower_size': image_resize_factor* min_blob_area / (blob_x_grow * blob_y_grow), 'Sampling_upper_size': image_resize_factor*1360/(blob_x_grow * blob_y_grow)}, # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
+        camera_resolution = {'IFCB': {'Sampling_lower_size': image_resize_factor* min_blob_area / (blob_x_grow * blob_y_grow), 'Sampling_upper_size':1360}, # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
                              'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
                              'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
                              'UVP6': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2464},
@@ -969,7 +969,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
 
         # Set volume analyzed to 5 mL for IFCB projects
-        if df_standardizer.loc[project_id]['Instrument'] in ['IFCB'] and all(df_standardized[['Volume_analyzed']]==pd.NA):
+        if df_standardizer.loc[project_id]['Instrument'] in ['IFCB'] and all(df_standardized[['Volume_analyzed']].isna()):
             df_standardized['Volume_analyzed']=PQ(5*ureg('milliliter').to('liter')).magnitude
 
         # Convert volume analyzed to volume imaged to account for samples dilution or fractionation
@@ -994,7 +994,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         # Save standardized dataframe
         path_to_standard_plot = path_to_data.parent.parent.parent / 'figures' / 'standardizer' /path_to_data.stem /  path_files_list[0].parent.stem/ 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
-        print('Saving standardized datafile to',path_to_standard_file,sep=' ')
+        print('Saving standardized datafile to', path_to_standard_dir,sep=' ')
         path_dict = df[['File_path', 'Sample']].drop_duplicates().groupby(['File_path'])['Sample'].apply(list).to_dict()
         df.groupby(['File_path']).apply(lambda x :df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv(path_to_standard_dir/'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[0].stem).rfind('_'+str(project_id)+'_')+2+len(str(project_id)):len(str(x.File_path.unique()[0].stem))].replace('_features','')), sep=",",index=False))
         #with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
@@ -1033,7 +1033,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             projection_rotation=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude), roll=0),
             center=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude)),
             projection_type='orthographic',lataxis_range=[-90,90], lonaxis_range=[-180, 180],
-            domain=dict(x=[0.0, 0.4], y=[0.0, 0.9]), bgcolor='rgba(0,0,0,0)')
+            domain=dict(x=[0.0, 0.47], y=[0.0, 0.9]), bgcolor='rgba(0,0,0,0)')
         layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80], domain=dict(x=[0.0, 0.1], y=[0.0, 0.12]))
 
         # go.Figure(data=[data_geo, data_geo], layout=layout)

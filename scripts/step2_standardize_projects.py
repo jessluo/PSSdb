@@ -29,7 +29,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
         report_path=path_to_standardizer.parent / 'reports'
         try:
             print('Project: {}'.format(str(project)))
-            filling_standardizer_flag_func(standardizer_path=standardizer, project_id=int(project),report_path=report_path)
+            filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path)
         except Exception as e:
             print('Skipping flagging of project ',str(project),'\n',e,sep='')
 
