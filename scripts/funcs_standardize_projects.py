@@ -531,6 +531,14 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
 
          df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
          columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
+         if 'Latitude' in df.columns:
+             df.Latitude=df.Latitude.astype(float)
+         if 'Longitude' in df.columns:
+             df.Longitude = df.Longitude.astype(float)
+         if 'Volume_analyzed' in df.columns:
+             df.Volume_analyzed = df.Volume_analyzed.astype(float)
+         if 'Pixel' in df.columns:
+             df.Pixel = df.Pixel.astype(float)
          df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
          df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
 
@@ -864,6 +872,14 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             except ValueError:
                 str(na)
 
+        if 'Latitude' in df.columns:
+            df.Latitude = df.Latitude.astype(float)
+        if 'Longitude' in df.columns:
+            df.Longitude = df.Longitude.astype(float)
+        if 'Volume_analyzed' in df.columns:
+            df.Volume_analyzed = df.Volume_analyzed.astype(float)
+        if 'Pixel' in df.columns:
+            df.Pixel = df.Pixel.astype(float)
         df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
         df[columns_to_convert] =  df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
