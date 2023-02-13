@@ -607,13 +607,14 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          summary_df = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI),'Artefacts_percentage':len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI)})).reset_index()
          summary_df['Sample_URL'] = summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
-         subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPScoordinatesonland==1, 'red','black')
-         subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample.unique(),ordered=True)
-         #gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
-         if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]) > 0:
-             # Definition of the zoomed (geo2) and inset (geo) maps
-             sub_data=subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]
-             data_geo = dict(type='scattergeo',
+         if len(subset_summary_df):
+             subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPScoordinatesonland==1, 'red','black')
+             subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample.unique(),ordered=True)
+             #gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
+             if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]) > 0:
+                 # Definition of the zoomed (geo2) and inset (geo) maps
+                 sub_data=subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]
+                 data_geo = dict(type='scattergeo',
                           name='GPS coordinates on land<br>(Flag_GPScoordinatesonland)',
                           lon=sub_data.Longitude,
                           lat=sub_data.Latitude,
@@ -621,91 +622,91 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                           hoverinfo="text", marker=dict(size=3, color='black'), geojson="natural earth", showlegend=True,
                           geo='geo')
 
-             layout = dict()
-             layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),projection_type='orthographic',lataxis_range=[-90,90], lonaxis_range=[-180, 180],
+                 layout = dict()
+                 layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),projection_type='orthographic',lataxis_range=[-90,90], lonaxis_range=[-180, 180],
                  domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]),bgcolor='rgba(0,0,0,0)')
-             layout['geo'] = dict(lonaxis_range=[-180,180],lataxis_range=[-80,80],
+                 layout['geo'] = dict(lonaxis_range=[-180,180],lataxis_range=[-80,80],
                  domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
-             #go.Figure(data=[data_geo, data_geo], layout=layout)
-             fig.add_trace(data_geo, row=1, col=1).update_layout(go.Figure(data=[data_geo, data_geo], layout=layout).layout, margin={"r": 0, "t": 0, "l": 0, "b": 0})
-             fig.layout['geo'] = layout['geo']
-             data_geo.update({'geo': 'geo2', 'showlegend': True})  # Update geo trace before adding the zoomed
-             fig.add_trace(data_geo, row=1, col=1)
-             fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
-             fig.layout['geo2'] = layout['geo2']
+                 #go.Figure(data=[data_geo, data_geo], layout=layout)
+                 fig.add_trace(data_geo, row=1, col=1).update_layout(go.Figure(data=[data_geo, data_geo], layout=layout).layout, margin={"r": 0, "t": 0, "l": 0, "b": 0})
+                 fig.layout['geo'] = layout['geo']
+                 data_geo.update({'geo': 'geo2', 'showlegend': True})  # Update geo trace before adding the zoomed
+                 fig.add_trace(data_geo, row=1, col=1)
+                 fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
+                 fig.layout['geo2'] = layout['geo2']
 
-         if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland==0])>0:
-             sub_data = subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 0]
-             data_geo =dict(type='scattergeo',
+             if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland==0])>0:
+                 sub_data = subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 0]
+                 data_geo =dict(type='scattergeo',
                              name='No flag',
                              lon=sub_data.Longitude,
                              lat=sub_data.Latitude,
                              hovertext='Sample ID: ' + sub_data.Sample.astype(str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
                              hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)), geojson="natural earth", showlegend=True,geo='geo')
-             layout = dict()
-             layout['geo2'] = dict(
+                 layout = dict()
+                 layout['geo2'] = dict(
                  projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
                  center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
                  projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
                  domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
-             layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],
+                 layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],
                                   domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
-             # go.Figure(data=[data_geo, data_geo], layout=layout)
-             fig.add_trace(data_geo, row=1, col=1).update_layout( go.Figure(data=[data_geo, data_geo], layout=layout).layout, margin={"r": 0, "t": 0, "l": 0, "b": 0})
-             fig.layout['geo'] = layout['geo']
-             data_geo.update({'geo': 'geo2', 'showlegend': False})  # Update geo trace before adding the zoomed
-             fig.add_trace(data_geo, row=1, col=1)
-             fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
-             fig.layout['geo2'] = layout['geo2']
-         subset_summary_df['colors'] = np.where(subset_summary_df.Flag_dubiousGPScoordinates == 1, 'orange', 'black')
-         if len(subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]) > 0:
-             sub_data = subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]
-             data_geo = dict(type='scattergeo',
+                 # go.Figure(data=[data_geo, data_geo], layout=layout)
+                 fig.add_trace(data_geo, row=1, col=1).update_layout( go.Figure(data=[data_geo, data_geo], layout=layout).layout, margin={"r": 0, "t": 0, "l": 0, "b": 0})
+                 fig.layout['geo'] = layout['geo']
+                 data_geo.update({'geo': 'geo2', 'showlegend': False})  # Update geo trace before adding the zoomed
+                 fig.add_trace(data_geo, row=1, col=1)
+                 fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
+                 fig.layout['geo2'] = layout['geo2']
+             subset_summary_df['colors'] = np.where(subset_summary_df.Flag_dubiousGPScoordinates == 1, 'orange', 'black')
+             if len(subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]) > 0:
+                 sub_data = subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]
+                 data_geo = dict(type='scattergeo',
                              name='Dubious GPS coordinates<br>(Flag_dubiousGPScoordinates)',
                              lon=sub_data.Longitude,
                              lat=sub_data.Latitude,
                              hovertext='Sample ID: ' + sub_data.Sample.astype( str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
                              hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)),
                              geojson="natural earth", showlegend=True, geo='geo')
-             layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
-             center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
-             projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
-             domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
-             fig.add_trace(data_geo, row=1, col=1)
-             fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
+                 layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
+                                center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
+                                projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
+                                domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
+                 fig.add_trace(data_geo, row=1, col=1)
+                 fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
 
-         # Scatterplot 1, top-right panel: Count per sample
-         subset_summary_df['colors'] = np.where(subset_summary_df.Flag_count==1, 'rgba(0,0,255,0.4)', 'black') # Low ROI count
-         fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
+             # Scatterplot 1, top-right panel: Count per sample
+             subset_summary_df['colors'] = np.where(subset_summary_df.Flag_count==1, 'rgba(0,0,255,0.4)', 'black') # Low ROI count
+             fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
                                   y=subset_summary_df.ROI_count,
                                   error_y=dict(type="data",array=subset_summary_df.Count_error,width=0, thickness=0.1,color=subset_summary_df.colors.values[0]),
                                   hovertext="Sample ID: " + subset_summary_df.Sample.astype(str), hoverinfo="none",
                                   marker=dict(size=3.5, color='black'),
                                   mode='markers',showlegend=False, visible=True), row=1, col=2)
-         if len(subset_summary_df[subset_summary_df.Flag_count == 1]) > 0:
-                fig.add_trace(go.Scatter(name='Low ROI counts<br>(Flag_count)',x=subset_summary_df[subset_summary_df.Flag_count==1].Sample,
+             if len(subset_summary_df[subset_summary_df.Flag_count == 1]) > 0:
+                 fig.add_trace(go.Scatter(name='Low ROI counts<br>(Flag_count)',x=subset_summary_df[subset_summary_df.Flag_count==1].Sample,
                              y=subset_summary_df[subset_summary_df.Flag_count==1].ROI_count,
                              error_y=dict(type="data",array=subset_summary_df[subset_summary_df.Flag_count==1].Count_error,width=0,thickness=0.1,color=subset_summary_df[subset_summary_df.Flag_count==1].colors.values[0]),
                              hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==1].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==1].ROI_count.astype(int).astype(str), hoverinfo="text",
                              marker=dict(size=3.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==1].colors, width=2)), mode='markers',
                              showlegend=True, visible=True), row=1, col=2)
-         if len(subset_summary_df[subset_summary_df.Flag_count==0]) > 0:
-               fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_count==0].Sample,
+             if len(subset_summary_df[subset_summary_df.Flag_count==0]) > 0:
+                 fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_count==0].Sample,
                                  y=subset_summary_df[subset_summary_df.Flag_count==0].ROI_count,
                                  error_y=dict(type="data", array=subset_summary_df[subset_summary_df.Flag_count==0].Count_error,width=0,thickness=0.1,color=subset_summary_df[subset_summary_df.Flag_count==0].colors.values[0]),
                                  hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==0].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==0].ROI_count.astype(int).astype(str), hoverinfo="text",
                                  marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==0].colors,width=2)), mode='markers',showlegend=False, visible=True), row=1, col=2)
-         # Scatterplot 2, middle-right panel: Percentage of artefacts
-         subset_summary_df['colors'] = np.where(subset_summary_df.Flag_artefacts == 1, 'rgba(212,85,0,0.6)','black')  # High percentage of artefacts
-         fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
+             # Scatterplot 2, middle-right panel: Percentage of artefacts
+             subset_summary_df['colors'] = np.where(subset_summary_df.Flag_artefacts == 1, 'rgba(212,85,0,0.6)','black')  # High percentage of artefacts
+             fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
                                   name='Percentage of validation',
                                   y=subset_summary_df.Validation_percentage,
                                   hovertext="Sample ID: " + subset_summary_df.Sample.astype(str)+'<br>% of validation: '+np.round(100*subset_summary_df.Validation_percentage,1).astype(str)+'%',
                                   hoverinfo="text", marker=dict(color='black'), mode='lines',
                                   showlegend=True, visible=True), row=2, col=2)
 
-         if len(subset_summary_df[subset_summary_df.Flag_artefacts == 1]) > 0:
-            fig.add_trace(go.Scatter(name='High percentage of artefacts<br>(Flag_artefacts)',
+             if len(subset_summary_df[subset_summary_df.Flag_artefacts == 1]) > 0:
+                 fig.add_trace(go.Scatter(name='High percentage of artefacts<br>(Flag_artefacts)',
                              x=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample,
                              y=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Artefacts_percentage,
                              hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample.astype(str)+'<br>% of artefacts: '+np.round(100*subset_summary_df[subset_summary_df.Flag_artefacts == 1].Artefacts_percentage,1).astype(str)+'%',
@@ -714,30 +715,30 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                              mode='markers',
                              showlegend=True, visible=True), row=2, col=2)
 
-         if len(subset_summary_df[subset_summary_df.Flag_artefacts == 0]) > 0:
-            fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample,
+             if len(subset_summary_df[subset_summary_df.Flag_artefacts == 0]) > 0:
+                fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample,
                                      y=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Artefacts_percentage,
                                      hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample.astype(str)+'<br>% of artefacts: '+np.round(100*subset_summary_df[subset_summary_df.Flag_artefacts == 0].Artefacts_percentage,1).astype(str)+'%',
                                      hoverinfo="text",
                                      marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_artefacts == 0].colors, width=2)),
                                      mode='markers', showlegend=False, visible=True), row=2, col=2)
-         # Table
-         summary_df['Flag_missing']=summary_df.apply( lambda x: str(x.Flag_missing) + ' (' + x.Missing_field + ')' if x.Flag_missing == 1 else x.Flag_missing,axis=1)
-         fig.add_trace(go.Table(header=dict(values=['Sample/Profile ID<br>']+[column+'<br>' for column in summary_df.columns if 'Flag' in column],align=np.repeat('center',1+len([column for column in summary_df.columns if 'Flag' in column])),
+             # Table
+             summary_df['Flag_missing']=summary_df.apply( lambda x: str(x.Flag_missing) + ' (' + x.Missing_field + ')' if x.Flag_missing == 1 else x.Flag_missing,axis=1)
+             fig.add_trace(go.Table(header=dict(values=['Sample/Profile ID<br>']+[column+'<br>' for column in summary_df.columns if 'Flag' in column],align=np.repeat('center',1+len([column for column in summary_df.columns if 'Flag' in column])),
                                        line_color='rgba(255,255,255,0)',fill_color='rgba(255,255,255,1)'),
                            cells=dict(values=summary_df[summary_df.Flag==1][['Sample_URL']+[column for column in summary_df.columns if 'Flag' in column]].T)), row=3, col=1)
-         # Update subplot domains for small table
-         if len(summary_df[summary_df.Flag==0][['Sample_URL']])<8: # scrolling threshold
-             fig.layout['geo2']['domain']['y'] = [ 0.02 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.95]  # fig.update_geos(domain={'y':[0.02+0.42-(0.384/8)*max([1,8-len(summary_df[summary_df.Flag==0][['Sample_URL']])]), 1.0]}) # Update map
-             fig.layout['geo2']['domain']['x'] = [0, 0.56]  # fig.update_geos(domain={'y':[0.02+0.42-(0.384/8)*max([1,8-len(summary_df[summary_df.Flag==0][['Sample_URL']])]), 1.0]}) # Update map
-             fig.layout['geo']['domain']['y'] = [0.02 + 0.32 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]) + 0.05, 0.02 + 0.32 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]) + 0.25]
-             fig.layout['geo']['domain']['x'] = [0, 0.12]
-             fig.update_yaxes(domain=[0.05 + (0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])), 0.95], row=1, col=2)  # Update scatter 1
-             fig.update_yaxes(domain=[ 0.05 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])], row=2, col=2)  # Update scatter 3
-             fig.update_traces(domain={'y': [0, 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])]}, row=3, col=1)  # Update table
+             # Update subplot domains for small table
+             if len(summary_df[summary_df.Flag==0][['Sample_URL']])<8: # scrolling threshold
+                 fig.layout['geo2']['domain']['y'] = [ 0.02 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.95]  # fig.update_geos(domain={'y':[0.02+0.42-(0.384/8)*max([1,8-len(summary_df[summary_df.Flag==0][['Sample_URL']])]), 1.0]}) # Update map
+                 fig.layout['geo2']['domain']['x'] = [0, 0.56]  # fig.update_geos(domain={'y':[0.02+0.42-(0.384/8)*max([1,8-len(summary_df[summary_df.Flag==0][['Sample_URL']])]), 1.0]}) # Update map
+                 fig.layout['geo']['domain']['y'] = [0.02 + 0.32 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]) + 0.05, 0.02 + 0.32 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]) + 0.25]
+                 fig.layout['geo']['domain']['x'] = [0, 0.12]
+                 fig.update_yaxes(domain=[0.05 + (0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])), 0.95], row=1, col=2)  # Update scatter 1
+                 fig.update_yaxes(domain=[ 0.05 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])], row=2, col=2)  # Update scatter 3
+                 fig.update_traces(domain={'y': [0, 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])]}, row=3, col=1)  # Update table
 
-         title = 'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
-         fig.update_layout(legend=dict(y=0.95,xanchor="left",yanchor='top',x=-0.02,bgcolor='rgba(255,255,255,0)'),
+             title = 'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
+             fig.update_layout(legend=dict(y=0.95,xanchor="left",yanchor='top',x=-0.02,bgcolor='rgba(255,255,255,0)'),
                 margin=dict(l=0, r=30, t=30, b=30),
                 title={'text': title,'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
                 xaxis={'title': '', 'showticklabels':False, 'tickfont':dict(size=10), 'titlefont':dict(size=12)},
@@ -747,13 +748,15 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                        'ticktext':['10<sup>{}</sup>'.format(int(exponent)) for exponent in np.arange(np.floor(np.log10(subset_summary_df['ROI_count'].max()))-1, np.ceil(np.log10(subset_summary_df['ROI_count'].max()))+1,1 )]},
                 yaxis2={'title.standoff':7000,"tickmode": "array", 'title': 'Percentage of artefacts/validation', 'tickfont':dict(size=10), 'titlefont':dict(size=12)},
                 hovermode="x")
-         fig.update_yaxes( type="log", row=1, col=2)
-         fig.update_xaxes(showline=True, linewidth=2, linecolor='black', mirror=True)
-         fig.update_yaxes(showline=True, linewidth=2, linecolor='black', mirror=True)
-         fig.for_each_xaxis(lambda x: x.update(showgrid=False))
-         fig.for_each_yaxis(lambda x: x.update(showgrid=False))
-         fig.write_html(path_to_report)
-         print('Saving cruise report to', path_to_report, sep=' ')
+             fig.update_yaxes( type="log", row=1, col=2)
+             fig.update_xaxes(showline=True, linewidth=2, linecolor='black', mirror=True)
+             fig.update_yaxes(showline=True, linewidth=2, linecolor='black', mirror=True)
+             fig.for_each_xaxis(lambda x: x.update(showgrid=False))
+             fig.for_each_yaxis(lambda x: x.update(showgrid=False))
+             fig.write_html(path_to_report)
+             print('Saving cruise report to', path_to_report, sep=' ')
+         else:
+             print('No samples left after dropping GPS coordinates and sample ID NAs. Skipping project report')
     else:
         print('No project datafile found.')
 
@@ -1029,6 +1032,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         df_standardized['Station'] = df_standardized['Station'].astype(str)# Required to pass groupby if missing
         df_standardized['Sample'] = df_standardized['Sample'].astype(str)  # Required to pass groupby if missing
         df_standardized = df_standardized[(df_standardized.Longitude <= 180) & (df_standardized.Longitude >= -180) & ( df_standardized.Latitude <= 90) & (df_standardized.Latitude >= -90)]
+
         summary_df_standardized=df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged','Depth_min','Depth_max'],dropna=True).apply(lambda x: pd.Series({'Count':x.ROI.count(),'Abundance': x.ROI.count() / ( x.Volume_analyzed.unique()[0]), # individuals per liter
                                                                                                                                                                        'Average_diameter':np.nanmean(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean(x.ESD), # micrometer
                                                                                                                                                                        'Std_diameter':np.nanstd(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(x.ESD)})).reset_index()
@@ -1036,7 +1040,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                                                                                                                                      'Average_diameter':np.nanmean(x.Average_diameter), # micrometer
                                                                                                                                      'Std_diameter':np.nanmean(x.Std_diameter)})).reset_index() # micrometer
 
-        data_geo = dict(type='scattergeo',
+        if len(summary_df_standardized):
+            data_geo = dict(type='scattergeo',
                         name='',
                         lon=summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude,
                         lat=summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude,
@@ -1044,117 +1049,117 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                         hovertext='Sample ID: ' + summary_df_standardized.dropna(
                             subset=['Latitude', 'Longitude', 'Sample']).Sample, hoverinfo="text",
                         marker=dict(color='black',size=0.5), geojson="natural earth", showlegend=False, geo='geo')
-        layout = dict()
-        layout['geo2'] = dict(
+            layout = dict()
+            layout['geo2'] = dict(
             projection_rotation=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude), roll=0),
             center=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude)),
             projection_type='orthographic',lataxis_range=[-90,90], lonaxis_range=[-180, 180],
             domain=dict(x=[0.0, 0.47], y=[0.0, 0.9]), bgcolor='rgba(0,0,0,0)')
-        layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80], domain=dict(x=[0.0, 0.1], y=[0.0, 0.12]))
+            layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80], domain=dict(x=[0.0, 0.1], y=[0.0, 0.12]))
 
-        # go.Figure(data=[data_geo, data_geo], layout=layout)
-        fig.add_trace(data_geo, row=1, col=1).update_layout(go.Figure(data=[data_geo, data_geo], layout=layout).layout)
-        data_geo.update({'geo': 'geo2', 'showlegend': False,'marker':dict(color='black',size=2.5)})  # Update geo trace before adding the zoomed
-        fig.add_trace(data_geo, row=1, col=1)
-        fig.data[1]['geo'] = 'geo2'  # Need to update geo trace manually
+            # go.Figure(data=[data_geo, data_geo], layout=layout)
+            fig.add_trace(data_geo, row=1, col=1).update_layout(go.Figure(data=[data_geo, data_geo], layout=layout).layout)
+            data_geo.update({'geo': 'geo2', 'showlegend': False,'marker':dict(color='black',size=2.5)})  # Update geo trace before adding the zoomed
+            fig.add_trace(data_geo, row=1, col=1)
+            fig.data[1]['geo'] = 'geo2'  # Need to update geo trace manually
 
-        #fig.add_trace(go.Scattergeo(name='',lon=summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Longitude, lat=summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Latitude, hovertext='Sample ID: ' + summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Sample, hoverinfo="text", marker=dict(color='black'), geojson="natural earth", showlegend=False),row=1, col=1).update_geos(projection_rotation=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Latitude), roll=0),center=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Latitude)),projection_type='orthographic')
-        # Scatterplot 1, top-right panel
-        cols=summary_df_standardized.columns
-        fig.add_trace(go.Scatter(name='',x=summary_df_standardized.dropna(subset=['Sample','Abundance']).Sample, y=summary_df_standardized.dropna(subset=['Sample','Abundance']).Abundance,
+            #fig.add_trace(go.Scattergeo(name='',lon=summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Longitude, lat=summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Latitude, hovertext='Sample ID: ' + summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Sample, hoverinfo="text", marker=dict(color='black'), geojson="natural earth", showlegend=False),row=1, col=1).update_geos(projection_rotation=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Latitude), roll=0),center=dict(lon=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Longitude), lat=np.nanmean(summary_df_standardized.dropna(subset=['Latitude','Longitude','Sample']).Latitude)),projection_type='orthographic')
+            # Scatterplot 1, top-right panel
+            cols=summary_df_standardized.columns
+            fig.add_trace(go.Scatter(name='',x=summary_df_standardized.dropna(subset=['Sample','Abundance']).Sample, y=summary_df_standardized.dropna(subset=['Sample','Abundance']).Abundance,
                                #  error_y=dict(type="data",array=summary_df_standardized.Std_diameter),
                                  hovertext="Sample ID: " + summary_df_standardized.dropna(subset=['Sample','Abundance']).Sample, hoverinfo="text",
                                  marker=dict(color='black'),mode='markers',
                                  showlegend=True, visible=True), row=1, col=2)
-        # Scatterplot 2, bottom-right panel
-        df_standardized=pd.merge(df_standardized,pd.DataFrame([2 * ((df_standardized[['Area']] / np.pi) ** 0.5).to_numpy() if 'Area' in df_standardized.columns else pd.NA][0],columns=['ECD' for ntimes in range(df_standardized[['Area']].shape[1])]),left_index=True,right_index=True )# in micrometer
-        if plot=='diversity':
-            subset_df = pd.merge(df_standardized, df_taxonomy[['Category', 'EcoTaxa_hierarchy', 'Full_hierarchy', 'Rank', 'Type','Domain']+[rank for rank in rank_categories if rank in df_taxonomy.columns]], left_on='Category', right_on='Category', how='left')
-            columns_ID = ['Project_ID']  # ['sample_profileid','sample_stationid','object_lat','object_lon','Depth_bin_med']
-            column_group = ['Genus']
+            # Scatterplot 2, bottom-right panel
+            df_standardized=pd.merge(df_standardized,pd.DataFrame([2 * ((df_standardized[['Area']] / np.pi) ** 0.5).to_numpy() if 'Area' in df_standardized.columns else pd.NA][0],columns=['ECD' for ntimes in range(df_standardized[['Area']].shape[1])]),left_index=True,right_index=True )# in micrometer
+            if plot=='diversity':
+                subset_df = pd.merge(df_standardized, df_taxonomy[['Category', 'EcoTaxa_hierarchy', 'Full_hierarchy', 'Rank', 'Type','Domain']+[rank for rank in rank_categories if rank in df_taxonomy.columns]], left_on='Category', right_on='Category', how='left')
+                columns_ID = ['Project_ID']  # ['sample_profileid','sample_stationid','object_lat','object_lon','Depth_bin_med']
+                column_group = ['Genus']
 
-            df_taxonomy[[column for column in df_taxonomy.columns if column in rank_categories and column in np.array(rank_categories)[np.where( pd.Categorical(rank_categories, categories=rank_categories, ordered=True) <= column_group[0])[0].tolist()]] + ['Functional_group']].drop_duplicates().dropna().groupby(column_group[0]).apply(lambda x: pd.Series({'group': x.Functional_group.value_counts().index[0]})).reset_index().sort_values(by='group')
-            group_categories = df_taxonomy[df_taxonomy.EcoTaxa_hierarchy.isin(subset_df.EcoTaxa_hierarchy.tolist())][[column for column in df_taxonomy.columns if column in rank_categories and column in np.array(rank_categories)[np.where(pd.Categorical(rank_categories, categories=rank_categories, ordered=True) <= column_group[0])[ 0].tolist()]]]
-            group_categories =group_categories.sort_values(by=column_group[0])
-            group_categories[group_categories.isnull()] = ''
-            if len(subset_df.dropna(subset=['Full_hierarchy'])) > 0:
-                summary_df_taxonomy =  subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + ['Phylum'], observed=True).apply( lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index().pivot(index=columns_ID,columns='Phylum', values='ROI_count').reset_index()
-                melt_df_taxonomy = summary_df_taxonomy.melt(
-                value_vars=[column for column in summary_df_taxonomy.columns if column not in columns_ID],
-                id_vars=columns_ID, var_name='Group', value_name='Count').dropna()
-                melt_df_taxonomy = pd.merge(melt_df_taxonomy, group_categories, left_on='Group', right_on='Phylum',how='left')
-                melt_df_taxonomy.Group = pd.Categorical(melt_df_taxonomy.Group,categories=group_categories['Phylum'].unique(), ordered=True)
-                melt_df_taxonomy.Group.cat.categories
-                melt_df_taxonomy = melt_df_taxonomy.sort_values(by=['Group'] + columns_ID)
-                levels = pd.Categorical(melt_df_taxonomy.columns[melt_df_taxonomy.columns.isin(rank_categories)].tolist(),categories=pd.Series(rank_categories)[ pd.Series(rank_categories).isin(melt_df_taxonomy.columns.tolist())].tolist(), ordered=True)
-                colors_dict = taxon_color_palette(dataframe=group_categories, levels=levels,palette=px.colors.qualitative.T10)
-                levels_dict = dict(zip(levels, px.colors.sequential.Reds[0:len(levels)][::-1]))
-                # fig=px.pie(melt_df_taxonomy,values='Count',names='Group',color='Group',hole=0.3,color_discrete_map=colors_dict).update_traces(sort=False,textinfo='percent+label').update_layout(title_text="Annotation diversity",annotations=[dict(text='% ROI', x=0.5, y=0.5, font_size=20, showarrow=False)])
-                level_new_data = melt_df_taxonomy[columns_ID + ['Group', 'Count']].drop_duplicates().groupby(by=columns_ID).apply(lambda x: pd.Series({'Total': x.Count.sum(), 'Rank': 'Phylum'})).reset_index()
-                fig.add_trace(go.Pie(name='Phylum', labels=level_new_data['Rank'], values=level_new_data['Total'], hoverinfo='none',
+                df_taxonomy[[column for column in df_taxonomy.columns if column in rank_categories and column in np.array(rank_categories)[np.where( pd.Categorical(rank_categories, categories=rank_categories, ordered=True) <= column_group[0])[0].tolist()]] + ['Functional_group']].drop_duplicates().dropna().groupby(column_group[0]).apply(lambda x: pd.Series({'group': x.Functional_group.value_counts().index[0]})).reset_index().sort_values(by='group')
+                group_categories = df_taxonomy[df_taxonomy.EcoTaxa_hierarchy.isin(subset_df.EcoTaxa_hierarchy.tolist())][[column for column in df_taxonomy.columns if column in rank_categories and column in np.array(rank_categories)[np.where(pd.Categorical(rank_categories, categories=rank_categories, ordered=True) <= column_group[0])[ 0].tolist()]]]
+                group_categories =group_categories.sort_values(by=column_group[0])
+                group_categories[group_categories.isnull()] = ''
+                if len(subset_df.dropna(subset=['Full_hierarchy'])) > 0:
+                    summary_df_taxonomy =  subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + ['Phylum'], observed=True).apply( lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index().pivot(index=columns_ID,columns='Phylum', values='ROI_count').reset_index()
+                    melt_df_taxonomy = summary_df_taxonomy.melt(
+                    value_vars=[column for column in summary_df_taxonomy.columns if column not in columns_ID],
+                    id_vars=columns_ID, var_name='Group', value_name='Count').dropna()
+                    melt_df_taxonomy = pd.merge(melt_df_taxonomy, group_categories, left_on='Group', right_on='Phylum',how='left')
+                    melt_df_taxonomy.Group = pd.Categorical(melt_df_taxonomy.Group,categories=group_categories['Phylum'].unique(), ordered=True)
+                    melt_df_taxonomy.Group.cat.categories
+                    melt_df_taxonomy = melt_df_taxonomy.sort_values(by=['Group'] + columns_ID)
+                    levels = pd.Categorical(melt_df_taxonomy.columns[melt_df_taxonomy.columns.isin(rank_categories)].tolist(),categories=pd.Series(rank_categories)[ pd.Series(rank_categories).isin(melt_df_taxonomy.columns.tolist())].tolist(), ordered=True)
+                    colors_dict = taxon_color_palette(dataframe=group_categories, levels=levels,palette=px.colors.qualitative.T10)
+                    levels_dict = dict(zip(levels, px.colors.sequential.Reds[0:len(levels)][::-1]))
+                    # fig=px.pie(melt_df_taxonomy,values='Count',names='Group',color='Group',hole=0.3,color_discrete_map=colors_dict).update_traces(sort=False,textinfo='percent+label').update_layout(title_text="Annotation diversity",annotations=[dict(text='% ROI', x=0.5, y=0.5, font_size=20, showarrow=False)])
+                    level_new_data = melt_df_taxonomy[columns_ID + ['Group', 'Count']].drop_duplicates().groupby(by=columns_ID).apply(lambda x: pd.Series({'Total': x.Count.sum(), 'Rank': 'Phylum'})).reset_index()
+                    fig.add_trace(go.Pie(name='Phylum', labels=level_new_data['Rank'], values=level_new_data['Total'], hoverinfo='none',
                        textinfo='none', direction='clockwise', hole=0.2, legendgroup=2, showlegend=True, sort=False,
                        marker=dict(colors=['rgba(255,255,255,0)'], line=dict(color=levels_dict['Phylum'], width=6)),
                        textposition='inside', insidetextorientation='radial'), row=2, col=2).update_layout(annotations=[dict(text='% ROI', x=0.78,y=0.31, font_size=12, showarrow=False),dict(text='Pie chart of the annotations diversity '+str((np.round(100*subset_df['Type'].value_counts(normalize=True),1).astype(str)+ '%').to_dict()), x=0.7, y=-0.05, font_size=12, showarrow=False)])
 
-                fig.add_trace( go.Pie(name='Taxonomic phylum:', labels=melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Group'],
+                    fig.add_trace( go.Pie(name='Taxonomic phylum:', labels=melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Group'],
                        values=melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Count'], hole=0.2,
                        direction='clockwise', legendgroup=1, sort=False, hoverinfo='percent+label',
                        textinfo='percent+label', textfont_size=10, textposition='none',
                        marker=dict(colors=[color for taxon, color in colors_dict.items() if taxon in melt_df_taxonomy[['Group', 'Count']].drop_duplicates()['Group'].values.tolist()])), row=2, col=2)
-                levels = df_taxonomy.columns[df_taxonomy.columns.isin(rank_categories)].tolist()
-                for index, level in enumerate(levels):
+                    levels = df_taxonomy.columns[df_taxonomy.columns.isin(rank_categories)].tolist()
+                    for index, level in enumerate(levels):
 
-                    if level == 'Phylum':
-                        continue
-                    else:
-                        summary_df_taxonomy = subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + levels[0:index + 1], observed=True, dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index()
-                        summary_df_taxonomy = summary_df_taxonomy[summary_df_taxonomy['Phylum'].isnull() == False]
-                        summary_df_taxonomy.loc[:, levels[0:index + 1]] = summary_df_taxonomy.loc[:,levels[0:index + 1]].fillna('unassigned')
-                        summary_df_taxonomy = pd.merge(summary_df_taxonomy,summary_df_taxonomy.groupby(by=columns_ID + [levels[index - 1]], observed=True, group_keys=False).apply( lambda x: pd.Series({'Total_ROI_count': x.ROI_count.sum()})).reset_index()[ [levels[index - 1], 'Total_ROI_count']], on=levels[index - 1],how='left')
-                        summary_df_taxonomy['Phylum'] = pd.Categorical(summary_df_taxonomy['Phylum'],categories=group_categories['Phylum'].unique(),ordered=True)
-                        new_data = summary_df_taxonomy  # melt_df_taxonomy.groupby(level).apply(lambda x :pd.Series({'Count': sum(x.Count)})).reset_index()
-                        new_data = new_data.sort_values(by=levels[0:index])
-                        new_colors = [colors_dict[taxon] if taxon != 'unassigned' else '#FFFFFF' for taxon in new_data[new_data.columns.tolist()[index + 1]]]  # [color for taxon,color in colors_dict.items() if taxon in new_data[new_data.columns.tolist()[2]].values.tolist()]
-                        new_data['Hierarchy'] = new_data.apply(lambda x: '>'.join(x[levels[0:index + 1]][levels[0:index + 1]] + ' (' + levels[0:index + 1] + ')'), axis=1)
-                        level_new_data = new_data.groupby(by=columns_ID).apply( lambda x: pd.Series({'Total': x.ROI_count.sum(), 'Rank': level})).reset_index()
-                        fig.add_trace(go.Pie(name=level, labels=level_new_data['Rank'], values=level_new_data['Total'],
+                        if level == 'Phylum':
+                            continue
+                        else:
+                            summary_df_taxonomy = subset_df.dropna(subset=['Full_hierarchy']).groupby(by=columns_ID + levels[0:index + 1], observed=True, dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count()})).reset_index()
+                            summary_df_taxonomy = summary_df_taxonomy[summary_df_taxonomy['Phylum'].isnull() == False]
+                            summary_df_taxonomy.loc[:, levels[0:index + 1]] = summary_df_taxonomy.loc[:,levels[0:index + 1]].fillna('unassigned')
+                            summary_df_taxonomy = pd.merge(summary_df_taxonomy,summary_df_taxonomy.groupby(by=columns_ID + [levels[index - 1]], observed=True, group_keys=False).apply( lambda x: pd.Series({'Total_ROI_count': x.ROI_count.sum()})).reset_index()[ [levels[index - 1], 'Total_ROI_count']], on=levels[index - 1],how='left')
+                            summary_df_taxonomy['Phylum'] = pd.Categorical(summary_df_taxonomy['Phylum'],categories=group_categories['Phylum'].unique(),ordered=True)
+                            new_data = summary_df_taxonomy  # melt_df_taxonomy.groupby(level).apply(lambda x :pd.Series({'Count': sum(x.Count)})).reset_index()
+                            new_data = new_data.sort_values(by=levels[0:index])
+                            new_colors = [colors_dict[taxon] if taxon != 'unassigned' else '#FFFFFF' for taxon in new_data[new_data.columns.tolist()[index + 1]]]  # [color for taxon,color in colors_dict.items() if taxon in new_data[new_data.columns.tolist()[2]].values.tolist()]
+                            new_data['Hierarchy'] = new_data.apply(lambda x: '>'.join(x[levels[0:index + 1]][levels[0:index + 1]] + ' (' + levels[0:index + 1] + ')'), axis=1)
+                            level_new_data = new_data.groupby(by=columns_ID).apply( lambda x: pd.Series({'Total': x.ROI_count.sum(), 'Rank': level})).reset_index()
+                            fig.add_trace(go.Pie(name=level, labels=level_new_data['Rank'], values=level_new_data['Total'],
                                hoverinfo='none', textinfo='none', direction='clockwise',
                                hole=0.2 + index * (1 / (len(levels) + 1)), legendgroup=2, showlegend=True, sort=False,
                                marker=dict(colors=['#FFFFFF'], line=dict(color=levels_dict[level], width=6)),
                                textposition='inside', insidetextorientation='radial'), row=2, col=2)
-                        fig.add_trace(go.Pie(name=level, labels=new_data['Hierarchy'], values=new_data['ROI_count'],
+                            fig.add_trace(go.Pie(name=level, labels=new_data['Hierarchy'], values=new_data['ROI_count'],
                                                hoverinfo='label+percent', textinfo='none', direction='clockwise',
                                                hole=0.2 + index * (1 / (len(levels) + 1)), showlegend=False, sort=False,
                                                marker=dict(colors=new_colors, line=dict(color='#000000', width=0)),
                                                textposition='inside', insidetextorientation='radial'), row=2, col=2)
 
 
-        cols_labels=np.where(cols.isin(['Abundance']),'Abundance (particles dm<sup>-3</sup>)','')
-        cols_labels = np.where(cols.isin(['Average_diameter']), u'Average equivalent circular diameter (\u03BCm)', cols_labels)
-        cols_labels = np.where(cols.isin(['Std_diameter']), u'Std equivalent circular diameter (\u03BCm)', cols_labels)
+            cols_labels=np.where(cols.isin(['Abundance']),'Abundance (particles dm<sup>-3</sup>)','')
+            cols_labels = np.where(cols.isin(['Average_diameter']), u'Average equivalent circular diameter (\u03BCm)', cols_labels)
+            cols_labels = np.where(cols.isin(['Std_diameter']), u'Std equivalent circular diameter (\u03BCm)', cols_labels)
 
-        button_scatter1 = [dict(method="restyle",  # argument to change data
+            button_scatter1 = [dict(method="restyle",  # argument to change data
                                 args=[{'x': [summary_df_standardized['Sample'], 'undefined'],
                                        'y': [summary_df_standardized[cols[k]], 'undefined'],
                                        'visible': [True, True, True]}, [2]],
                                 # visible should have the same length as number of subplots, second argument specifies which subplot is updated
                                 label=cols_labels[k]) for k in np.where(np.isin(list(cols), ['Abundance', 'Average_diameter', 'Std_diameter']))[0]]
 
-        title =  r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df_standardized["Cruise"].unique())) if all(df_standardized["Cruise"].isna())==False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))
-        fig.update_layout(
-            updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
-            title={'text': title,
-                   'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
+            title =  r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df_standardized["Cruise"].unique())) if all(df_standardized["Cruise"].isna())==False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))
+            fig.update_layout(updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
+            title={'text': title, 'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
             xaxis={'title': 'Sample ID', 'nticks': 2, 'tickangle': 0, 'tickfont': dict(size=10),'titlefont': dict(size=12)},
             yaxis={"tickmode": "array",'title': 'Variable selected in <br> dropdown menu ', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
             boxmode='group')
-        fig.update_yaxes(type="log", row=1, col=2)
-        fig.update_yaxes(type="log", row=2, col=2)
-        fig.update_xaxes(type="log", row=2, col=2,ticks="inside")
-        fig.for_each_xaxis(lambda x: x.update(showgrid=False))
-        fig.for_each_yaxis(lambda x: x.update(showgrid=False,ticks="inside"))
-        fig.write_html(path_to_standard_plot)
-        print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+            fig.update_yaxes(type="log", row=1, col=2)
+            fig.update_yaxes(type="log", row=2, col=2)
+            fig.update_xaxes(type="log", row=2, col=2,ticks="inside")
+            fig.for_each_xaxis(lambda x: x.update(showgrid=False))
+            fig.for_each_yaxis(lambda x: x.update(showgrid=False,ticks="inside"))
+            fig.write_html(path_to_standard_plot)
+            print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+        else:
+            print('No samples left after dropping sample NAs. Skipping project standardization plot')
     else: print('Export file for project {} not found. Please run 1.export_projects.py to export file automatically or export manually'.format(str(project_id)))
 
 
@@ -1188,18 +1193,18 @@ if __name__ == '__main__':
 
     if funcs_args=='2':
         if len(project_args) > 0 and len(standardizerfile_args) > 0:
-            diagnostic_plots_func(standardizer_path=standardizerfile_args,project_id=int(project_args))
+            diagnostic_plots_func(standardizer_path=standardizerfile_args,project_id=project_args)
         else:
             print('Missing information. Please run again')
 
     if funcs_args == '3':
         if len(project_args) > 0 and len(standardizerfile_args) > 0:
-             filling_standardizer_flag_func(standardizer_path=standardizerfile_args, project_id=int(project_args))
+             filling_standardizer_flag_func(standardizer_path=standardizerfile_args, project_id=project_args)
         else:
              print('Missing information. Please run again')
 
     if funcs_args=='4':
         if len(project_args) > 0 and len(standardizerfile_args) > 0:
-            standardization_func(standardizer_path=standardizerfile_args, project_id=int(project_args))
+            standardization_func(standardizer_path=standardizerfile_args, project_id=project_args)
         else:
             print('Missing information. Please run again')
