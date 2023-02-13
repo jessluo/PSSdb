@@ -992,7 +992,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 file.write( "README file for project standardized files (First created on February 10, 2023):\n\nThis directory contains the standardized table(s) of accessible projects.\nEach table include the following variables:\n\n{}\n\nContact us: nmfs.pssdb@noaa.gov".format('\n'.join(list(df_standardized_metadata[['Variables', 'Units/Values/Timezone', 'Description']].apply(lambda x: str(x.Variables) + " (" + str(x['Units/Values/Timezone']).strip() + "): " + x.Description if len(x['Units/Values/Timezone']) else str(x.Variables) + ": " + x.Description, axis=1).values))))
 
         # Save standardized dataframe
-        path_to_standard_plot = path_to_data.parent.parent.parent / 'figures' / 'standardizer' /path_to_data.stem /  path_files_list[0].parent.stem/ 'standardized_project_{}.html'.format(str(project_id))
+        path_to_standard_plot = path_to_data.parent.parent / 'figures' / 'standardizer' /path_to_data.stem /  path_files_list[0].parent.stem/ 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
         print('Saving standardized datafile to', path_to_standard_dir,sep=' ')
         path_dict = df[['File_path', 'Sample']].drop_duplicates().groupby(['File_path'])['Sample'].apply(list).to_dict()
