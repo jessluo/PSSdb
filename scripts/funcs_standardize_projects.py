@@ -952,7 +952,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Update taxonomic annotations standards (df_taxonomy) with new annotations
         if 'Category' in df.columns:
-            new_categories = df.Category[df.Category.isin(list(df_taxonomy.Category)) == False].unique()
+            new_categories = df.dropna(subset=['Category']).Category[df.dropna(subset=['Category']).Category.isin(list(df_taxonomy.Category)) == False].unique()
             if len(new_categories):
                 df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace("_", " ")).assign(Category=hierarchy), new_categories))
                 df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
@@ -962,7 +962,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
-
+        df.Annotation=df.Annotation.apply(lambda x:'' if str(x)=='nan' else x)
         df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
                        Station=df.Station if 'Station' in df.columns else pd.NA,
                        Profile=df.Profile if 'Profile' in df.columns else pd.NA,
@@ -975,8 +975,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
                        Depth_min=list(df.Depth_min) * ureg(units_of_interest['Depth_min_unit']).to(ureg.meter) if 'Depth_min' in df.columns else pd.NA,  # meter
                        Depth_max=list(df.Depth_max) * ureg(units_of_interest['Depth_max_unit']).to(ureg.meter) if 'Depth_max' in df.columns else pd.NA,  # meter
-                       Annotation=np.where(df.Annotation.astype(str).str.len()>0,df.Annotation,'unclassified') if 'Annotation' in df.columns else 'unclassified',
-                       Category=df.Category.astype(str) if 'Category' in df.columns else '',
+                       Annotation=np.where(df.Annotation.astype(str).str.len()>0,df.Annotation,'unclassified') if 'Annotation' in df.columns else 'predicted' if ('Annotation' not in df.columns) and ('Category' in df.columns) else 'unclassified',
+                       Category=df.Category.astype(str).apply(lambda x:'' if str(x)=='nan' else x) if 'Category' in df.columns else '',
                        Area=1e06*((df.Area*[1*ureg(units_of_interest['Area_unit']).to(ureg.square_pixel).magnitude for ntimes in range(df[['Area']].shape[1])])/((np.vstack([pixel_size_ratio**2 for ntimes in range(df[['Area']].shape[1])]).T)[0,:])) if all(pd.Series(['Area','Pixel']).isin(df.columns)) else pd.NA, # square micrometers
                        Biovolume=1e09*(df.Biovolume*[1*ureg(units_of_interest['Biovolume_unit']).to(ureg.cubic_pixel).magnitude for ntimes in range(df[['Biovolume']].shape[1])]/((np.vstack([pixel_size_ratio**3 for ntimes in range(df[['Biovolume']].shape[1])]).T)[0,:])) if all(pd.Series(['Biovolume','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
                        Minor_axis=1e03*(df.Minor_axis*[1*ureg(units_of_interest['Minor_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Minor_axis']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['Minor_axis']].shape[1])]).T)[0,:])) if all(pd.Series(['Minor_axis','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers

@@ -221,7 +221,7 @@ def Ecotaxa_export(project,localpath,username,password):
          # Create an instance of the API class
         api_instance = objects_api.ObjectsApi(api_client)
         body_export_object_set_object_set_export_post = BodyExportObjectSetObjectSetExportPost(
-                filters=ProjectFilters(),  # ProjectFilters(statusfilter="PVD") for Predicted, Validated, dubioud. Leave empty to get unclassified ROI
+                filters=ProjectFilters(),  # ProjectFilters(statusfilter="PVD") for Predicted, Validated, dubious. Leave empty to get unclassified ROI
                 # get P(redicted), V(alidated), D(ubious) images. Check other options for filter here: https://github.com/ecotaxa/ecotaxa_py_client/blob/main/docs/ProjectFilters.md
                 request=ExportReq(project_id=project,  # the unique project ID of interest (integer)
                     exp_type="TSV",
