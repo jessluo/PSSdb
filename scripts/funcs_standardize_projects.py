@@ -451,7 +451,8 @@ def flag_func(dataframe):
         dataframe['Flag_artefacts'] = 0
         if 'Category' in dataframe.columns:
             # Extract number of artefacts per samples
-            summary = dataframe.groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI), 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI)})).reset_index()
+            dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
+            summary = dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI), 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI)})).reset_index()
             dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > 0.2].Sample.tolist()), 1, dataframe['Flag_artefacts'])
         # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
         # Flag #5: Multiple size calibration factors
@@ -487,7 +488,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
     flag_overrule_path = df_standardizer['Flag_path'][project_id]
     df_standardizer_metadata = pd.read_excel(standardizer_path, sheet_name='Metadata')
     # Read project datafile, subsetting variables of interest
-    project_path_list = list( Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_" + str(project_id) + '_*'))
+    project_path_list = list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("*_"+str(project_id)+'_*'))
 
 
     if len([path for path in project_path_list if 'flag' not in str(path)])>0:
@@ -529,16 +530,10 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
              except ValueError:
                  str(na)
 
+         df.Category = np.where(df.Category.isna(), '', df.Category) # Avoid flagging of small particles without annotations for UVP projects
+         df = df.astype(dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])))
          df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
          columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
-         if 'Latitude' in df.columns:
-             df.Latitude=df.Latitude.astype(float)
-         if 'Longitude' in df.columns:
-             df.Longitude = df.Longitude.astype(float)
-         if 'Volume_analyzed' in df.columns:
-             df.Volume_analyzed = df.Volume_analyzed.astype(float)
-         if 'Pixel' in df.columns:
-             df.Pixel = df.Pixel.astype(float)
          df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
          df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
 
@@ -559,7 +554,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}&bin={}'.format(df_standardizer['Project_source'][project_id],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''
 
          # Generating flags overruling datafile that will be read to filter samples out during standardization
-         path_to_datafile = project_path[0].parent.parent.parent / 'flags' / Path(df_standardizer['Project_localpath'][project_id]).stem
+         path_to_datafile = Path(cfg['raw_dir']).expanduser() / 'flags' / Path(df_standardizer['Project_localpath'][project_id]).stem
          path_to_datafile.mkdir(parents=True, exist_ok=True)
          report_path = Path(report_path).expanduser() / Path(df_standardizer['Project_localpath'][project_id]).stem
          report_path.mkdir(parents=True, exist_ok=True)
@@ -604,8 +599,11 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
              flagged_df['Category']=''
              flagged_df['Annotation']='unclassified'
          flagged_df['Annotation'] = flagged_df['Annotation'] if 'Annotation' in flagged_df.columns else 'predicted' if ( 'Annotation' not in flagged_df.columns) and ('Category' in flagged_df.columns) else 'unclassified'
+         # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
+         flagged_df['Category'] = np.where(flagged_df.Category == '', pd.NA, df.Category)
+
          summary_df = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI),'Artefacts_percentage':len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI)})).reset_index()
-         summary_df['Sample_URL'] = summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
+         summary_df['Sample_URL'] = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category'])['Annotation'].isin(['validated'])].ROI) / len(x.dropna(subset=['Category']).ROI),'Artefacts_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category']).Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.dropna(subset=['Category']).ROI)})).reset_index()
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
          if len(subset_summary_df):
              subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPScoordinatesonland==1, 'red','black')
@@ -737,7 +735,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  fig.update_yaxes(domain=[ 0.05 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])], row=2, col=2)  # Update scatter 3
                  fig.update_traces(domain={'y': [0, 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])]}, row=3, col=1)  # Update table
 
-             title = 'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
+             title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df["Cruise"].unique())) if all(df["Cruise"].isna()) == False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
              fig.update_layout(legend=dict(y=0.95,xanchor="left",yanchor='top',x=-0.02,bgcolor='rgba(255,255,255,0)'),
                 margin=dict(l=0, r=30, t=30, b=30),
                 title={'text': title,'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
@@ -810,7 +808,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
           flagged_samples =['']
 
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
-    path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id))))
+    path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("*_"+str(project_id)+'_*'))
     path_files_list=[path for path in path_files_list if '_flag' not in str(path)]
     if len(path_files_list)>0: # Check for native format datafile
         # Load export tsv file
@@ -829,7 +827,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
         # Check for existing standardized file(s):
-        path_to_standard_dir = path_to_data.parent / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
+        path_to_standard_dir = path_to_git / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}*.csv'.format(str(project_id))))
         if len(path_to_standard_file):
@@ -875,14 +873,9 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             except ValueError:
                 str(na)
 
-        if 'Latitude' in df.columns:
-            df.Latitude = df.Latitude.astype(float)
-        if 'Longitude' in df.columns:
-            df.Longitude = df.Longitude.astype(float)
-        if 'Volume_analyzed' in df.columns:
-            df.Volume_analyzed = df.Volume_analyzed.astype(float)
-        if 'Pixel' in df.columns:
-            df.Pixel = df.Pixel.astype(float)
+        # Convert known data types to ensure masking of missing values is correct
+        df=df.astype(dict(zip(['Sample','Latitude','Longitude','Volume_analyzed','Pixel'],[str,float,float,float,float])))
+        # Convert NAs
         df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
         df[columns_to_convert] =  df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
@@ -1011,7 +1004,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 file.write( "README file for project standardized files (First created on February 10, 2023):\n\nThis directory contains the standardized table(s) of accessible projects.\nEach table include the following variables:\n\n{}\n\nContact us: nmfs.pssdb@noaa.gov".format('\n'.join(list(df_standardized_metadata[['Variables', 'Units/Values/Timezone', 'Description']].apply(lambda x: str(x.Variables) + " (" + str(x['Units/Values/Timezone']).strip() + "): " + x.Description if len(x['Units/Values/Timezone']) else str(x.Variables) + ": " + x.Description, axis=1).values))))
 
         # Save standardized dataframe
-        path_to_standard_plot = path_to_data.parent.parent / 'figures' / 'standardizer' /path_to_data.stem /  path_files_list[0].parent.stem/ 'standardized_project_{}.html'.format(str(project_id))
+        path_to_standard_plot = path_to_git / 'figures' / 'standardizer' /path_to_data.stem /  path_files_list[0].parent.stem/ 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
         print('Saving standardized datafile to', path_to_standard_dir,sep=' ')
         path_dict = df[['File_path', 'Sample']].drop_duplicates().groupby(['File_path'])['Sample'].apply(list).to_dict()

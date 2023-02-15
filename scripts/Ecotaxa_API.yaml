@@ -19,6 +19,10 @@ Ecotaxa_subdir : 'ecotaxa'
 # Ecopart exported files storage sub-direcotry:
 Ecopart_subdir : 'ecopart'
 
+# Ecotaxa/Ecopart consolidated UVP exported files storage sub-direcotry (git_dir/Data)
+UVP_consolidation_subdir: 'ecotaxa_ecopart_consolidation'
+UVP_consolidation_metadata_subdir: 'ecotaxa_metadata'
+
 #IFCB dashboard directory:
 IFCB_dir : 'IFCB_dashboard_downloads'
 

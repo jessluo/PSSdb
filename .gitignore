@@ -5,6 +5,7 @@ __pycache__
 Ecotaxa_API_pw.yaml
 raw/ecotaxa
 raw/raw_standardized
+raw/ecotaxa_ecopart_consolidation
 figures/Standardizer
 figures/*.html
 raw/IFCB_dashboard_downloads

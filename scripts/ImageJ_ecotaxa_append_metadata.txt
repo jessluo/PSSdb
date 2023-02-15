@@ -1,0 +1,1019 @@
+
+separator=File.separator;
+lineseparator = "\n";
+cellseparator = ",\t";
+
+// ----------------- Informations required --------------
+
+Dialog.create("");
+Dialog.addString("Project local path:", "");
+Dialog.addNumber("Depth offset:", 1.2);
+Dialog.show();
+project_path = Dialog.getString();
+depth_offset = Dialog.getNumber();
+if (endsWith(project_path, separator)){project_path=project_path;}
+else {project_path=project_path+separator;}
+
+
+// ----------------- Path and files----------------------
+path=project_path;// "/Volumes/WD/PSSdb_LOV_orga/Data/uvp5_missions@plankton/uvp5_sn000_tara2010/";
+configfile = path+"config"+separator+"process_install_config.txt";
+pathmetadata= path+"ecotaxa_metadata";
+File.makeDirectory(pathmetadata);
+
+//------------------Read config file for necessary processing parameters-------
+conf  = split(File.openAsString(configfile),"\n");
+size = conf.length;
+array = newArray(size);
+array_headers= newArray(size);
+for (i=0; i<conf.length; i++)	{ 
+texte = conf[i];
+ssarray = split(texte,"= ");
+array[i] = ssarray[1];	
+array_headers[i]=ssarray[0];
+if (array_headers[i]=="calibration"){calibration =array[i];}
+if (array_headers[i]=="pixel"){pixel =array[i];}
+if (array_headers[i]=="upper"){upper =array[i];}
+if (array_headers[i]=="gamma"){gamma =array[i];}
+if (array_headers[i]=="echelle_mm"){echelle_mm=array[i];}
+if (array_headers[i]=="process_option"){process_option =array[i];}
+if (array_headers[i]=="profmin"){profmin =array[i];}
+if (array_headers[i]=="esdmin"){esdmin =array[i];}
+if (array_headers[i]=="esdmax"){esdmax =array[i];}
+if (array_headers[i]=="threshold"){threshold =array[i];} ;// celui du HDR pour BRU et Areai
+if (array_headers[i]=="smzoo"){smzoo =array[i];}
+if (array_headers[i]=="ratio"){ratio =array[i];}
+if (array_headers[i]=="Larg"){Larg =array[i];}
+if (array_headers[i]=="Haut"){Haut =array[i];}
+if (array_headers[i]=="scale"){scale =array[i];}
+if (array_headers[i]=="areamin" || array_headers[i]=="areamini" ){areamini =array[i];}
+} // for
+upper = parseInt(upper);
+smzoo = parseInt(smzoo);
+thresholda = 255 - parseInt(threshold);
+processvignettes = 1;
+echelletext = toString(parseInt(echelle_mm))+ " mm ";
+voxelwidth= 1;
+voxelheigth= 1;
+voxeldepth= 1;
+voxelunit = "pixel";
+param = "1";
+TAG = 0;
+flagimg = 0;
+gamma = "value="+gamma;
+image0text = "initial";
+image_end_text = "not_defined";
+clean = false;
+back = true;
+backdif = 255 - upper-3;
+uvp5_hd_image_size = 4195382;
+uvp5_image_size = 1229878;
+image_type = "no";
+// ----------------------- Conversions  --------------------------------
+echelle_mm = 	parseInt(echelle_mm);
+scale = parseInt(scale);
+longline = parseInt(scale*echelle_mm/pixel);
+depth_correction=depth_offset;
+pressure_gain = 10;
+instrum ="UVP5";
+
+// ------------------------Loop through profiles------------------------
+profiles = getFileList(path+"work");
+print("Processing profile: ");
+p=0;
+listecotaxafiles=getFileList(pathmetadata);
+Profiles=newArray();
+if (listecotaxafiles.length>0) {;
+for (k=0; k<profiles.length;k++) {;
+pro=profiles[k];
+if (!File.exists(pathmetadata+separator+"ecotaxa_"+substring(pro,0,pro.length-1)+"_metadata_v1.tsv")){Profiles=Array.concat(Profiles,profiles[k]);}
+;} // loop through profile existing metadata
+;} // if metadata already exist
+else {Profiles=profiles;} // if no existing metadata
+
+while(p <Profiles.length ) {; //
+if (endsWith(Profiles[p], separator)){;
+//print(profiles[p]);
+profileprocessed =substring(Profiles[p],0,Profiles[p].length-1);
+processProfile(profileprocessed);
+;} // if  profile is a subdirectory
+p++;
+;} // loop through profiles
+print("Ecotaxa table metadata (object_id, object_bru_id, object_bru_area, object_image_name, object_image_index, object_corrected_depth, object_corrected_min/max_depth_bin,object_volume_bin, object_imgcount_bin) created in folder ecotaxa_metadata.\nPlease compress the files in a single .zip file and upload this file on Ecotaxa (https://ecotaxa.obs-vlfr.fr/).\nTo add metadata, go to your existing project:\nProject>Import images and metadata>Start re-import TSV files to update metadata and data>Upload tsv file(s) compressed in a zip file.\nNew metadata will be mapped and added to existing data based on object_id (Safe for annotations)\nSee ecotaxa_1v_metadata_readme file");
+
+// Write and save readme file
+readme="Readme file for ecotaxa_profileID_metadata_v1.tsv:\n\nEcotaxa metadata v1 tables contain variables not saved during the processing of UVP profiles with Zooprocess (up to v 8.12) or the UVP app.\nAdditional variables include:\n-object_id: Identifier of the vignette on Ecotaxa (existing variable used to map additional variables)\n-object_bru_id (imagename_blobindex:yyyymmddhhss_ms_blobindex): Unique identifier of each vignette corresponding to the original bmp image name (concatenation of the image name stored in .dat files and the blob index stored in .bru files)\n-object_bru_area (pixels): Surface area of the vignette with the initial threshold used during the processing onboard the UVP on mixed acquisition mode (similar as .bru files used on Ecopart)\n-object_image_name (yyyymmddhhss_ms): Image name stored in .dat files and stored in the raw/profileID subdirectory\n-object_image_index: Image index stored in .dat and .bru files. Image index should appear on the vignette but there are some discrepancies\n-object_corrected_depth (decibars): Depth of the vignette corrected for the spatial offset between the imaging field and the pressure sensor (should correspond to Ecopart outputs)\n-object_corrected_min_depth_bin (decibars): Minimum depth in 1m bins (correspond to Ecopart raw outputs)\n-object_corrected_max_depth_bin (decibars): Maximum depth in 1m bins\n-object_volume_bin (liters): Cumulative sampled volume in 1m depth bins, calculated as the product of the imaging volume and the number of images in 1m depth bins (see object_imgcount_bin)\n-object_imgcount_bin: Number of images in 1m depth bins (should correspond to Ecopart raw outputs imgcount)\n\nTo add metadata v1 tables to your existing project on Ecotaxa:\nProject>Import images and metadata>Start re-import TSV files to update metadata and data>Upload tsv file(s) compressed in a zip file.\nNew metadata will be mapped and added to existing data based on object_id (Safe for annotations)\nFor additional information, contact PSSdb team members (nmfs.pssdb@noaa.gov)\nv1: First created on January 24, 2023";
+
+File.saveString(readme, pathmetadata+separator+"ecotaxa_1v_metadata_readme.txt");
+
+
+// ----------------------------- Functions -----------------------------
+function processProfile(profileprocessed){
+//print(profileprocessed);
+// Define path of required datafiles
+profileprocesseddat =profileprocessed+"_datfile.txt";
+profileprocessedbru =profileprocessed+".bru";
+metafile=path+"work"+separator+profileprocessed+separator+profileprocessed+"_meta.txt";
+pidfile=path+separator+"work"+separator+profileprocessed+separator+profileprocessed+"_dat1.pid";
+//------------- Open metadata file in work subdirectory ----------------
+dataligne=split(File.openAsString(metafile),"\n");
+data=replace(dataligne[1],";"," ");
+metadata = split(data,"\ ");
+sampled_volume=parseFloat(metadata[9]);
+firstimg =metadata[8];
+profileraw ="HDR"+metadata[2];
+firstimg =parseInt(firstimg);
+endimg = 1000000000000000;
+if (!File.exists(pidfile) ) {;
+pidfile=getPIDFile(path+"PID_process"+separator+"Pid_results"+separator);
+;} // if work pidfile does not exist
+firstimg =ProcessProfilePID(pidfile,firstimg);
+//----------- Other path
+dirprofile =path+separator+"raw"+profileraw;
+datfile=profileprocesseddat;
+profile=profileprocessed;
+pathraw = path+"raw"+separator;
+pathresults = path+"results"+separator;
+pathprocessed = path+"work"+separator+profileprocessed+separator;
+pathconfig =path+"config"+separator;
+profile = profileprocessed;
+hdr_file_work =pathprocessed+separator+profileraw +".txt";
+hdr_file_raw =pathraw+profileraw+separator+profileraw +".hdr";
+pathrawvig = pathraw+profileraw+separator;
+openbru = pathprocessed + profileprocessedbru;
+pressure_gain=10;
+ecotaxa_table =pathprocessed+"ecotaxa_"+profile+".tsv";
+
+/////// Set background color
+run("Colors...", "foreground=black background=white selection=red");
+// -----------Determining image types (native or processed bmp) according to file size 
+// ----------- Retrieving image number in current profile raw subdirectory ----------------
+option_list_rep = true;	
+if (option_list_rep == true) {;
+filelist = getFileList(pathrawvig);
+j = 0;
+m = 0;
+pos = 0;
+flag = 0;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {;
+nomvig =filelist[i];
+pathvig = pathraw+profileraw+separator+nomvig;
+size = File.length(pathvig);
+size = parseFloat(size);
+if (endsWith(nomvig,".bmp") == true  )  {rr = filelist[i]; list[j] = rr; j++;} // if
+if (endsWith(nomvig,".bmp") == true && size == uvp5_image_size  ) 	{m++;} // if	full image 
+;} // for
+if (j >= 1) {;
+listaff = newArray(j);
+for (i=0; i<listaff.length ; i++) {rr = list[i]; listaff[i] = rr;} // for
+;} // if
+if ( j != 0 && j > m ) {image_type = "vig";}// Mixture of full images and vignettes 
+if ( j != 0 && m == j ){ image_type = "full_img";}// Full images only	
+;} // option_list_rep
+
+// Process Dat files to retrieve vignettes number, and corresponding image infos (depth,image nativename, image index)
+// after checking which DAT file was used based on the number of vignettes
+// (some projects show discrepancies in depth readings or nb of blobs, leading to incorrect vignettes identification)
+confirmation=false;
+datpath=pathprocessed+datfile;
+
+// use datfile in the work subdirectory
+if (File.exists(datpath)){;
+datlines=readDatfile(datpath);
+confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+;} // if File exists 
+
+// use other datfile in the work subdirectory (e.g. uvp5_sn000_tara2010: profiles have been re-processed  )
+if (!confirmation) {;
+// use other .dat datfile in the work subdirectory
+listdatfiles=getFileList(pathprocessed);
+if (listdatfiles.length!=0){;
+list=newArray();
+for (file=0; file<listdatfiles.length;file++) {;
+if (indexOf(listdatfiles[file], ".dat")!=-1 && listdatfiles[file]!=datfile) {list=Array.concat(list,pathprocessed+listdatfiles[file]) ;}
+;} // list raw files loop
+if (list.length!=0){;
+for (file=0; file<list.length;file++) {;
+datlines=readDatfile(list[file]);
+confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+if (confirmation) {datapath=list[file];break;}
+;} // loop through datfiles
+;} // if list non-null
+;} // if listdatiles non-null
+;} // if number of vignettes is not the same from ecotaxa table
+
+// use datfile in the results subdirectory
+if (!confirmation) {;
+datpath=pathresults+datfile; 
+if (File.exists(datpath)){;
+datlines=readDatfile(datpath);
+confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+;} // if File exists 
+;} // if number of vignettes is not the same from ecotaxa table
+
+// use datfile in the raw subdirectory
+if (!confirmation) {;
+listdatfiles=getFileList(pathraw+profileraw+separator);
+if (listdatfiles.length!=0){;
+list=newArray();
+for (file=0; file<listdatfiles.length;file++) {;
+if (endsWith(listdatfiles[file], ".dat")) {list=Array.concat(list,pathraw+profileraw+separator+listdatfiles[file]) ;}
+;} // list raw files loop
+datlines=readDatfiles(list);
+confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+;} // if listdatfiles non-null
+;} // if number of vignettes is not the same from ecotaxa table
+
+
+if(confirmation){;
+
+//------------- Get DAT file processing info ----------------
+nbimgsource = processDATvignumber(datlines,firstimg,profmin,0,pressure_gain);
+print(profileprocessed+" ("+nbimgsource+" vignettes)");
+// Generating measurements array
+nbblobs = nbimgsource;
+//Vignettes original path and name (raw/profile/xxxxx.bmp)
+pathimg_list_final=processDATimagepath(datlines,firstimg,profmin,depth_offset,pressure_gain);
+Vigname=processDATVigname(datlines,firstimg,profmin,depth_offset,pressure_gain);
+Vigindex=processDATVigindex(datlines,firstimg,profmin,depth_offset,pressure_gain);
+Vigdepth=processDATVigdepth(datlines,firstimg,profmin,depth_offset,pressure_gain);
+blobname=processDATblobname(datlines,firstimg,profmin,depth_offset,pressure_gain);
+native_vignette_name=processDATVigecotaxaname(datlines,firstimg,profmin,profile,depth_offset,pressure_gain);
+// Attention: Sampled volume in 1m bins are calculated based on Ecopart criteria (first and last images from metadata table, not pid file)
+Binsampledvolume=processDATbinvolume(datlines,firstimg,profmin,depth_correction,pressure_gain,sampled_volume);
+// Retrieve vignette depth bin and corresponding sampled volume (image volume x number of images)
+Vigdepthbin=processDATbindepth(datlines,firstimg,profmin,depth_correction,pressure_gain);
+Vigdepthbinmax=newArray();
+for (d=0; d< Vigdepthbin.length; d++) {Vigdepthbinmax=Array.concat(Vigdepthbinmax,Vigdepthbin[d]+1);}
+Vigsamplebin=newArray();
+for (d=0; d< Vigdepthbin.length; d++) {Vigsamplebin=Array.concat(Vigsamplebin,Binsampledvolume[Vigdepthbin[d]]);}
+Vigimgcountbin=newArray();
+for (d=0; d< Vigdepthbin.length; d++) {Vigimgcountbin=Array.concat(Vigimgcountbin,Binsampledvolume[Vigdepthbin[d]]/sampled_volume);}
+
+//  Loop through vignettes to get initial area measurements ------------------------------------------------------------------------------------
+batch=true;
+setBatchMode(batch);  // Comment to see images
+indexvignette = 0;
+rep_vig = 0;
+totalvig = 0;
+first_vignette=0;
+precimage = "debut_traitement_image_uvp5";
+Areabru = newArray(nbblobs);
+
+for (i=first_vignette; i<nbimgsource ; i++) { // loop through vignette to re-calculate original area
+long = lengthOf(Vigname[i]);
+image = substring(Vigname[i],0,long);
+pathimg = pathimg_list_final[i];
+
+// ------------ Get corrected depth -------------
+vignette_short = substring(image, 0, 18);
+flag = 0;
+depth = Vigdepth[i];
+profimg = parseFloat(depth)-depth_offset;
+//  Check if vignette exists and depth is >= minimum depth / Vignette existe et apres FIRSTIMGOK et inf a profmin  et inf endimg-------------------------
+if (File.exists(pathimg)  && profimg >= profmin) {;
+titrered = profile;
+open(pathimg);
+rename(titrered);
+//  Inversion 
+run("Invert");
+selectImage(titrered); // native bmp
+image = titrered;
+// Measurements specifications
+parametres2 = "area mean standard modal min centroid center perimeter bounding fit circularity feret's integrated median skewness kurtosis area_fraction limit redirect="+titrered+" decimal=2";
+parametres3 = "centroid center redirect=vignette decimal=2";
+setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+run("Duplicate...", "title=vignette_mskth");
+// ------------- Calculate AREA with INITIAL threshold (I2s) using "thresholda" -----------------------------------------
+if (isOpen("Results")) { run("Clear Results");} // if
+selectImage("vignette_mskth"); // mask
+run("8-bit");
+setVoxelSize(1,1,1,voxelunit);
+setThreshold(0, thresholda);
+run("Threshold", "thresholded remaining black");
+run("Set Measurements...", "area centroid center bounding area_fraction fit limit redirect=[vignette_mskth] decimal=2");
+analysis1 =  "size=1-Infinity circularity=0.00-1.00 show=Nothing display record";
+run("Analyze Particles...",analysis1);
+nbobj = nResults;
+ligne = 0;g = 0;
+areainit = 0;
+// Select largest blob
+while (g<nbobj) {area = getResult("Area", g);
+x=getResult("X", g);
+y=getResult("Y", g);		
+h = getResult("Height", g);
+if (h != 0 && x != 0 && y != 0 ) {;
+if (area > areainit ) {ligne = g;} // if
+areainit = maxOf(area,areainit);
+;} // if	
+g++;
+;} // while		
+area = getResult("Area", ligne);
+Areabru[totalvig] = area;
+selectImage("vignette_mskth"); // native bmp
+close(); // mask
+selectImage(titrered); // native bmp
+close();	
+
+//  Increase number of vignettes ----------------------------------
+totalvig=totalvig+1;
+;} // if vignette i exists and depth >= profmin
+;} // loop through vignette i
+
+//====================  Generate results table =======================================================
+if (isOpen("Results")) {selectWindow("Results");run("Close"); } // if
+Table.create("measurements");
+//headers=newArray( "object_id","object_bru_id","object_bru_area","sample_id","sample_image_name", "sample_image_index", "sample_corrected_depth","sample_corrected_min_depth_bin","sample_corrected_max_depth_bin","sample_volume_bin","sample_imgcount_bin");
+Table.setColumn("object_id",Array.concat(newArray("[t]"),native_vignette_name));
+Table.setColumn("object_bru_id",Array.concat(newArray("[t]"),blobname));
+Table.setColumn("object_bru_area",Array.concat(newArray("[f]"),Areabru));
+//Vigprofile=newArray(nbblobs);
+//for (v=0;v<Vigprofile.length;v++){Vigprofile[v]=profileprocessed;}
+//Table.setColumn("sample_id",Array.concat(newArray("[t]"),Vigprofile));
+Table.setColumn("object_image_name",Array.concat(newArray("[t]"),Vigname));
+Table.setColumn("object_image_index",Array.concat(newArray("[t]"),Vigindex));
+Table.setColumn("object_corrected_depth",Array.concat(newArray("[f]"),Vigdepth));
+Table.setColumn("object_corrected_min_depth_bin",Array.concat(newArray("[f]"),Vigdepthbin));
+Table.setColumn("object_corrected_max_depth_bin",Array.concat(newArray("[f]"),Vigdepthbinmax));
+Table.setColumn("object_volume_bin",Array.concat(newArray("[f]"),Vigsamplebin));
+Table.setColumn("object_imgcount_bin",Array.concat(newArray("[f]"),Vigimgcountbin));
+Table.save(pathmetadata+separator+"ecotaxa_"+profile+"_metadata_v1.tsv");
+run("Close");
+
+;} // confirmation that number of vignettes correspods to the ecotaxa table
+else {print(profileprocessed+": Correct datfile not found (Skipping profile)");}
+}; // function process Profile
+
+function getPIDFile(directory) {
+list=getFileList(directory);
+for (file=0; file<list.length;file++) {;
+if  (list[file]==profileprocessed+"_dat1.pid") {pidfile=directory+profileprocessed+"_dat1.pid";}
+else {pidfile=directory+"Pid_predicted"+separator+profileprocessed+"_dat1.pid";}
+;} // for loop
+return pidfile;
+} // function get PIDFile
+
+function ProcessProfilePID(pidfile,firstimg){
+firstimg=firstimg;
+//------------- Open PID file in work subdirectory ----------------
+if (File.exists(pidfile) ) {
+PIDligne=split(File.openAsString(pidfile),"\n");
+size =PIDligne.length;
+PIDarray = newArray(size);
+PIDarray_headers= newArray(size);
+index_firstimage=10000000000;
+for (l=0; l<size; l++){ ;
+texte = PIDligne[l];
+PIDssarray = split(texte,"= ");
+if (PIDssarray.length==2){;
+PIDarray[l] = PIDssarray[1];	
+PIDarray_headers[l]=PIDssarray[0];
+;} // if  
+if (indexOf(PIDarray_headers[l], "First_image", 0)==0){;
+//firstimg=PIDarray[l];
+index_firstimage=minOf(l,index_firstimage);
+;} // if;
+;} // for
+firstimg=PIDarray[index_firstimage];
+firstimg =parseInt(firstimg);
+;} // if PID file exists
+return firstimg;
+} // function ProcessProfilePID
+
+function testDAT(datlines,firstimg,profmin,depth_correction,pressure_gain){
+test=false;
+if (datlines.length>0 ) {
+vignumber=processDATvignumber(datlines,firstimg,profmin,depth_correction,pressure_gain);
+if (File.exists(ecotaxa_table)){
+Table.open(ecotaxa_table);
+n=Table.size()-1;
+run("Close");
+if (vignumber==n) {test=true;}
+} // Ecotaxa table exists
+} // DAT file exists
+return test;
+} // function testDAT
+
+
+// Function #1 to processDAT: retrieve vignette number  (vignumber)
+////////////////////////////////////////////////////////////////////
+function processDATvignumber(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(ligne,firstimg);
+image0_date=processDATfirstimg(ligne,firstimg);
+
+vignumber = 0;
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) {;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                  Blobname=String.trim(Blobname);
+                                                   if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+		   
+                                                   prevdepth = depth;
+		   vignumber++;	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return vignumber;
+} // function processDATvignumber
+
+// Function #2 to processDAT: retrieve vignettes name in ecotaxa table (Vigecotaxaname)
+////////////////////////////////////////////////////////////////////////////////
+function processDATVigecotaxaname(datlines,firstimg,profmin,profileprocessed,depth_correction,pressure_gain){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(datlines,firstimg);
+image0_date=processDATfirstimg(datlines,firstimg);
+
+vignumber = 0;
+Vigecotaxaname= newArray();
+
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) { 
+                                                  norecord = vignumber+1;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                  Blobname=String.trim(Blobname);
+                                                   if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+		   
+                                                  vigecotaxaname=profileprocessed+"_"+norecord;
+                                                  Vigecotaxaname=Array.concat(Vigecotaxaname,vigecotaxaname);
+		   prevdepth = depth;
+		   vignumber++;	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return Vigecotaxaname;
+} // function processDATVigecotaxaname
+
+// Function #3 to processDAT: Retrieve vignettes native name (Vigname)
+///////////////////////////////////////////////////////////////////////
+function processDATVigname(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(datlines,firstimg);
+image0_date=processDATfirstimg(datlines,firstimg);
+
+vignumber = 0;
+Vigname = newArray();
+
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) {;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                  Blobname=String.trim(Blobname);
+                                                   if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+		   
+                                                   Vigname =Array.concat(Vigname,String.trim(vigname));
+		   prevdepth = depth;
+		   vignumber++;	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return Vigname;
+} // function processDATVigname
+
+// Function #4 to processDAT: Retrieve vignettes depth (Vigdepth)
+//////////////////////////////////////////////////////////////////////////
+function processDATVigdepth(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(datlines,firstimg);
+image0_date=processDATfirstimg(datlines,firstimg);
+
+vignumber = 0;
+Vigdepth = newArray();
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) { ;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                    Blobname=String.trim(Blobname);
+                                                    if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+		   
+		   prevdepth = depth;
+		   Vigdepth=Array.concat(Vigdepth,depth);
+		   vignumber++;	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return Vigdepth;
+} // function processDATVigdepth
+
+// Function #5 to processDAT: Retrieve vignettes corresponding image index (Vigindex)
+//////////////////////////////////////////////////////////////////////////////
+function processDATVigindex(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(datlines,firstimg);
+image0_date=processDATfirstimg(datlines,firstimg);
+
+vignumber = 0;
+Vigindex =newArray();
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) { ;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                   Blobname=String.trim(Blobname);
+                                                   if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+		   prevdepth = depth;
+		   Vigindex =Array.concat(Vigindex,index); // Image index
+		   vignumber++;
+                                                   ;}// if bmp vignette exists	
+		} // for
+	} // if
+} // for
+return Vigindex;
+} // function processDATVigindex
+
+// Function #6 to processDAT: Retrieve vignettes blobname (blobname)
+//////////////////////////////////////////////////////////////////////
+function processDATblobname(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(datlines,firstimg);
+image0_date=processDATfirstimg(datlines,firstimg);
+
+vignumber = 0;
+blobname=newArray();
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) { norecord = vignumber+1;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                  Blobname=String.trim(Blobname);
+                                                  if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+                                                   blobname =Array.concat(blobname,Blobname);
+		   prevdepth = depth;
+		   vignumber++;	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return blobname;
+} // function processDATblobname
+
+// Function #7 to processDAT: Retrieve vignettes native image path (imagepath)
+//////////////////////////////////////////////////////////////////////
+function processDATimagepath(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(datlines,firstimg);
+image0_date=processDATfirstimg(datlines,firstimg);
+
+vignumber = 0;
+imagepath=newArray();
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+                        depth=depth_correction+(depth/pressure_gain);
+                        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+                        index=parseInt(noimg);
+                        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+                        if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                                                  image0text = image0;	
+                                                                  firstimg=index;                                                   
+                                                                  image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) { norecord = vignumber+1;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                  Blobname=String.trim(Blobname);
+                                                  if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+                                                   imagepath =Array.concat(imagepath,pathraw+profileraw+separator+Blobname+".bmp");
+		   prevdepth = depth;
+		   vignumber++;	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return imagepath;
+} // function processDATimagepath
+
+// Function #8 to processDAT: retrieve 1m bin depth (vigdepthbin)
+////////////////////////////////////////////////////////////////////
+function processDATbindepth(datlines,firstimg,profmin,depth_correction,pressure_gain){
+ligne = datlines;
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimg(ligne,firstimg);
+image0_date=processDATfirstimg(ligne,firstimg);
+depth_bins=Array.getSequence(6001);
+vigdepthbin = newArray();
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+	dataline = ligne[i];
+	dataline = replace(dataline,";"," ");
+	dataline = split(dataline," ");
+	vigname = dataline[1];   // Image name
+	vigdepth =dataline[2];   // Depth reading
+	depth=parseFloat(vigdepth);
+        depth=depth_correction+(depth/pressure_gain);
+        vignb = dataline[17];     // Number of vignettes 
+	vignb = parseInt(vignb);
+	noimg = dataline[0];    // Image index 
+        index=parseInt(noimg);
+        vigdate=parseInt(substring(vigname,0,14));
+	// --------------- First image name & index ----
+          if(vigdate==image0_date){image0 = substring(vigname,0,15);	
+                                   image0text = image0;	
+                                   firstimg=index;                                                   
+                                    image0_date=vigdate-1;
+                           } // if
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (vignb != 0 && index>=firstimg && depth>=prevdepth) { // Condition should be on index>=firstimg
+		 for (m = 0;m<vignb;m++) {;
+                                                  if (m < 10) {Blobname =vigname+"_000"+m;}
+                                                  else if (m < 100) {Blobname=vigname+"_00"+m;}
+                                                  else if (m < 1000) {Blobname=vigname+"_0"+m;}
+                                                  else {Blobname =vigname+"_"+m;} // else
+                                                  Blobname=String.trim(Blobname);
+                                                   if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
+		                                  for (d = 0;d<(depth_bins.length-1);d++) { if ((depth>=depth_bins[d]) && (depth<depth_bins[d+1])) {depthbin=depth_bins[d];};}
+                                                   prevdepth = depth;
+		                                  vigdepthbin=Array.concat(vigdepthbin,depthbin);	
+                                                   ;} // if bmp vignette exists
+		} // for
+	} // if
+} // for
+return vigdepthbin;
+} // function processDATbindepth
+
+// Function #9 to processDAT: retrieve sampled volume in 1m bins (vigvolumebin)
+////////////////////////////////////////////////////////////////////
+function processDATbinvolume(datlines,firstimg,profmin,depth_correction,pressure_gain,sampled_volume){
+ligne = datlines;
+
+// ---------------- Listing vignette with corresponding corrected depth -------------------------
+endimg=processDATlastimgEcopart(ligne,firstimg); // last image index is found iteratively with condition that depth is strictly superior to previous image
+// firstimg on Ecopart corresponds to metadata file 
+for (i=0; i<ligne.length ; i++) {;
+dataline = ligne[i];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+noimg = dataline[0];    // Image index 
+index=parseInt(noimg);
+if (index==firstimg) {image0_date=substring(dataline[1],0,14);firstimg=index;}//processDATfirstimg(ligne,firstimg);
+;} // loop through datalines
+depth_bins=Array.getSequence(6001);
+vigvolumebin = newArray(6000);
+prevdepth=parseFloat(profmin)+depth_correction;
+for (i=0; i<ligne.length ; i++) {
+        dataline = ligne[i];
+        dataline = replace(dataline,";"," ");
+        dataline = split(dataline," ");
+        vigname = dataline[1];   // Image name
+        vigdepth =dataline[2];   // Depth reading
+        depth=parseFloat(vigdepth);
+        depth=depth_correction+(depth/pressure_gain);
+        ptlnb=dataline[14];     // Number of small particles 
+        ptlnb=parseInt(ptlnb);   
+        vignb = dataline[17];     // Number of vignettes 
+        vignb = parseInt(vignb);
+        totalnb=ptlnb+vignb;
+        noimg = dataline[0];    // Image index 
+        index=parseInt(noimg);
+        vigdate=parseInt(substring(vigname,0,14));
+
+	// --------------- Last image ------------------
+	if (noimg == endimg) { image_end = substring(vigname,0,15);image_end_text = image_end;lastimg=index;} // if
+                        
+	if (index>=firstimg && depth>=prevdepth && index<=parseInt(endimg) && totalnb>0) {; // Condition should be on index>=firstimg vigvolumebin
+		for (d = 0;d<(depth_bins.length-1);d++) { if ((depth>=depth_bins[d]) && (depth<depth_bins[d+1])) {vigvolumebin[d]=vigvolumebin[d]+sampled_volume;};}
+                  prevdepth = depth;
+		                              
+	;} // if image index >= firstimg and descending depth
+;} // for
+return vigvolumebin;
+} // function processDATbinvolume
+
+
+function processDATfirstimg(datlines,firstimg){
+ligne = datlines;
+// ----------------Default last image ---------------------------------------------
+dataline = ligne[(ligne.length-1)];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+lastimage=parseInt(dataline[0]);
+
+// ----------------Testing first & last images -----------------------------------
+index = 0;
+depthmax = 0;
+prevdepth=-1;
+while(index < ligne.length) {;
+dataline = ligne[index];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+imgnb = dataline[0];//image index
+imgnb = parseInt(imgnb);
+if(imgnb==firstimg){vigname = dataline[1];	// Image name
+image0 = substring(vigname,0,15);
+image0text = image0;
+firstimg=parseInt(dataline[0]);
+image0_date=parseInt(substring(vigname,0,14));
+;}
+// ----------- Filter images between first & last images -----------
+if (imgnb > firstimg && imgnb <= lastimage) {;
+depth =dataline[2];
+depth = parseFloat(depth);
+// ---------------- Reset last image if depth >=previous depth ----
+if (depth >= prevdepth && depth >= depthmax) {;
+depthmax = maxOf(depthmax,depth);
+endimg=imgnb;
+prevdepth = depth;
+;} // if depth>=prevdepth
+;} // if image index	
+index=index+1;	
+;} // while index
+return image0_date;
+} // function processDATfirstimg
+
+function processDATlastimg(datlines,firstimg){
+ligne =datlines;
+
+// ----------------Default last image ---------------------------------------------
+dataline = ligne[(ligne.length-1)];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+lastimage=parseInt(dataline[0]);
+
+// ----------------Testing first & last images -----------------------------------
+
+index = 0;
+depthmax = 0;
+prevdepth=-1;
+while(index < ligne.length) {;
+dataline = ligne[index];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+imgnb = dataline[0];//image index
+imgnb = parseInt(imgnb);
+if(imgnb==firstimg){vigname = dataline[1];	// Image name
+image0 = substring(vigname,0,15);
+image0text = image0;
+firstimg=parseInt(dataline[0]);
+image0_date=parseInt(substring(vigname,0,14));
+;}
+// ----------- Filter images between first & last images -----------
+if (imgnb > firstimg && imgnb <= lastimage) {;
+depth =dataline[2];
+depth = parseFloat(depth);
+// ---------------- Reset last image if depth >=previous depth ----
+if (depth >= prevdepth && depth >= depthmax) {;
+depthmax = maxOf(depthmax,depth);
+endimg=imgnb;
+prevdepth = depth;
+;} // if depth>=prevdepth
+;} // if image index	
+index=index+1;	
+;} // while index
+return endimg;
+} // function processDATlastimg
+
+function processDATlastimgEcopart(datlines,firstimg){
+ligne =datlines;
+
+// ----------------Default last image ---------------------------------------------
+dataline = ligne[(ligne.length-1)];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+lastimage=parseInt(dataline[0]);
+
+// ----------------Testing first & last images -----------------------------------
+index = 0;
+depthmax = 0;
+prevdepth=-1;
+while(index <ligne.length) {;
+dataline = ligne[index];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+imgnb = dataline[0];//image index
+imgnb = parseInt(imgnb);
+if(imgnb==firstimg){vigname = dataline[1];	// Image name
+image0 = substring(vigname,0,15);
+image0text = image0;
+firstimg=parseInt(dataline[0]);
+image0_date=parseInt(substring(vigname,0,14));
+;} // firstimg
+// ----------- Filter images between first & last images -----------
+if (imgnb > firstimg && imgnb <= lastimage) {;
+depth =dataline[2];
+depth = parseFloat(depth);
+// ---------------- Reset last image if depth >=previous depth ----
+if (depth > prevdepth && depth >= depthmax) {;
+depthmax = maxOf(depthmax,depth);
+endimg=imgnb;
+prevdepth = depth;
+;} // if depth > prevdepth	
+;} // if image index	
+index=index+1;	
+;} // while index
+return endimg;
+} // function processDATlastimgEcopart
+
+
+function readDatfiles(datpath){
+if (datpath.length==1) {file=datpath[0];ligne = readDatfile(file);}
+else {;
+file=datpath[0];
+ligne = readDatfile(file);
+for (i=1; i<datpath.length ; i++) {;
+file=datpath[i];
+new_ligne=readDatfile(file);
+ligne=Array.concat(ligne,new_ligne); // Concatenate new dat lines
+;} // loop through array of dat files
+;} // if datpath is array of seveta dat files
+return ligne;
+} // function readDatfiles
+
+function readDatfile(datfile){
+ligne = split(File.openAsString(datfile),"\n");
+first_line=0;
+condition=indexOf(ligne[0], "index", 0);
+if (condition==0) {first_line=1;}
+new_line=newArray();
+for (i=first_line; i<ligne.length ; i++) {;
+dataline = ligne[i];
+dataline = replace(dataline,";"," ");
+dataline = split(dataline," ");
+if (dataline[2].length>1) {ligne[i]=replace(ligne[i],"*",";");new_line=Array.concat(new_line,ligne[i]);} // Remove images without sensor readings
+;} // ligne loop
+ligne=new_line;
+return ligne;
+} // function readDatfile
