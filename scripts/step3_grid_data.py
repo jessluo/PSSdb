@@ -47,14 +47,23 @@ if depth_binning == 'Y':
 
 
 ## processing starts here
-path_to_data, df_list = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
+files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
 #if instrument == 'IFCB':  # this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
     #IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
     #for element in IFCB_empty_rows:
         #if element in df_list:
             #df_list.remove(element)
-dirpath = str(path_to_data) + '/gridded_data/'
+
+path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+with open(path_to_config, 'r') as config_file:
+    cfg = yaml.safe_load(config_file)
+
+gridpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data'
+if not os.path.exists(gridpath):
+    os.mkdir(gridpath)
+
+dirpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data' / instrument
 
 if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
     replace = input('There is already gridded data in ' + dirpath + ' do you want to replace the files? \n Y/N')
@@ -62,9 +71,10 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         print('Overwriting gridded file(s), please wait')
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
-        for i in tqdm(df_list):
+        for i in tqdm(files_data):
+            filename= i.split('/')[-1]
             print('gridding and binning ' + i)
-            df = read_func(path_to_data, i, data_status='standardized')
+            df = pd.read_csv(i, header = 0)
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
             df = df[df['Area'] != 0].reset_index(drop=True)
             df = biovol_func(df, instrument, keep_cat='none')
@@ -99,17 +109,17 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                                                   'longitude of the center point of the 1x1 degree cell',
                                                   'middle point within a depth bin']})
 
-            i = i.replace("standardized", "gridded")
-            i = i.replace(".tsv", ".csv")
-            df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i), index=False)
-            metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + 'metadata_' + str(i), index=False)
+            filename = filename.replace("standardized", "gridded")
+            df.to_csv(str(dirpath) +'/'+ instrument + '_' + filename, index=False)
+            metadata_bins.to_csv(str(dirpath) +'/'+ instrument + '_' + 'metadata_' + filename, index=False)
     elif replace == 'N':
         print('previously gridded files will be kept')
 elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
-    for i in tqdm(df_list):
+    for i in tqdm(files_data):
+        filename = i.split('/')[-1]
         print('gridding and binning ' + i)
-        df = read_func(path_to_data, i, data_status='standardized')
+        df = pd.read_csv(i, header = 0)
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
         df = biovol_func(df, instrument, keep_cat='none')
@@ -143,10 +153,9 @@ elif not os.path.exists(dirpath):
                      'latitude of the center point of the 1x1 degree cell',
                      'longitude of the center point of the 1x1 degree cell',
                      'middle point within a depth bin']})
-        i = i.replace("standardized", "gridded")
-        i = i.replace('.tsv', '.csv')
-        df.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' + str(i), index=False)
-        metadata_bins.to_csv(str(path_to_data) + '/gridded_data/' + instrument + '_' +'metadata_'+ str(i),sep='\t', index=False)
+        filename = filename.replace("standardized", "gridded")
+        df.to_csv(str(dirpath)  + '/'+ instrument + '_' + filename, index=False)
+        metadata_bins.to_csv(str(dirpath)  + '/'+ instrument + '_' +'metadata_'+ filename, index=False)
 
 
     #return df, metadata_bins
