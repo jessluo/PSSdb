@@ -212,10 +212,10 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
        path_to_project = Path(standardizer.at[project_id, "Project_localpath"]).expanduser()
        path_to_project =path_to_project if path_to_project.stem!=path_to_extended_file.stem else Path(path_to_extended_file.parent).expanduser() / sheetname.capitalize()
        path_to_export = list(path_to_project.rglob('**/*_{}_*'.format(str(project_id))))[0]
-       path_to_external_project = path_to_project.parent / {'Ecotaxa':'Ecopart','Ecopart':'Ecotaxa',path_to_extended_file.stem:"Ecopart"}[path_to_project.name]
-       path_external_export=list(itertools.chain.from_iterable([path_to_external_project.rglob('**/{}_export_*_{}_*.tsv'.format({'Ecotaxa': 'Ecopart', 'Ecopart': 'Ecotaxa',path_to_extended_file.stem:"Ecopart"}[path_to_project.name].lower(),project)) for project in str(standardizer.at[project_id, "External_project"]).split(';')]))
+       path_to_external_project = path_to_project.parent / {'ecotaxa':'ecopart','ecopart':'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name]
+       path_external_export=list(itertools.chain.from_iterable([path_to_external_project.rglob('**/{}_export_*_{}_*.tsv'.format({'ecotaxa': 'ecopart', 'ecopart': 'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name].lower(),project)) for project in str(standardizer.at[project_id, "External_project"]).split(';')]))
        # Add small particles (area<=sm_zoo) to Ecotaxa/Ecopart and save to export_*_extended.tsv:
-       if path_to_external_project.name=='Ecopart':
+       if path_to_external_project.name=='ecopart':
            path_ecopart_par_export =[path for path in path_external_export if ('_particles.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            path_ecopart_zoo_export = [path for path in path_external_export if ('_zooplankton.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            path_ecopart_metadata = [path for path in path_external_export if ('_metadata.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
