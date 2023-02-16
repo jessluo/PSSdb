@@ -7,7 +7,7 @@
 ## Path modules
 from pathlib import Path
 import os
-
+import yaml
 ## Data handling
 import pandas as pd
 from natsort import natsorted

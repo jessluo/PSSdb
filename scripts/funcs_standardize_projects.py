@@ -452,7 +452,7 @@ def flag_func(dataframe):
         if 'Category' in dataframe.columns:
             # Extract number of artefacts per samples
             dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
-            summary = dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI), 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI)})).reset_index()
+            summary = dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI), 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI) if len( x.ROI) else 0})).reset_index()
             dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > 0.2].Sample.tolist()), 1, dataframe['Flag_artefacts'])
         # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
         # Flag #5: Multiple size calibration factors
@@ -602,8 +602,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
          flagged_df['Category'] = np.where(flagged_df.Category == '', pd.NA, df.Category)
 
-         summary_df = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI),'Artefacts_percentage':len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI)})).reset_index()
-         summary_df['Sample_URL'] = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0],'Validation_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category'])['Annotation'].isin(['validated'])].ROI) / len(x.dropna(subset=['Category']).ROI),'Artefacts_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category']).Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.dropna(subset=['Category']).ROI)})).reset_index()
+         summary_df = flagged_df.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category'])['Annotation'].isin(['validated'])].ROI) / len(x.dropna(subset=['Category']).ROI) if len(x.dropna(subset=['Category']).ROI) else 0,'Artefacts_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category']).Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.dropna(subset=['Category']).ROI) if len(x.dropna(subset=['Category']).ROI) else 0})).reset_index()
+         summary_df['Sample_URL'] =  summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
          if len(subset_summary_df):
              subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPScoordinatesonland==1, 'red','black')
@@ -827,7 +827,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
         # Check for existing standardized file(s):
-        path_to_standard_dir = path_to_git / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
+        path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}*.csv'.format(str(project_id))))
         if len(path_to_standard_file):

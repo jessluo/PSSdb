@@ -84,7 +84,7 @@ dat_headers=['image_index','image','pressure','tilt_1','tilt_2','board_temperatu
 bru_headers=['image_index','blob','area','mean_grey','x_center','y_center']
 
 # Select native Ecotaxa file variables to be dropped during consoldation (otherwise consolidated files are big)
-ecotaxa_fields_to_drop=['object_link','object_mean','object_stdev','object_mode','object_min','object_max','object_intden','object_median','object_skew','object_kurt','object_fractal','object_skelarea','object_slope','object_histcum1','object_histcum2','object_histcum3','object_xmg5','object_ymg5','object_nb1','object_nb2','object_nb3','object_compentropy','object_compmean','object_compsloope','object_compm1','object_compm2','object_compm3','object_symetrieh','object_symetriev','object_symetrievc','object_convperim','object_convarea','object_fcons','object_thickr','object_tag','object_range','object_meanpos','object_centroids','object_cv','object_sr','object_circex','object_cdexc','object_kurt_mean','object_skew_mean','object_symetrieh_area','object_smetriev_area','object_nb1_area','object_nb2_area','object_nb3_area','object_nb1_range','object_nb2_range','object_nb3_range','object_median_mean_range','object_skeleton_area']
+ecotaxa_fields_to_drop=['object_link','object_annotation_person_name','object_annotation_person_email','object_annotation_date','object_annotation_time','object_mean','object_stdev','object_mode','object_min','object_max','object_intden','object_median','object_skew','object_kurt','object_fractal','object_skelarea','object_slope','object_histcum1','object_histcum2','object_histcum3','object_xmg5','object_ymg5','object_nb1','object_nb2','object_nb3','object_compentropy','object_compmean','object_compsloope','object_compm1','object_compm2','object_compm3','object_symetrieh','object_symetriev','object_symetrievc','object_convperim','object_convarea','object_fcons','object_thickr','object_tag','object_range','object_meanpos','object_centroids','object_cv','object_sr','object_circex','object_cdexc','object_kurt_mean','object_skew_mean','object_symetrieh_area','object_smetriev_area','object_nb1_area','object_nb2_area','object_nb3_area','object_nb1_range','object_nb2_range','object_nb3_range','object_median_mean_range','object_skeleton_area','sample_dataportal_descriptor','sample_winddir','sample_windspeed','sample_seastate','sample_nebulousness','acq_file_description','acq_disktype','acq_shutterspeed','acq_gain','acq_exposure']
 
 ## Functions start here:
 
@@ -221,8 +221,10 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
            path_ecopart_metadata = [path for path in path_external_export if ('_metadata.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            dict_metadata_columns={'depth':'object_corrected_min_depth_bin','imgcount':'object_imgcount_bin'}
            df_ecopart = pd.concat(map(lambda path:pd.read_table(path, encoding='latin-1').assign(Project_ID=int(re.findall(r'\d+',path.name)[0])).sort_values( ['profileid', 'depth']),path_ecopart_par_export)).rename(columns=dict_metadata_columns) if len(path_ecopart_par_export) else pd.DataFrame({})
+           df_ecopart = df_ecopart.reset_index(drop=True)
            df_ecopart['object_corrected_max_depth_bin']=df_ecopart['object_corrected_min_depth_bin']+1
            df_metadata = pd.concat(map(lambda path:pd.read_table(path, encoding='latin-1').assign(Project_ID=int(re.findall(r'\d+',path.name)[0])),path_ecopart_metadata)) if len(path_ecopart_metadata) else pd.DataFrame({})
+           df_metadata = df_metadata.reset_index(drop=True)
            df_metadata['Localpath_project']=df_metadata.rawfolder.apply(lambda path: Path(path).expanduser().stem)
            df_ecopart=pd.merge(df_ecopart,df_metadata[['profileid','acq_volimage']],how='left',on='profileid')
            df_ecopart['object_volume_bin']=df_ecopart.acq_volimage*df_ecopart.object_imgcount_bin
@@ -243,8 +245,10 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                   df_ecopart_extended['acq_smbase'] = df_ecopart_extended['acq_smbase'] + 1
                   df_ecopart_extended.to_csv(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format( '_'.join(path_to_projects.Project_ID.astype(str))),sep='\t', index=False)
                   print('Consolidated project created at {}'.format(path_to_extended_file / str( path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format('_'.join(standardizer.at[project_id, "External_project"].split(';')))))
-                  print( 'Updating standardizer spreadsheet: Project_localpath ({}), Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Profile (sample_id), Sample (object_corrected_min_depth_bin), Volume_analyzed (object_volume_bin)'.format(str(path_to_extended_file).replace(str(Path.home()), '~')))
-                  standardizer.loc[project_id, ['Project_localpath','Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field', 'Minor_axis_field', 'Minor_axis_unit','Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit']] = [ str(path_to_extended_file).replace(str(Path.home()), '~'),pd.NA, 'object_corrected_min_depth_bin','object_corrected_max_depth_bin', 'object_bru_area', pd.NA, pd.NA, 'object_volume_bin', 'acq_smbase', 'pixel']
+                  print( 'Updating standardizer spreadsheet: Project_localpath ({}), Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Volume_analyzed (object_volume_bin), Sampling_lower_size (acq_smbase) '.format(str(path_to_extended_file).replace(str(Path.home()), '~')))
+                  index_columns_to_replace = [index for index, column in enumerate(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])) if str(standardizer.loc[project_id, column]) != 'nan']
+                  standardizer.loc[project_id, list(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])[index_columns_to_replace])] = list(pd.Series([str(path_to_extended_file).replace(str(Path.home()), '~'), pd.NA,'object_corrected_min_depth_bin', 'object_corrected_max_depth_bin', 'object_bru_area', pd.NA,pd.NA, 'object_volume_bin', 'acq_smbase', 'pixel'])[index_columns_to_replace])
+
                   with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                       standardizer.rename_axis('Project_ID').reset_index().to_excel(writer, sheet_name=sheetname, index=False)
 
@@ -254,6 +258,11 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                   if run_macro:
                       path_to_metadata =Path(localpath_metadata).expanduser()/cfg['UVP_consolidation_metadata_subdir'] / "ecotaxa_{}_metadata".format(project_id)
                       path_to_metadata.mkdir(parents=True,exist_ok=True)
+                      # Create readme file:
+                      if not Path(path_to_metadata.parent / 'README.txt').is_file():
+                          with open(str(Path(path_to_metadata.parent / 'README.txt')), 'w') as file:
+                              file.write( "README file for UVP project consolidated files (First created on February 10, 2023):\n\nThis directory contains the consolidated files for Ecotaxa/Ecopart UVP projects (format:ecotaxa_export_projectID(Ecotaxa)_Exportdate_Exporttime_ecopart_projectID(Ecopart)) .\nThe consolidation include the following steps:\n\n1) Ecotaxa default exported file and Ecopart raw particles exported file are loaded \n\n2) An extended Ecopart datatable is created using the nbr/area columns to generate a row for each particle of the observed sizes, the imgcount column to calculate the  volume imaged in each 1-m depth bins.\n Each particle is assigned an id (object_id:particle_unkown_id_#), a null taxonomic annotation and the 'unclassified' status.\nAttention: this table contains small particles only (particles>sm_zoo are filtered out since they correspond to Ecotaxa vignettes)  \n\n3) Additional variables are appended to the native Ecotaxa table, including the object_corrected_depth (accounting for the spatial offset between the imaged frame and the depth sensor), object_min/max_depth_bin (1m-depth bins matching those of Ecopart), object_volume_bin (matching the cumulative volume in 1m-depth bins, in liters)\nThe 'object_bru_area' variable is created (if run_macro=True) using a custom PyimageJ macro that reproduce the initial processing step of all particles segmentation, from the native project folder located in ~/plankton/uvpx_missions\nAttention: If the project folder doest not the required sub-directories (raw with all bmp images, config, and work directories), the object_bru_area will correspond to 'object_bru'  \n\n4) Both datatables are concatenated and saved in {}\n\nContact us: nmfs.pssdb@noaa.gov".format(path_to_metadata.parent))
+
                       #1) Step 1: Generate ecotaxa metadata using the ImageJ macro PyImageJ_ecotaxa_append_metadata.txt
 
                       if str(Path.home())!='/home/rkiko':
@@ -264,14 +273,16 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                       path_to_projects=df_metadata[['Project_ID','ptitle','Localpath_project']].drop_duplicates().reset_index().drop('index',axis=1)
                       for path in path_to_projects.Localpath_project:
                           arg = {'project_path':str(localpath_to_project/ path) + os.sep ,'depth_offset': str(depth_offset),'metadata_path':str(path_to_metadata)+ os.sep}
-                          #arg = {'project_path': '/Volumes/WD/PSSdb_LOV_orga/Data/uvp5_missions@plankton/uvp5_sn010_2014_m108/', 'depth_offset': '1.2','metadata_path':'/Users/dugennem/GIT/PSSdb_LOV_orga/Data/Ecotaxa_Ecopart_consolidation/Ecotaxa_metadata/'}
+                          #arg = {'project_path': '/Volumes/WD/PSSdb_LOV_orga/Data/uvp5_missions@plankton/uvp5_sn010_2014_m108/', 'depth_offset': '1.2','metadata_path':'/Users/dugennem/GIT/PSSdb/raw/ecotaxa_ecopart_consolidation/ecotaxa_metadata/ecotaxa_586_metadata/'}
+                          #arg = {'project_path': '/Volumes/upv5_missions/uvp5_sn000_tara2009/', 'depth_offset': '1.2','metadata_path':'/Users/dugennem/GIT/PSSdb/raw/ecotaxa_ecopart_consolidation/ecotaxa_metadata/ecotaxa_586_metadata/'}
+
                           ## Note: The PyimageJ macro save results WITH row numbers (PyimageJ bug): tables with row number cannot be uploaded on Ecotaxa
                           ## I modified PyImageJ_ecotaxa_append_metadata so that it returns the table in string that can be imported and saved on Python
                           try:
                               macro=run_imageJ_macro(macro_path=path_to_macro, arguments=arg)
                           except Exception as e:
                               print('Error running imageJ macro on {}. Please check the folder, known issues include the absence of required file(s) in the project folder (i.e raw subdirectory with all bmp vignettes, config and work subdirectories)'.format(str(localpath_to_project/ path) + os.sep))
-                              return
+
                           result=str(macro.getOutput('result'))
                           ## Re-save metadata files without row numbers (pyImageJ bug)
                           if len(result):
@@ -284,6 +295,26 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                                 table['sample_id']=table.object_id.apply(lambda id: id[0:(id.rfind("_"))])
                                 table.groupby(by='sample_id').apply(lambda x: pd.concat([pd.DataFrame(table_headings,index=table.columns[0:len(table.columns)-1]).T,x.drop('sample_id',axis=1)],ignore_index=True,axis=0).to_csv(path_to_metadata/"ecotaxa_{}_metadata_v1.tsv".format(x.sample_id.unique()[0]), sep="\t",index=False))
                                 print('Saving project metadata to {}.'.format(str(path_to_metadata)))
+                          else:
+                                print('Consolidated file will be done with vignettes object_area')
+                                df_ecotaxa['object_bru_area'] =df_ecotaxa['object_area']
+                                df_ecotaxa['object_bru_id']=df_ecotaxa['object_id']
+                                df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min']+depth_offset
+                                df_ecotaxa['object_corrected_min_depth_bin'] =pd.cut(df_ecotaxa['object_corrected_depth'],bins=list(np.arange(0,6001,step=1)),right=False,labels=np.arange(0,6000,step=1)).astype(str).astype(int)
+                                df_ecotaxa['object_corrected_max_depth_bin'] =df_ecotaxa['object_corrected_min_depth_bin'] +1
+                                df_ecotaxa=pd.merge(df_ecotaxa,df_ecopart_extended[['profileid','object_corrected_min_depth_bin','object_volume_bin']].drop_duplicates(),how='left',left_on=['sample_id','object_corrected_min_depth_bin'],right_on=['profileid','object_corrected_min_depth_bin'])
+
+                                df_ecopart_extended = pd.concat([pd.merge(df_ecopart_extended.drop(columns=['Project_ID']).assign(sample_id=df_ecopart_extended.profileid, object_annotation_category='',object_annotation_status='unclassified'), df_ecotaxa[ ['object_lat', 'object_lon', 'object_date', 'object_time'] + [column for column in df_ecotaxa.columns if len(re.findall( r'sample_|acq_|process_', column)) > 0]].drop_duplicates(),how='left', on='sample_id'), df_ecotaxa], axis=0)
+                                df_ecopart_extended = df_ecopart_extended[df_ecotaxa.columns].sort_values(['sample_id', 'object_corrected_min_depth_bin', 'object_bru_area'],ascending=[True, True, False]).reset_index(drop=True)
+                                df_ecopart_extended['acq_smbase'] = df_ecopart_extended['acq_smbase'] + 1
+                                df_ecopart_extended.to_csv(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format('_'.join(path_to_projects.Project_ID.astype(str))), sep="\t", index=False)
+                                print('Consolidated project created at {}'.format(path_to_extended_file / str(path_to_export.name).replace('.tsv','_ecopart_{}_consolidated.tsv').format('_'.join(path_to_projects.Project_ID.astype(str)))))
+                                # Update standardizer Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Profile (sample_id), Sample (object_corrected_min_depth_bin), Volume_analyzed (object_volume_bin)
+                                print('Updating standardizer spreadsheet: Project_localpath ({}), Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Volume_analyzed (object_volume_bin), Sampling_lower_size (acq_smbase) '.format( str(path_to_extended_file).replace(str(Path.home()), '~')))
+                                index_columns_to_replace = [index for index,column in enumerate(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field','Depth_max_field', 'Area_field', 'Minor_axis_field','Minor_axis_unit', 'Volume_analyzed_field','Sampling_lower_size_field', 'Sampling_lower_size_unit'])) if str(standardizer.loc[project_id, column]) != 'nan']
+                                standardizer.loc[ project_id, list(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field', 'Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field', 'Sampling_lower_size_unit'])[index_columns_to_replace])] = list(pd.Series([str(path_to_extended_file).replace(str(Path.home()), '~'), pd.NA,'object_corrected_min_depth_bin', 'object_corrected_max_depth_bin', 'object_bru_area', pd.NA, pd.NA, 'object_volume_bin', 'acq_smbase', 'pixel'])[index_columns_to_replace])
+                                with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                                    standardizer.rename_axis('Project_ID').reset_index().to_excel(writer, sheet_name=sheetname,index=False)
 
                       # 2) Step 2: Zip all ecotaxa_profileID_metadata files and merge to existing Ecotaxa project using the API
                       try: # Fast compression
@@ -311,8 +342,9 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                       df_ecopart_extended.to_csv(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format('_'.join(path_to_projects.Project_ID.astype(str))),sep="\t" ,index=False)
                       print('Consolidated project created at {}'.format(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format('_'.join(path_to_projects.Project_ID.astype(str)))))
                       # 5) Update standardizer Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Profile (sample_id), Sample (object_corrected_min_depth_bin), Volume_analyzed (object_volume_bin)
-                      print('Updating standardizer spreadsheet: Project_localpath ({}), Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Profile (sample_id), Sample (object_corrected_min_depth_bin), Volume_analyzed (object_volume_bin)'.format(str(path_to_extended_file).replace(str(Path.home()),'~')))
-                      standardizer.loc[project_id,['Project_localpath','Flag_path','Depth_min_field','Depth_max_field','Area_field','Minor_axis_field','Minor_axis_unit','Volume_analyzed_field','Sampling_lower_size_field','Sampling_lower_size_unit']]=[str(path_to_extended_file).replace(str(Path.home()),'~'),pd.NA,'object_corrected_min_depth_bin','object_corrected_max_depth_bin','object_bru_area',pd.NA,pd.NA,'object_volume_bin','acq_smbase','pixel']
+                      print('Updating standardizer spreadsheet: Project_localpath ({}), Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Volume_analyzed (object_volume_bin), Sampling_lower_size (acq_smbase) '.format( str(path_to_extended_file).replace(str(Path.home()), '~')))
+                      index_columns_to_replace = [index for index, column in enumerate(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])) if str(standardizer.loc[project_id, column]) != 'nan']
+                      standardizer.loc[project_id, list(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])[index_columns_to_replace])] = list(pd.Series([str(path_to_extended_file).replace(str(Path.home()), '~'), pd.NA,'object_corrected_min_depth_bin', 'object_corrected_max_depth_bin', 'object_bru_area', pd.NA,pd.NA, 'object_volume_bin', 'acq_smbase', 'pixel'])[index_columns_to_replace])
                       with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                           standardizer.rename_axis('Project_ID').reset_index().to_excel(writer, sheet_name=sheetname, index=False)
 

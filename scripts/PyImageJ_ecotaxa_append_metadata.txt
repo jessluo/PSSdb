@@ -99,8 +99,8 @@ print("Ecotaxa table metadata (object_id, object_bru_id, object_bru_area, object
 
 // Write and save readme file
 readme="Readme file for ecotaxa_profileID_metadata_v1.tsv:\n\nEcotaxa metadata v1 tables contain variables not saved during the processing of UVP profiles with Zooprocess (up to v 8.12) or the UVP app.\nAdditional variables include:\n-object_id: Identifier of the vignette on Ecotaxa (existing variable used to map additional variables)\n-object_bru_id (imagename_blobindex:yyyymmddhhss_ms_blobindex): Unique identifier of each vignette corresponding to the original bmp image name (concatenation of the image name stored in .dat files and the blob index stored in .bru files)\n-object_bru_area (pixels): Surface area of the vignette with the initial threshold used during the processing onboard the UVP on mixed acquisition mode (similar as .bru files used on Ecopart)\n-object_image_name (yyyymmddhhss_ms): Image name stored in .dat files and stored in the raw/profileID subdirectory\n-object_image_index: Image index stored in .dat and .bru files. Image index should appear on the vignette but there are some discrepancies\n-object_corrected_depth (decibars): Depth of the vignette corrected for the spatial offset between the imaging field and the pressure sensor (should correspond to Ecopart outputs)\n-object_corrected_min_depth_bin (decibars): Minimum depth in 1m bins (correspond to Ecopart raw outputs)\n-object_corrected_max_depth_bin (decibars): Maximum depth in 1m bins\n-object_volume_bin (liters): Cumulative sampled volume in 1m depth bins, calculated as the product of the imaging volume and the number of images in 1m depth bins (see object_imgcount_bin)\n-object_imgcount_bin: Number of images in 1m depth bins (should correspond to Ecopart raw outputs imgcount)\n\nTo add metadata v1 tables to your existing project on Ecotaxa:\nProject>Import images and metadata>Start re-import TSV files to update metadata and data>Upload tsv file(s) compressed in a zip file.\nNew metadata will be mapped and added to existing data based on object_id (Safe for annotations)\nFor additional information, contact PSSdb team members (nmfs.pssdb@noaa.gov)\nv1: First created on January 24, 2023";
-
-File.saveString(readme, pathmetadata+separator+"ecotaxa_1v_metadata_readme.txt");
+parent_directory=File.getParent(pathmetadata);
+File.saveString(readme,parent_directory +separator+"ecotaxa_1v_metadata_readme.txt");
 result=String.join(all_results, "\n");
 return result;
 
@@ -371,7 +371,7 @@ return table_results;
 //results = String.paste;
 //saveAs("Results",pathmetadata+separator+"ecotaxa_"+profile+"_metadata_v1.tsv");
 ;} // confirmation that number of vignettes correspods to the ecotaxa table
-else {print(profileprocessed+": Correct datfile not found (Skipping profile)");}
+else {print(profileprocessed+": Correct datfile not found (Skipping profile)");return newArray();}
 }; // function process Profile
 
 function getPIDFile(directory) {
