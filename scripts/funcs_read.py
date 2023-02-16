@@ -1,7 +1,9 @@
 
 # 2) function to create list of projects. Inputs: instrument
 import os
-
+import pandas as pd
+import yaml
+from pathlib import Path
 
 def proj_id_list_func(instrument, data_status):
     """
@@ -11,35 +13,34 @@ def proj_id_list_func(instrument, data_status):
     :return path_to_data: string where the tsv files are stores
     :return file_list: list with the filenames that have data
     """
-    import pandas as pd
-    import yaml
-    from pathlib import Path
     # returns path to project data and list of projects based on intrument (IFCB, Zooscan, UVP)
     # read git-tracked config file (text file) with inputs:  project ID, output directory
     path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
-    # prepare storage based on path stored in the yaml config file and instrument type
+    # prepare access based on path stored in the yaml config file and instrument type
+    path_to_ecotaxa = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['Ecotaxa_subdir']
+    path_to_IFCBdashboard = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['IFCB_dir']
     if data_status == 'standardized':
-        path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument
-        file_list = os.listdir(path_to_data)
-        file_list = [x for x in file_list if not 'metadata' in x and '.tsv' in x]
-    elif data_status == 'gridded':
-        path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['gridded_subdir']
-        file_list = os.listdir(path_to_data)
-        file_list = [x for x in file_list if not 'metadata' in x and '.csv' in x]
-    elif data_status == 'NBSS':
-        path_to_data = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / instrument / cfg['gridded_subdir'] / 'NBSS_data'
-        file_list = os.listdir(path_to_data)
-        file_list = [x for x in file_list if not 'metadata' in x and '.csv' in x]
-
-    # DEPRECATED 1/12/2023 create a list  projects that we have access to, based on project_list_all.xlsx
-    #path_to_proj_id_list = Path(cfg['git_dir']).expanduser() / cfg['proj_list']
-    #proj_list = pd.read_excel(path_to_proj_id_list)
-    #id_list = proj_list['Project_ID'].loc[ (proj_list['Instrument'] == str(instrument)) & (proj_list['PSSdb_access'] == True)].tolist() # instrument type filtered here
-
-    return path_to_data, file_list
+        if instrument  == 'Zooscan' or instrument == 'UVP':
+            path_to_data =  path_to_ecotaxa / instrument
+            file_list = os.listdir(path_to_data)
+            files_data = [(str(path_to_data / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
+        elif instrument  == 'IFCB':
+            #get data from ecotaxa
+            path_to_ecotaxa_data = path_to_ecotaxa / instrument
+            ecotaxa_list = os.listdir(path_to_ecotaxa_data)
+            ecotaxa_data = [(str(path_to_ecotaxa_data / x)) for x in ecotaxa_list  if not 'metadata' in x and '.csv' in x]
+            #get data from dashboards
+            dashboard_list = os.listdir(path_to_IFCBdashboard)
+            dashboard_data = []
+            for i in dashboard_list:
+                proj_list = os.listdir(path_to_IFCBdashboard / i)
+                proj_data = [(str(path_to_IFCBdashboard / i / x )) for x in proj_list if not 'metadata' in x and '.csv' in x]
+                dashboard_data = dashboard_data + proj_data
+            files_data = ecotaxa_data + dashboard_data
+    return files_data
 
 
 # 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
