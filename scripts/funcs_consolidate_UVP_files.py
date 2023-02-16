@@ -75,10 +75,10 @@ if path_to_standardizer.exists():
      fields_for_description = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
      df_standardizer_ecotaxa = pd.concat([df_standardizer_ecotaxa, fields_for_description], axis=1)
 
-     #df_standardizer_ecopart = pd.read_excel(path_to_standardizer, sheet_name='ecopart', index_col=0)
-     #columns_for_description = df_standardizer_ecopart['Sampling_description'].apply(lambda description: dict(zip([item.split(':', 1)[0].capitalize() for item in description.split(';')],[eval(re.sub(r'(\w+)', r'"\1"', item.split(':', 1)[1])) for item in description.split(';')])) if str(description) != 'nan' else description)
-     #fields_for_description = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
-     #df_standardizer_ecopart =pd.concat([df_standardizer_ecopart,fields_for_description],axis=1)
+     df_standardizer_ecopart = pd.read_excel(path_to_standardizer, sheet_name='ecopart', index_col=0)
+     columns_for_description = df_standardizer_ecopart['Sampling_description'].apply(lambda description: dict(zip([item.split(':', 1)[0].capitalize() for item in description.split(';')],[eval(re.sub(r'(\w+)', r'"\1"', item.split(':', 1)[1])) for item in description.split(';')])) if str(description) != 'nan' else description)
+     fields_for_description = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
+     df_standardizer_ecopart =pd.concat([df_standardizer_ecopart,fields_for_description],axis=1)
 # Set headers for bru and dat UVP files
 dat_headers=['image_index','image','pressure','tilt_1','tilt_2','board_temperature','voltage','unknown_1','unknown_2','unknown_3','unknown_4','cooler_temperature','camera_temperature','internal_time','nb_blobs_SMbase','mean_area_SMbase','mean_grey_SMbase','nb_blobs_SMzoo','mean_grey_SMzoo']
 bru_headers=['image_index','blob','area','mean_grey','x_center','y_center']
