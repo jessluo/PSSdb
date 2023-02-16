@@ -256,7 +256,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                       path_to_metadata.mkdir(parents=True,exist_ok=True)
                       #1) Step 1: Generate ecotaxa metadata using the ImageJ macro PyImageJ_ecotaxa_append_metadata.txt
 
-                      if Path.home()!='/home/rkiko/':
+                      if Path.home()!='/home/rkiko':
                           print("Consolidation only available on the server. Please run the script on Marie")
                           return
                       else:
