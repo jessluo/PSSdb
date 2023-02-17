@@ -85,6 +85,18 @@ def biovol_func_old(df, instrument, area_type= 'object_area', remove_cat='none')
 
     return df
 
+def remove_UVP_noVal(df):
+    '''
+    Objective: first, remove all UVP ROI's with status = unclassified. For the remaining ROI's with annotation,
+    calculate the percentage of validated ROI's. if the sample has <95% validation, discard
+    '''
+    df = df.drop(df['Annotation'] == 'unclassified') # but I think in new version it's just the
+    #OR
+    df = df['Category'].replace('', np.nan, inplace=True)
+    val = df.groupby(['Sample']).apply(lambda x: pd.Series({'Validation_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category'])['Annotation'].isin(['validated'])].ROI) /
+                                                                              len(x.dropna(subset=['Category']).ROI)}))
+
+
 def biovol_func(df, instrument, keep_cat='none'):
     """
     Objective: calculate biovolume (in cubic micrometers) of each object  following
@@ -141,6 +153,8 @@ def depth_binning_func(depth='Depth_min', depth_bins=[0, 25, 50, 100, 200, 500, 
     for i in range(0, len(depth)):
         midDepth_bin.append(depth_bin.iloc[i].mid)
     return midDepth_bin
+
+
 
     #6.3 by station (geographical location)
 def gridding_func(st_increment, lat= 'Latitude', lon= 'Longitude'):
