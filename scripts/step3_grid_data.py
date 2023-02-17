@@ -66,7 +66,7 @@ if not os.path.exists(gridpath):
 dirpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data' / instrument
 
 if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
-    replace = input('There is already gridded data in ' + dirpath + ' do you want to replace the files? \n Y/N')
+    replace = input('There is already gridded data in ' + str(dirpath) + ' do you want to replace the files? \n Y/N')
     if replace == 'Y':
         print('Overwriting gridded file(s), please wait')
         shutil.rmtree(dirpath)
@@ -74,9 +74,19 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         for i in tqdm(files_data):
             filename= i.split('/')[-1]
             print('gridding and binning ' + i)
-            df = pd.read_csv(i, header = 0)
+            df = pd.read_csv(i, header=0)
+            if instrument == 'UVP':
+                df = remove_UVP_noVal(df)
+                if len(df) == 0:
+                    print ('no data left after assessing validation status for ' + filename)
+                    continue
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
             df = df[df['Area'] != 0].reset_index(drop=True)
+            if (instrument == 'Zooscan') or (instrument == 'UVP'):
+                df = depth_parsing_func(df, instrument)
+                if len(df) == 0:
+                    print('no data left after restricting depths to less than 200 meters in ' + filename)
+                    continue
             df = biovol_func(df, instrument, keep_cat='none')
             df = date_binning_func(df, group_by=date_group)
             df['date_bin'] = df['date_bin'].astype(str)
@@ -119,12 +129,23 @@ elif not os.path.exists(dirpath):
     for i in tqdm(files_data):
         filename = i.split('/')[-1]
         print('gridding and binning ' + i)
-        df = pd.read_csv(i, header = 0)
+        df = pd.read_csv(i, header=0)
+        if instrument == 'UVP':
+            df = remove_UVP_noVal(df)
+            if len(df) == 0:
+                print('no data left after assessing validation status for ' + filename)
+                continue
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
+        if (instrument == 'Zooscan') or (instrument == 'UVP'):
+            df = depth_parsing_func(df, instrument)
+            if len(df) == 0:
+                print('no data left after restricting depths to less than 200 meters in ' + filename)
+                continue
         df = biovol_func(df, instrument, keep_cat='none')
         df = date_binning_func(df, group_by=date_group)
-        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
+        df['date_bin'] = df['date_bin'].astype(str)
+        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'],df['Longitude'])
         if depth_binning == 'N':
             metadata_bins = pd.DataFrame(
                 {'Variables': ['Biovolume', 'date_bin',  'Station_location', 'midLatBin', 'midLonBin'], # 'light_cond',
