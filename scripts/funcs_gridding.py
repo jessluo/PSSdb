@@ -90,12 +90,23 @@ def remove_UVP_noVal(df):
     Objective: first, remove all UVP ROI's with status = unclassified. For the remaining ROI's with annotation,
     calculate the percentage of validated ROI's. if the sample has <95% validation, discard
     '''
-    df = df.drop(df['Annotation'] == 'unclassified') # but I think in new version it's just the
-    #OR
-    df = df['Category'].replace('', np.nan, inplace=True)
-    val = df.groupby(['Sample']).apply(lambda x: pd.Series({'Validation_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category'])['Annotation'].isin(['validated'])].ROI) /
-                                                                              len(x.dropna(subset=['Category']).ROI)}))
+    df['Category'].replace('', np.nan, inplace=True)
+    df = df.dropna(subset = ['Category']).reset_index(drop=True)
 
+    if len(df.dropna(subset=['Category'])) == 0:
+        df = pd.DataFrame()
+        return df
+    else:
+        val = df.groupby(['Sample']).apply(lambda x: pd.Series({'Validation_percentage':len(x.dropna(subset=['Category'])[x.dropna(subset=['Category'])['Annotation'].isin(['validated'])].ROI) /
+                                                                            len(x.dropna(subset=['Category']).ROI)}))
+        for s in df.Sample.unique():
+            if val.loc[s, 'Validation_percentage'] < 0.95:
+                index = df[df['Sample'] == s].index
+                df.drop(index, inplace=True)
+            else:
+                df.loc[df['Sample']==s, 'Validation_percentage'] = val.loc[s, 'Validation_percentage']
+
+        return df
 
 def biovol_func(df, instrument, keep_cat='none'):
     """
