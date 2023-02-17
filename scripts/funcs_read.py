@@ -43,6 +43,26 @@ def proj_id_list_func(instrument, data_status):
     return files_data
 
 
+def depth_parsing_func(df, instrument):
+    '''
+    Objective: restrict samples based on the agreed parameters for first PSSdb release.
+    param df: a standardized dataframe
+    param instrument: the imaging system used to collect the data
+    '''
+    if instrument == 'UVP':
+        df_d = df.drop(df[(df['Depth_min'] > 200)].index)
+        df_d['Min_obs_depth'] = 0
+        df_d['Max_obs_depth'] = 200
+    elif instrument == 'Zooscan':
+        df_d = df.drop(df[(df['Depth_min'] > 250) or (df['Depth_max'] > 250)].index)
+        df_d['Min_obs_depth'] = 0
+        df_d['Max_obs_depth'] = 250
+    elif instrument == 'IFCB': # IFCB depth specification occurs in step4 due to the need of getting a depth interval of ALL the projects
+        df_d = df
+        df_d['Min_obs_depth'] = min(df['Depth_min'])
+        df_d['Max_obs_depth'] = max(df['Depth_max'])
+
+
 # 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
 def read_func(path_to_data, ID, data_status='gridded'):
     """
