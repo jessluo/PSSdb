@@ -30,7 +30,7 @@ standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx')
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
 
 #1) Consolidate UVP projects before control quality check and standardization
-print('Consolidating UVP particle sizes (Ecotaxa: Large particles, Ecopart: Small particles), please wait')
+print('Consolidating UVP particle sizes (Ecotaxa: Large particles + Ecopart: Small particles), please wait')
 standardizer=[standardizer for standardizer in standardizer_files if 'UVP' in str(standardizer.stem)][0]
 df_standardizer = pd.read_excel(standardizer, index_col=0)
 for project in list(df_standardizer.index):
@@ -43,7 +43,6 @@ for project in list(df_standardizer.index):
 #2) Flag samples and generate a report using the filling_standardizer_flag_func function in funcs_standardize_projects.py
 print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPScoordinatesonland: GPS coordinates on land\nFlag_dubiousGPScoordinates: Dubious GPS coordinates\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(0:flag, 1:no flag)')
 for standardizer in natsorted(standardizer_files)[::-1]:
-    df_standardizer=pd.read_excel(standardizer,index_col=0)
     for project in list(df_standardizer.index):
         # Flagging project
         report_file='report_project_'+str(project)+'.html'
@@ -57,8 +56,6 @@ for standardizer in natsorted(standardizer_files)[::-1]:
 #3) Standardize project export files using the standardization_func function in funcs_standardize_projects.py
 print('Performing project standardization')
 for standardizer in natsorted(standardizer_files)[::-1]:
-    df_standardizer = pd.read_excel(standardizer, index_col=0)
-    
     for project in list(df_standardizer.index):
         try:
             print('Project: {}'.format(str(project)))
