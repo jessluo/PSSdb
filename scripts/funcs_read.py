@@ -40,6 +40,11 @@ def proj_id_list_func(instrument, data_status):
                 proj_data = [(str(path_to_IFCBdashboard / i / x )) for x in proj_list if not 'metadata' in x and '.csv' in x]
                 dashboard_data = dashboard_data + proj_data
             files_data = ecotaxa_data + dashboard_data
+    elif data_status == 'gridded':
+        path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir'] / instrument
+        file_list = os.listdir(path_to_gridded)
+        files_data = [(str(path_to_gridded / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
+
     return files_data
 
 
