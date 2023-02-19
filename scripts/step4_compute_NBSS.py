@@ -26,9 +26,21 @@ summary_stats = input ('Would you like the summary statistics of the linear regr
 
 # processing starts here
 
-path_to_data, id_list = proj_id_list_func(instrument, data_status ='gridded')#generate path and project ID's
+file_list = proj_id_list_func(instrument, data_status ='gridded')#generate path and project ID's
 
-dirpath = str(path_to_data) + '/NBSS_data/'
+path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+with open(path_to_config, 'r') as config_file:
+    cfg = yaml.safe_load(config_file)
+
+NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
+if not os.path.exists(NBSSpath):
+    os.mkdir(NBSSpath)
+
+dirpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / instrument
+
+df = pd.concat(map((lambda path: (pd.read_csv(path))), file_list))
+
+
 if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
     replace = input('There is already NBS data in ' + dirpath + ' do you want to replace the files? \n Y/N')
     if replace == 'Y':
@@ -37,6 +49,50 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         os.mkdir(dirpath)
         os.mkdir(dirpath + 'Lin_regress/')
         lin_fit_all = pd.DataFrame()
+        df = pd.concat(map((lambda path: (pd.read_csv(path))), file_list))
+        if depth_binning == 'Y':
+            NBS_data_binned, lin_fit_data = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+                                                                  depth_bin=True)
+        else:
+            NBS_data_binned, lin_fit_data = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+                                                                  depth_bin=False)
+        Variables = NBS_data_binned.columns.to_list()
+        Variable_types = NBS_data_binned.dtypes.to_list()
+        Units_Values = ['cubic micrometers (range)', 'cubic micrometers',
+                        'log(cubic micrometers)', 'yyyy or yyyymm (user defined)',
+                        'lat_lon (string)', 'degree', 'degree',
+                        '', 'cubic decimeters',
+                        'cubic micrometers', '',
+                        'cubic micrometers', 'cubic decimeters',
+                        'counts/ cubic decimeters',
+                        'log(counts/ cubic decimeters)']  # notice that we dont have date unit info here, fix this eventually
+        Description = ['size bins in which particles are classified',
+                       'minimum and maximum biovolume value of the size bin, calculated from biovolume using a projection of a sphere',
+                       'logarithmic transformation of the size bin range',
+                       'binned date information',
+                       'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                       'latitude of the center point of the 1x1 degree cell',
+                       'longitude of the center point of the 1x1 degree cell',
+                       'Project identifier',
+                       'Volume analyzed (not accounting for sample dilution and/or fractionation)',
+                       'Sum of the biovolume of individual objects classified into a biovolume based size bin',
+                       'number of objects assigned into the size bin',
+                       'mean biovolume for each size bin',
+                       'sum of the volumes analyzed within a 1x1 degree space, used to calculate NBSS',
+                       'Normalized biomass size spectra based on biovolume',
+                       'logarithmic transformation of the NBSS, use as y axis when performing size spectra analysis']
+        NBS_metadata = pd.DataFrame(
+            {'Variables': Variables, 'Variable_types': Variable_types, 'Units_Values': Units_Values,
+             'Description': Description})
+        # Save NBSS results
+        NBS_data_binned.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), index=False)
+        i = i.replace("NBSS", "metadata_NBSS")
+        NBS_metadata.to_csv(str(path_to_data) + '/NBSS_data/' + str(i), index=False)
+        # append linear regression results to the dataset of slopes per instrument:
+
+
+
+
         for i in tqdm(id_list):
             print('calculating normalized biomass size spectra for ' + i)
             df = read_func(path_to_data, i)  # get a dataframe for each project
