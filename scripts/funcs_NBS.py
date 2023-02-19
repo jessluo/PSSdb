@@ -76,6 +76,8 @@ def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', dates='date_bin', statio
         # create a dataframe with summary statistics for each station, depth bin and size class
         # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
         # group data by bins
+        #test = df_binned.groupby([sizeClasses])
+
         NBS_biovol_df = df_binned.groupby([dates, station, sizeClasses, depths]).agg(
             {depths:'first', size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
              biovolume:['sum', 'count', 'mean'] }).reset_index()
@@ -252,7 +254,7 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], depth_b
                                                 biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
                                                 project_ID='Project_ID',
                                                 vol_filtered='Volume_analyzed')  # calculate NBSS
-                    lin_fit = linear_fit_func(NBS_biovol_df, depth_bin=True)
+                    lin_fit = linear_fit_func(NBS_mean, depth_bin=True)
                     NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                     NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                     lin_fit_data = pd.concat([lin_fit_data, lin_fit])
@@ -265,14 +267,54 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], depth_b
                                             biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
                                             project_ID='Project_ID',
                                             vol_filtered='Volume_analyzed')  # calculate NBSS
-
+                NBS_mean = NBSS_stats_func(NBS_biovol_df)
                 # Create new dataset with slope, intercept, and R2 score for each linear fit
-                lin_fit = linear_fit_func(NBS_biovol_df, depth_bin = False )
+                lin_fit = linear_fit_func(NBS_mean, depth_bin = False )
                 NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
 
     return NBSS_binned_all, lin_fit_data
 
+
+def NBSS_stats_func(df):
+    """
+
+    """
+    from funcs_gridding import gridding_func
+    import numpy as np
+    bin_loc = input('Group data by location? \n Enter Y/N ')
+    if bin_loc == 'Y':
+        st_increment = float(
+            input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n'))
+        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['midLatBin'], df['midLonBin'])
+    bin_date = input('Group data by date? \n Enter Y/N ')
+    if bin_date == 'Y':
+        group_by = input(
+            'input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
+        date_df = df['date_bin'].str.split("_", expand=True)
+        if group_by == 'yyyy':
+            df['date_bin'] = date_df[0]
+        elif group_by == 'yyyymm':
+            df['year_week'] = date_df[0] + '_' + date_df[2]
+            df['month'] = date_df[1]
+            week_dict = {key: None for key in df['year_week'].unique()}
+            for i in df['year_week'].unique():
+                week_dict[i] = list(df['month'].where(df['year_week'] == i).dropna().unique())  # .astype(int)
+                if len(week_dict[i]) == 1:
+                    week_dict[i] = week_dict[i][0]
+                else:
+                    week_dict[i] = list(map(int, week_dict[i]))
+                    week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
+            df['year'] = date_df[0]
+            df['month'] = df['year_week'].map(week_dict)
+            df['date_bin'] = date_df[0] + '_' + df['month']
+    NBSS = df.filter(['range_size_bin', 'date_bin', 'month', 'year', 'Station_location', 'midLatBin', 'midLonBin', 'NBSS'], axis=1)
+
+    NBSS_avg = NBSS.groupby(['date_bin', 'Station_location', 'range_size_bin']).agg(
+            {'midLatBin':'first', 'midLonBin': 'first', 'year': 'first', 'month': 'first',
+             'NBSS':[ 'count' , 'mean', 'std']}).reset_index()
+
+    return NBSS_avg
 
 def stats_linfit_func(df):
     """
