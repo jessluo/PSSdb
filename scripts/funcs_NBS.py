@@ -50,9 +50,9 @@ def size_binning_func(df_subset):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', dates='date_bin', station= 'Station_location', depths = 'midDepthBin',\
-               size_range= 'range_size_bin', sizeClasses= 'sizeClasses', biovolume='Biovolume',\
-               lat='midLatBin', lon='midLonBin', project_ID= 'Project_ID', vol_filtered='Volume_imaged'):
+def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', sample_id='Sample', dates='date_bin', station= 'Station_location', depths = 'midDepthBin',\
+               min_depth = 'Min_obs_depth', max_depth= 'Max_obs_depth', size_range= 'range_size_bin', sizeClasses= 'sizeClasses', biovolume='Biovolume',\
+               lat='midLatBin', lon='midLonBin', vol_filtered='Volume_imaged'):
     """
     
     :param df_binned:
@@ -66,7 +66,6 @@ def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', dates='date_bin', statio
     :param biovolume:
     :param lat:
     :param lon:
-    :param project_ID:
     :param vol_filtered:
     :return:
     """
@@ -79,7 +78,7 @@ def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', dates='date_bin', statio
         #test = df_binned.groupby([sizeClasses])
 
         NBS_biovol_df = df_binned.groupby([dates, station, sizeClasses, depths]).agg(
-            {depths:'first', size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
+            {sample_id:'first', depths:'first', size_range:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
              biovolume:['sum', 'count', 'mean'] }).reset_index()
 
 
@@ -87,11 +86,11 @@ def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', dates='date_bin', statio
         # standardize by volume sample
     elif ignore_depth == 'yes':
         NBS_biovol_df = df_binned.groupby([dates, station, sizeClasses]).agg(
-            {size_range:'first', lat: 'first', lon: 'first', project_ID: 'first', vol_filtered: 'first',
+            {sample_id:'first', size_range:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
              biovolume:['sum', 'count' , 'mean']}).reset_index()
 
     # cumulative volume for 1x1 degree bin. For UVP: volume imaged is the volume of a picture. Consider sample ID and depths, to be abble to get the cumulative volume imaged for a grid
-    df_vol = df_binned.groupby([dates, station]).apply(lambda x: pd.Series({ 'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index() # don't understand why sampl
+    df_vol = df_binned.groupby([dates, station]).apply(lambda x: pd.Series({ 'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index() # don't understand why sampl
     NBS_biovol_df['cumulative_vol'] = df_vol.loc[0, 'cumulative_volume']
 
 
@@ -113,7 +112,7 @@ def NB_SS_func(df_binned, df_bins, ignore_depth = 'no', dates='date_bin', statio
     # merge the two dataframes
     binned_NBS= pd.merge(df_bins, NBS_biovol_df, how='left', on=[sizeClasses, size_range, 'logSize'])
     # now fill the columns of date, station, lat/lon, project ID and volume
-    for i in [dates, station, lat, lon, project_ID, vol_filtered]:
+    for i in [dates, station, lat, lon, vol_filtered]:
         binned_NBS[i] = binned_NBS[i].fillna(NBS_biovol_df[i].unique()[0])
     # let's do the thresholding here:
     NBS_binned_thres = threshold_func(binned_NBS)
@@ -158,11 +157,12 @@ def linear_fit_func(df1, depth_bin = False):
     import matplotlib.pyplot as plt
 
     #remove Nans
+    df1 = df1.drop(columns=['NBSS_std'])
     df1 = df1.dropna()
 
     # extract x and y
-    X = df1['logSize'].values#.reshape(-1, 1)
-    Y = df1['logNBSS'].values#.reshape(-1, 1)
+    X = np.log(df1['range_size_bin'].values)#.reshape(-1, 1)
+    Y = np.log(df1['NBSS_mean'].values)#.reshape(-1, 1)
     # Mean X and Y
     mean_x = np.mean(X)
     mean_y = np.mean(Y)
@@ -195,29 +195,23 @@ def linear_fit_func(df1, depth_bin = False):
     #print(R2)
 
     # generate dataframe and append the results in the corresponding variable
+    lin_fit = pd.DataFrame()
     if depth_bin == True:
-        lin_fit = pd.DataFrame()
-        lin_fit.loc[0, 'Project_ID'] = str(df1.loc[0, 'Project_ID'])
-        lin_fit.loc[0, 'Latitude'] = df1.loc[0, 'midLatBin']
-        lin_fit.loc[0, 'Longitude'] = df1.loc[0, 'midLonBin']
-        lin_fit.loc[0, 'Depth'] = df1.loc[0, 'midDepthBin']
-        lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
-        lin_fit.loc[0, 'Slope'] = m
-        lin_fit.loc[0, 'Intercept'] = b
-        lin_fit.loc[0, 'RMSE'] = rmse
-        lin_fit.loc[0, 'R2'] = R2
+        lin_fit.loc[0, 'depth'] = df1.loc[0, 'midDepthBin']
+    lin_fit.loc[0, 'year'] = str(df1.loc[0, 'year'])
+    lin_fit.loc[0, 'month'] = str(df1.loc[0, 'month'])
 
-    else:
-        lin_fit = pd.DataFrame()
-        lin_fit.loc[0, 'Project_ID'] = str(df1.loc[0, 'Project_ID'])
-        lin_fit.loc[0, 'Latitude'] = df1.loc[0, 'midLatBin']
-        lin_fit.loc[0, 'Longitude'] = df1.loc[0, 'midLonBin']
+    lin_fit.loc[0, 'latitude'] = df1.loc[0, 'midLatBin']
+    lin_fit.loc[0, 'longitude'] = df1.loc[0, 'midLonBin']
 
-        lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
-        lin_fit.loc[0, 'Slope'] = m
-        lin_fit.loc[0, 'Intercept'] = b
-        lin_fit.loc[0, 'RMSE'] = rmse
-        lin_fit.loc[0, 'R2'] = R2
+    lin_fit.loc[0, 'min_depth'] = df1.loc[0, 'Min_obs_depth']
+    lin_fit.loc[0, 'max_depth'] = df1.loc[0, 'Max_obs_depth']
+
+    lin_fit.loc[0, 'slope'] = m
+    lin_fit.loc[0, 'intercept'] = b
+    lin_fit.loc[0, 'rmse'] = rmse
+    lin_fit.loc[0, 'r2'] = R2
+    lin_fit.loc[0, 'NBSS_sample_size'] = max(df1['NBSS_count'])
 
     return (lin_fit)
 
@@ -236,7 +230,6 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], depth_b
         df['midDepthBin'] = df['midDepthBin'].astype(str)
     df['date_bin'] = df['date_bin'].astype(str)
     NBSS_binned_all = pd.DataFrame()  # NBSS dataset
-    lin_fit_data = pd.DataFrame()  # linear fit (least-squares) dataset
     for st in list(set(df[parse_by[0]])):
         # print(st)
         df_st_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
@@ -248,32 +241,58 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], depth_b
                     df_st_t_d_subset = df_st_t_subset[df_st_t_subset[parse_by[2]] == d].reset_index(drop=True)
                     df_binned, df_bins = size_binning_func(df_st_t_d_subset)  # create size bins
                     NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='no', dates='date_bin',
+                                               sample_id='Sample',
                                                 station='Station_location',
-                                                depths='midDepthBin', size_range='range_size_bin',
+                                                depths='midDepthBin',
+                                                min_depth='Min_obs_depth', max_depth='Max_obs_depth',
+                                                size_range='range_size_bin',
                                                 sizeClasses='sizeClasses',
                                                 biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
-                                                project_ID='Project_ID',
-                                                vol_filtered='Volume_analyzed')  # calculate NBSS
-                    lin_fit = linear_fit_func(NBS_mean, depth_bin=True)
+                                                vol_filtered='Volume_imaged')  # calculate NBSS
+                    #lin_fit = linear_fit_func(NBS_biovol_df, depth_bin=True)  2/20/2023: linear fit is going to be performed on the monthly 1 degree average of the NBSS
                     NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
-                    NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
-                    lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             else:
                 # print ('getting NBS for station ' + st + 'and date' + t)
                 df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
                 NBS_biovol_df = NB_SS_func(df_binned, df_bins, ignore_depth='yes', dates='date_bin',
+                                            sample_id='Sample',
                                             station='Station_location',
                                             size_range='range_size_bin', sizeClasses='sizeClasses',
+                                            min_depth='Min_obs_depth', max_depth='Max_obs_depth',
                                             biovolume='Biovolume', lat='midLatBin', lon='midLonBin',
-                                            project_ID='Project_ID',
-                                            vol_filtered='Volume_analyzed')  # calculate NBSS
-                NBS_mean = NBSS_stats_func(NBS_biovol_df)
+                                            vol_filtered='Volume_imaged')  # calculate NBSS
                 # Create new dataset with slope, intercept, and R2 score for each linear fit
-                lin_fit = linear_fit_func(NBS_mean, depth_bin = False )
+                # lin_fit = linear_fit_func(NBS_biovol_df, depth_bin=True)  2/20/2023: linear fit is going to be performed on the monthly 1 degree average of the NBSS
                 NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
+
+    # after FULL DATAFRAME is assembled, get monthly, 1 degree bin average:
+    NBS_avg, NBSS_1a = NBSS_stats_func(NBSS_binned_all)
+    # Next, obntain the linear regression with the new, averaged NBSS
+    lin_fit_data = pd.DataFrame()  # linear fit (least-squares) dataset
+    if depth_bin == True:
+        # now, parse this NBS_mean to get the linear fits for monthly 1 degree bins:
+        for st in list(set(NBS_avg[parse_by[0]])):
+            # print(st)
+            NBS_avg_st_subset = NBS_avg[NBS_avg[parse_by[0]] == st].reset_index(drop=True)
+            for t in list(set(NBS_avg_st_subset[parse_by[1]])):
+                # print(t)
+                NBS_avg_st_t_subset = NBS_avg_st_subset[NBS_avg_st_subset[parse_by[1]] == t].reset_index(drop=True)
+                for d in list(set(NBS_avg_st_t_subset[parse_by[2]])):
+                    NBS_avg_st_t_d_subset = NBS_avg_st_t_subset[NBS_avg_st_t_subset[parse_by[2]] == d].reset_index(drop=True)
+                    lin_fit = linear_fit_func(NBS_avg_st_t_d_subset , depth_bin=True)
+                    lin_fit_data = pd.concat([lin_fit_data, lin_fit])
+    else:
+        # print ('getting NBS for station ' + st + 'and date' + t)
+        for st in list(set(NBS_avg[parse_by[0]])):
+            # print(st)
+            NBS_avg_st_subset = NBS_avg[NBS_avg[parse_by[0]] == st].reset_index(drop=True)
+            for t in list(set(NBS_avg_st_subset[parse_by[1]])):
+                # print(t)
+                NBS_avg_st_t_subset = NBS_avg_st_subset[NBS_avg_st_subset[parse_by[1]] == t].reset_index(drop=True)
+                lin_fit = linear_fit_func(NBS_avg_st_t_subset, depth_bin=False)
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
 
-    return NBSS_binned_all, lin_fit_data
+    return NBSS_1a, lin_fit_data
 
 
 def NBSS_stats_func(df):
@@ -282,15 +301,15 @@ def NBSS_stats_func(df):
     """
     from funcs_gridding import gridding_func
     import numpy as np
-    bin_loc = input('Group data by location? \n Enter Y/N ')
+    bin_loc = input('Average NBSS by location? \n Enter Y/N ')
     if bin_loc == 'Y':
         st_increment = float(
-            input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n'))
+            input('select the size of the spatial grid by which the NBSS will be averaged i.e for a 1x1 degree bin type 1 \n'))
         df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['midLatBin'], df['midLonBin'])
-    bin_date = input('Group data by date? \n Enter Y/N ')
+    bin_date = input('Average NBSS by date? \n Enter Y/N ')
     if bin_date == 'Y':
         group_by = input(
-            'input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
+            'input how will the NBSS will be averaged by date \n  yyyymm for month and year \n yyyy for year \n ')
         date_df = df['date_bin'].str.split("_", expand=True)
         if group_by == 'yyyy':
             df['date_bin'] = date_df[0]
@@ -308,13 +327,20 @@ def NBSS_stats_func(df):
             df['year'] = date_df[0]
             df['month'] = df['year_week'].map(week_dict)
             df['date_bin'] = date_df[0] + '_' + df['month']
-    NBSS = df.filter(['range_size_bin', 'date_bin', 'month', 'year', 'Station_location', 'midLatBin', 'midLonBin', 'NBSS'], axis=1)
+    NBSS = df.filter(['range_size_bin', 'date_bin', 'month', 'year', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'NBSS'], axis=1)
 
     NBSS_avg = NBSS.groupby(['date_bin', 'Station_location', 'range_size_bin']).agg(
-            {'midLatBin':'first', 'midLonBin': 'first', 'year': 'first', 'month': 'first',
+            {'midLatBin':'first', 'midLonBin': 'first', 'year': 'first', 'month': 'first', 'Min_obs_depth':'first', 'Max_obs_depth':'first',
              'NBSS':[ 'count' , 'mean', 'std']}).reset_index()
 
-    return NBSS_avg
+    # generate a cleaner dataset (without grouping variables) to finally present 1a
+    NBSS_1a=NBSS_avg
+    NBSS_1a.columns = NBSS_1a.columns.map('_'.join).str.removesuffix("first")
+    NBSS_1a.columns = NBSS_1a.columns.str.removesuffix("_")
+    NBSS_1a= NBSS_1a.filter(['year', 'month', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin','NBSS_mean', 'NBSS_std', 'NBSS_count'], axis=1)
+    NBSS_1a= NBSS_1a.rename(columns={'midLatBin':'latitude', 'midLonBin': 'longitude','Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth', 'range_size_bin': 'size_biovolume', 'NBSS_count':'bin_sample_size' })
+
+    return NBSS_avg, NBSS_1a
 
 def stats_linfit_func(df):
     """
