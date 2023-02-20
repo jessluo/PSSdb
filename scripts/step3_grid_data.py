@@ -75,15 +75,24 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             filename= i.split('/')[-1]
             print('gridding and binning ' + i)
             df = pd.read_csv(i, header=0)
+            df = df.dropna(subset=['Latitude']).reset_index(drop=True)
+            df = df[df['Area'] != 0].reset_index(drop=True)
             if instrument == 'UVP':
                 df = remove_UVP_noVal(df)
                 if len(df) == 0:
                     print ('no data left after assessing validation status for ' + filename)
                     continue
-            df = df.dropna(subset=['Latitude']).reset_index(drop=True)
-            df = df[df['Area'] != 0].reset_index(drop=True)
             if (instrument == 'Zooscan') or (instrument == 'UVP'):
                 df = depth_parsing_func(df, instrument)
+                if len(df) == 0:
+                    print('no data left after restricting depths to less than 200 meters in ' + filename)
+                    continue
+            elif instrument == 'IFCB':
+                df = depth_parsing_func(df, instrument)
+                df = df.replace(np.nan, '')
+                sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
+                df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
+                df = df.replace('', np.nan)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     continue
@@ -139,6 +148,15 @@ elif not os.path.exists(dirpath):
         df = df[df['Area'] != 0].reset_index(drop=True)
         if (instrument == 'Zooscan') or (instrument == 'UVP'):
             df = depth_parsing_func(df, instrument)
+            if len(df) == 0:
+                print('no data left after restricting depths to less than 200 meters in ' + filename)
+                continue
+        elif instrument == 'IFCB':
+            df = depth_parsing_func(df, instrument)
+            df = df.replace(np.nan, '')
+            sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
+            df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
+            df = df.replace('', np.nan)
             if len(df) == 0:
                 print('no data left after restricting depths to less than 200 meters in ' + filename)
                 continue
