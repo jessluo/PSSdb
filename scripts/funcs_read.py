@@ -63,7 +63,7 @@ def depth_parsing_func(df, instrument):
         df_d['Min_obs_depth'] = 0
         df_d['Max_obs_depth'] = 250
     elif instrument == 'IFCB': # IFCB depth specification occurs in step4 due to the need of getting a depth interval of ALL the projects
-        df_d = df
+        df_d = df.drop(df[(df['Depth_min'] > 200)].index)
         df_d['Min_obs_depth'] = min(df_d['Depth_min'])
         df_d['Max_obs_depth'] = max(df_d['Depth_max'])
     return df_d
