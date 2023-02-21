@@ -33,7 +33,7 @@ def proj_id_list_func(instrument, data_status):
             ecotaxa_list = os.listdir(path_to_ecotaxa_data)
             ecotaxa_data = [(str(path_to_ecotaxa_data / x)) for x in ecotaxa_list  if not 'metadata' in x and '.csv' in x]
             #get data from dashboards
-            dashboard_list = os.listdir(path_to_IFCBdashboard)
+            dashboard_list = [f for f in os.listdir(path_to_IFCBdashboard) if not f.startswith('.')]
             dashboard_data = []
             for i in dashboard_list:
                 proj_list = os.listdir(path_to_IFCBdashboard / i)
