@@ -97,7 +97,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     continue
             df = biovol_func(df, instrument, keep_cat='none')
-            df = date_binning_func(df, group_by=date_group)
+            df = date_binning_func(df, group_by=date_group, ignore_high_lat=True)
             df['date_bin'] = df['date_bin'].astype(str)
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
             if depth_binning == 'N':
@@ -161,7 +161,7 @@ elif not os.path.exists(dirpath):
                 print('no data left after restricting depths to less than 200 meters in ' + filename)
                 continue
         df = biovol_func(df, instrument, keep_cat='none')
-        df = date_binning_func(df, group_by=date_group)
+        df = date_binning_func(df, group_by=date_group, ignore_high_lat=True)
         df['date_bin'] = df['date_bin'].astype(str)
         df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'],df['Longitude'])
         if depth_binning == 'N':
