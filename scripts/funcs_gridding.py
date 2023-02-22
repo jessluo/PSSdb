@@ -303,7 +303,7 @@ def date_binning_func(df, group_by= 'yyyymm', ignore_high_lat=True): # consider 
     lat = df['Latitude']
     lon = df['Longitude']
     date_bin = pd.to_datetime(date, format='%Y%m%d')
-    time_bin = pd.to_datetime(time, format= '%H%M%S', errors = 'coerce')
+    time_bin = pd.to_datetime(time, format= '%H%M%S')
     year = np.char.array(pd.DatetimeIndex(date_bin).year.values)
     month = np.char.array(pd.DatetimeIndex(date_bin).month.values).zfill(2)
     week_of_year = np.char.array(pd.DatetimeIndex(date_bin).isocalendar().week.values).zfill(2) #zfill(2).
@@ -314,7 +314,10 @@ def date_binning_func(df, group_by= 'yyyymm', ignore_high_lat=True): # consider 
     second = np.char.array(pd.DatetimeIndex(time_bin).second.values).zfill(2)
 
     all_time_info = (year + month + day + hour + minute + second).astype(str)
-    dateTime= pd.to_datetime(all_time_info, format='%Y%m%d%H%M%S', errors = 'coerce')
+    dateTime = []
+    for i in all_time_info:
+        dateTime.append(pd.to_datetime(i, format='%Y%m%d%H%M%S'))
+    #dateTime= pd.to_datetime(all_time_info, format='%Y%m%d%H%M%S')
 
     if group_by == 'yyyy':
         df['date_bin'] = (year).astype(str)
