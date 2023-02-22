@@ -39,19 +39,19 @@ dirpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / instrument
 
 
 if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
-    replace = input('There is already NBS data in ' + dirpath + ' do you want to replace the files? \n Y/N')
+    replace = input('There is already NBS data in ' + str(dirpath) + ' do you want to replace the files? \n Y/N')
     if replace == 'Y':
         print('Overwriting normalized biomass data file(s), please wait')
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
         df = pd.concat(map((lambda path: (pd.read_csv(path))), file_list)).reset_index(drop=True)
-        df = df.filter(['Sample','date_bin', 'Station_location', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin', 'sizeClasses', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
+        df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin', 'sizeClasses', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
 
         if depth_binning == 'Y':
-            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin', 'light_cond'],
                                                                   depth_bin=True)
         else:
-            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin', 'light_cond'],
                                                                   depth_bin=False)
 
         # Save NBSS results
@@ -65,14 +65,14 @@ elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
     df = pd.concat(map((lambda path: (pd.read_csv(path))), file_list)).reset_index(drop=True)
     df = df.filter(
-        ['Sample', 'date_bin', 'Station_location', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin',
+        ['Sample', 'date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin',
          'sizeClasses', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
 
     if depth_binning == 'Y':
-        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin','light_cond'],
                                                     depth_bin=True)
     else:
-        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin','light_cond'],
                                                     depth_bin=False)
 
     # Save NBSS results
