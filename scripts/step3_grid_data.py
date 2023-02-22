@@ -98,6 +98,9 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                     continue
             df = biovol_func(df, instrument, keep_cat='none')
             df = date_binning_func(df, group_by=date_group, ignore_high_lat=True)
+            if len(df)==0:
+                print('no data left after removing data without proper time stamp in ' + filename)
+                continue
             df['date_bin'] = df['date_bin'].astype(str)
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
             if depth_binning == 'N':
