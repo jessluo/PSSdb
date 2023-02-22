@@ -99,7 +99,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             df = biovol_func(df, instrument, keep_cat='none')
             df = date_binning_func(df, group_by=date_group, ignore_high_lat=True)
             if len(df)==0:
-                print('no data left after removing data without proper time stamp in ' + filename)
+                print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
                 continue
             df['date_bin'] = df['date_bin'].astype(str)
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
