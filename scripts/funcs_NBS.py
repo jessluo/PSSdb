@@ -329,7 +329,7 @@ def NBSS_stats_func(df):
             df['date_bin'] = date_df[0] + '_' + df['month']
     NBSS = df.filter(['range_size_bin', 'date_bin', 'month', 'year', 'Station_location', 'midLatBin', 'midLonBin','light_cond', 'Min_obs_depth', 'Max_obs_depth', 'NBSS'], axis=1)
 
-    NBSS_avg = NBSS.groupby(['date_bin', 'Station_location', 'light_cond' 'range_size_bin']).agg(
+    NBSS_avg = NBSS.groupby(['date_bin', 'Station_location', 'light_cond', 'range_size_bin']).agg(
             {'midLatBin':'first', 'midLonBin': 'first', 'year': 'first', 'month': 'first', 'Min_obs_depth':'first', 'Max_obs_depth':'first',
              'NBSS':[ 'count' , 'mean', 'std']}).reset_index()
 
