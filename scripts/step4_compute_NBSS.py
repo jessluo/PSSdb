@@ -21,6 +21,7 @@ import cartopy.crs as ccrs
 #define the instrument to calculate NBS:
 
 instrument = input ('for which instrument do you want to calculate the size spectra? \n Enter IFCB, Zooscan or UVP ')
+day_night = input('Would you like to group data by day/night? Enter Y/N \n' )
 depth_binning  = input ('Would you like to bin the data by depth? \n Enter Y/N')
 
 # processing starts here
@@ -48,11 +49,11 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin', 'sizeClasses', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
 
         if depth_binning == 'Y':
-            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin', 'light_cond'],
-                                                                  depth_bin=True)
+            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True)
+        if day_night == 'Y':
+            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=True)
         else:
-            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin', 'light_cond'],
-                                                                  depth_bin=False)
+            NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'])
 
         # Save NBSS results
         NBSS_1a.to_csv(str(dirpath) + '/' + instrument +'_NBSS_1a.csv', index=False)
@@ -69,11 +70,12 @@ elif not os.path.exists(dirpath):
          'sizeClasses', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
 
     if depth_binning == 'Y':
-        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin','light_cond'],
-                                                    depth_bin=True)
+        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=True,
+                                                    depth_parsing=True)
+    if day_night == 'Y':
+        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=True)
     else:
-        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin','light_cond'],
-                                                    depth_bin=False)
+        NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'])
 
     # Save NBSS results
     NBSS_1a.to_csv(str(dirpath) + '/' + instrument + '_NBSS_1a.csv', index=False)
@@ -82,7 +84,7 @@ elif not os.path.exists(dirpath):
 
 lat = lin_fit_1b['latitude']
 lon = lin_fit_1b['longitude']
-slope = lin_fit_1b['slope']
+slope = lin_fit_1b['slope_']
 intercept_t = lin_fit_1b['intercept']
 
 intercept_plot = [x*3 for x in intercept_t]
