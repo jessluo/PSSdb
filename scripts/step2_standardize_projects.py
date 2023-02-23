@@ -29,14 +29,24 @@ path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
 standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
 
-#1) Consolidate UVP projects before control quality check and standardization
+#1) Consolidate UVP projects before control quality check and standardization, see README file for a description of consolidation steps and objectives
+# There are 4 options to consolidate a UVP project:
+#a- The data owner runs the ImageJ macro on their computer and upload the metadata on Ecotaxa following the instructions of the README file and macro dialog window
+#b- Set run_macro=True. Metadata are missing and the script runner does not have access to the Complex server Marie (home/plankton/uvp5/6_missions): for testing purposes, the consolidation will be performed using vignettes object_area
+# Attention: Your local home path should be added to the funcs_consolidate_UVP_files script on l.259 and 300. Allowed local users:/Users/dugennem (Mathilde Dugenne) and /Users/mc4214 (Marco Corrales)
+#c- Set run_macro=True. Metadata are missing and the script is run on the Complex server Marie (home/plankton/uvp5/6_missions): the consolidation will be performed by re-computing vignettes object_bru_area using a custom ImageJ macro
+# Attention: The pyImageJ macro is great but it requires a lot of RAM. Do not use unless you're the only one working on the server!
+#d- Ser run_macro=False. Metadata are missing and the script is run on the Complex server Marie (home/plankton/uvp5/6_missions): the consolidation will be performed by matching-up the vignettes to the native project files id (image index, blob index) and extracting the corresponding area saved in the bru files
+# Attention: This is a workaround to pyimageJ that requires less memory since it is based on python code only. However, you still need an access to the server and the native UVP project folders should be clean (no compressed sub-directories, no profiles renamed with _old versions saved)!
+# For disorganized UVP native projects, non-matching vignettes will be assign a size equivalent to object_area
+
 print('Consolidating UVP particle sizes (Ecotaxa: Large particles + Ecopart: Small particles), please wait')
 standardizer=[standardizer for standardizer in standardizer_files if 'UVP' in str(standardizer.stem)][0]
 df_standardizer = pd.read_excel(standardizer, index_col=0)
 for project in list(df_standardizer.index):
     try:
         print('Project: {}'.format(str(project)))
-        consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa', run_macro=True, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
+        consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa', run_macro=False, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
     except Exception as e:
         print('Skipping consolidation of project ', str(project), '\n', e, sep='')
 

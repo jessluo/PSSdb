@@ -86,7 +86,7 @@ Profiles=newArray();
 if (listecotaxafiles.length>0) {;
 for (k=0; k<profiles.length;k++) {;
 pro=profiles[k];
-if (!File.exists(pathmetadata+separator+"ecotaxa_"+substring(pro,0,pro.length-1)+"_metadata_v1.tsv")){Profiles=Array.concat(Profiles,profiles[k]);}
+if (!File.exists(pathmetadata+separator+"ecotaxa_"+substring(pro,0,pro.length-1)+"_metadata_v1.tsv") && endsWith(profiles[k], separator)){Profiles=Array.concat(Profiles,profiles[k]);}
 ;} // loop through profile existing metadata
 ;} // if metadata already exist
 else {Profiles=profiles;} // if no existing metadata
@@ -181,7 +181,7 @@ datpath=pathprocessed+datfile;
 // use datfile in the work subdirectory
 if (File.exists(datpath)){;
 datlines=readDatfile(datpath);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 ;} // if File exists 
 
 // use other datfile in the work subdirectory (e.g. uvp5_sn000_tara2010: profiles have been re-processed  )
@@ -196,7 +196,7 @@ if (indexOf(listdatfiles[file], ".dat")!=-1 && listdatfiles[file]!=datfile) {lis
 if (list.length!=0){;
 for (file=0; file<list.length;file++) {;
 datlines=readDatfile(list[file]);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 if (confirmation) {datapath=list[file];break;}
 ;} // loop through datfiles
 ;} // if list non-null
@@ -208,7 +208,7 @@ if (!confirmation) {;
 datpath=pathresults+datfile; 
 if (File.exists(datpath)){;
 datlines=readDatfile(datpath);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 ;} // if File exists 
 ;} // if number of vignettes is not the same from ecotaxa table
 
@@ -221,7 +221,7 @@ for (file=0; file<listdatfiles.length;file++) {;
 if (endsWith(listdatfiles[file], ".dat")) {list=Array.concat(list,pathraw+profileraw+separator+listdatfiles[file]) ;}
 ;} // list raw files loop
 datlines=readDatfiles(list);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 ;} // if listdatfiles non-null
 ;} // if number of vignettes is not the same from ecotaxa table
 
@@ -338,7 +338,9 @@ Table.setColumn("object_corrected_min_depth_bin",Array.concat(newArray("[f]"),Vi
 Table.setColumn("object_corrected_max_depth_bin",Array.concat(newArray("[f]"),Vigdepthbinmax));
 Table.setColumn("object_volume_bin",Array.concat(newArray("[f]"),Vigsamplebin));
 Table.setColumn("object_imgcount_bin",Array.concat(newArray("[f]"),Vigimgcountbin));
+if (nbimgsource>0){
 Table.save(pathmetadata+separator+"ecotaxa_"+profile+"_metadata_v1.tsv");
+;} // if
 run("Close");
 
 ;} // confirmation that number of vignettes correspods to the ecotaxa table
@@ -381,20 +383,38 @@ firstimg =parseInt(firstimg);
 return firstimg;
 } // function ProcessProfilePID
 
-function testDAT(datlines,firstimg,profmin,depth_correction,pressure_gain){
+function testDAT(datlines,firstimg,profmin,profileprocessed,depth_correction,pressure_gain){
 test=false;
 if (datlines.length>0 ) {
 vignumber=processDATvignumber(datlines,firstimg,profmin,depth_correction,pressure_gain);
+vignanme=processDATVigecotaxaname(datlines,firstimg,profmin,profileprocessed,depth_correction,pressure_gain);
 if (File.exists(ecotaxa_table)){
-Table.open(ecotaxa_table);
-n=Table.size()-1;
-run("Close");
-if (vignumber==n) {test=true;}
+Tablelines=split(File.openAsString(ecotaxa_table),"\n");
+n=(Tablelines.length-2);
+ecotaxa_name=newArray();
+for (i=2; i<Tablelines.length ; i++) {
+dataline = Tablelines[i];
+dataline = split(dataline," ");
+dataline= split(dataline[0],",\t");
+if (Arraycontains(vignanme,dataline[2])){
+ecotaxa_name=Array.concat(ecotaxa_name,dataline[2]);
+} else{// If vigname name is in Ecotaxa table
+n=n-1;
+} // else vigname name not in Ecotaxa table
+} // for loop ecotaxa_name
+if (vignumber==n && n!=0) {test=true;}
 } // Ecotaxa table exists
 } // DAT file exists
 return test;
 } // function testDAT
 
+function Arraycontains(array, value ) {
+test=false;
+for (i=0; i<array.length; i++) {
+if ( array[i] == value ) {test=true;}
+} // for loop
+return test;
+}
 
 // Function #1 to processDAT: retrieve vignette number  (vignumber)
 ////////////////////////////////////////////////////////////////////

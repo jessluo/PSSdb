@@ -249,7 +249,7 @@ def Ecopart_list(username,password,localpath):
     df_projects=pd.merge(df_projects,pd.DataFrame.from_dict(samples,columns=['first_sample'],orient='index'),how='left',left_on='Project_ID',right_index=True)
     df_projects = pd.merge(df_projects, pd.DataFrame.from_dict(access, columns=['PSSdb_access'], orient='index'),how='left', left_on='Project_ID', right_index=True)
     df_projects = pd.merge(df_projects, pd.DataFrame.from_dict(access_code, columns=['Access_code'], orient='index'),how='left', left_on='Project_ID', right_index=True)
-    print(len(df_projects) , "projects found.",len(df_projects[df_projects.PSSdb_access==True]), "projects accessible", sep=' ')
+    print(len(df_projects) , "projects found.",len(df_projects[df_projects.PSSdb_access.astype(str).str.capitalize()=='True']), "projects accessible", sep=' ')
     df_projects['PSSdb_access']=df_projects['PSSdb_access']=='True'
     # Get corresponding Ecotaxa project ID from first sample popover infos
     df_projects['Sample_url']=df_projects.first_sample.apply(lambda sample: 'https://ecopart.obs-vlfr.fr/getsamplepopover/{}'.format(sample))

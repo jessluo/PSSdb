@@ -79,7 +79,7 @@ Profiles=newArray();
 if (listecotaxafiles.length>0) {;
 for (k=0; k<profiles.length;k++) {;
 pro=profiles[k];
-if (!File.exists(pathmetadata+separator+"ecotaxa_"+substring(pro,0,pro.length-1)+"_metadata_v1.tsv")){Profiles=Array.concat(Profiles,profiles[k]);}
+if (!File.exists(pathmetadata+separator+"ecotaxa_"+substring(pro,0,pro.length-1)+"_metadata_v1.tsv")&& endsWith(profiles[k], separator) {Profiles=Array.concat(Profiles,profiles[k]);}
 ;} // loop through profile existing metadata
 ;} // if metadata already exist
 else {Profiles=profiles;} // if no existing metadata
@@ -180,7 +180,7 @@ datpath=pathprocessed+datfile;
 // use datfile in the work subdirectory
 if (File.exists(datpath)){;
 datlines=readDatfile(datpath);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 ;} // if File exists 
 
 // use other datfile in the work subdirectory (e.g. uvp5_sn000_tara2010: profiles have been re-processed  )
@@ -196,7 +196,7 @@ if (indexOf(listdatfiles[file], ".dat")!=-1 && listdatfiles[file]!=datfile) {lis
 if (list.length!=0){;
 for (file=0; file<list.length;file++) {;
 datlines=readDatfile(list[file]);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 if (confirmation) {datapath=list[file];break;}
 ;} // loop through datfiles
 ;} // if list non-null
@@ -208,7 +208,7 @@ if (!confirmation) {;
 datpath=pathresults+datfile; 
 if (File.exists(datpath)){;
 datlines=readDatfile(datpath);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 ;} // if File exists 
 ;} // if number of vignettes is not the same from ecotaxa table
 
@@ -221,7 +221,7 @@ for (file=0; file<listdatfiles.length;file++) {;
 if (endsWith(listdatfiles[file], ".dat")) {list=Array.concat(list,pathraw+profileraw+separator+listdatfiles[file]) ;}
 ;} // list raw files loop
 datlines=readDatfiles(list);
-confirmation=testDAT(datlines,firstimg,profmin,0,pressure_gain);
+confirmation=testDAT(datlines,firstimg,profmin,profileprocessed,0,pressure_gain);
 ;} // if listdatfiles non-null
 ;} // if number of vignettes is not the same from ecotaxa table
 
@@ -326,23 +326,36 @@ totalvig=totalvig+1;
 //====================  Generate results table =======================================================
 run("Clear Results");
 Table.create("measurements");
-object_id=Array.concat(newArray("[t]"),native_vignette_name);//Table.setColumn("object_id",Array.concat(newArray("[t]"),native_vignette_name));
-object_bru_id=Array.concat(newArray("[t]"),blobname);//Table.setColumn("object_bru_id",Array.concat(newArray("[t]"),blobname));
-object_bru_area=Array.concat(newArray("[f]"),Areabru);//Table.setColumn("object_bru_area",Array.concat(newArray("[f]"),Areabru));
-//Vigprofile=newArray(nbblobs);
-//for (v=0;v<Vigprofile.length;v++){Vigprofile[v]=profileprocessed;}
-//Table.setColumn("sample_id",Array.concat(newArray("[t]"),Vigprofile));
-object_image_name=Array.concat(newArray("[t]"),Vigname);//Table.setColumn("object_image_name",Array.concat(newArray("[t]"),Vigname));
-object_image_index=Array.concat(newArray("[t]"),Vigindex);//Table.setColumn("object_image_index",Array.concat(newArray("[t]"),Vigindex));
-object_corrected_depth=Array.concat(newArray("[f]"),Vigdepth);//Table.setColumn("object_corrected_depth",Array.concat(newArray("[f]"),Vigdepth));
-object_corrected_min_depth_bin=Array.concat(newArray("[f]"),Vigdepthbin);//Table.setColumn("object_corrected_min_depth_bin",Array.concat(newArray("[f]"),Vigdepthbin));
-object_corrected_max_depth_bin=Array.concat(newArray("[f]"),Vigdepthbinmax);//Table.setColumn("object_corrected_max_depth_bin",Array.concat(newArray("[f]"),Vigdepthbinmax));
-object_volume_bin=Array.concat(newArray("[f]"),Vigsamplebin);//Table.setColumn("object_volume_bin",Array.concat(newArray("[f]"),Vigsamplebin));
-object_imgcount_bin=Array.concat(newArray("[f]"),Vigimgcountbin);//Table.setColumn("object_imgcount_bin",Array.concat(newArray("[f]"),Vigimgcountbin));
-//Table.showRowNumbers("false"); 
-//Table.showRowIndexes("false");
-//setOption("ShowRowNumbers", "false"); 
-//Table.save(pathmetadata+separator+"ecotaxa_"+profile+"_metadata_v1.tsv");
+Table.setColumn("object_id",Array.concat(newArray("[t]"),native_vignette_name));
+Table.setColumn("object_bru_id",Array.concat(newArray("[t]"),blobname));
+Table.setColumn("object_bru_area",Array.concat(newArray("[f]"),Areabru));
+Vigprofile=newArray(nbblobs);
+for (v=0;v<Vigprofile.length;v++){Vigprofile[v]=profileprocessed;}
+Table.setColumn("sample_id",Array.concat(newArray("[t]"),Vigprofile));
+Table.setColumn("object_image_name",Array.concat(newArray("[t]"),Vigname));
+Table.setColumn("object_image_index",Array.concat(newArray("[t]"),Vigindex));
+Table.setColumn("object_corrected_depth",Array.concat(newArray("[f]"),Vigdepth));
+Table.setColumn("object_corrected_min_depth_bin",Array.concat(newArray("[f]"),Vigdepthbin));
+Table.setColumn("object_corrected_max_depth_bin",Array.concat(newArray("[f]"),Vigdepthbinmax));
+Table.setColumn("object_volume_bin",Array.concat(newArray("[f]"),Vigsamplebin));
+Table.setColumn("object_imgcount_bin",Array.concat(newArray("[f]"),Vigimgcountbin));
+Table.showRowNumbers("false"); 
+Table.showRowIndexes("false");
+setOption("ShowRowNumbers", "false"); 
+if (nbimgsource>0){
+Table.save(pathmetadata+separator+"ecotaxa_"+profile+"_metadata_v1.tsv");
+;} // if
+
+object_id=Array.concat(newArray("[t]"),native_vignette_name);
+object_bru_id=Array.concat(newArray("[t]"),blobname);
+object_bru_area=Array.concat(newArray("[f]"),Areabru);
+object_image_name=Array.concat(newArray("[t]"),Vigname);
+object_image_index=Array.concat(newArray("[t]"),Vigindex);
+object_corrected_depth=Array.concat(newArray("[f]"),Vigdepth);
+object_corrected_min_depth_bin=Array.concat(newArray("[f]"),Vigdepthbin);
+object_corrected_max_depth_bin=Array.concat(newArray("[f]"),Vigdepthbinmax);
+object_volume_bin=Array.concat(newArray("[f]"),Vigsamplebin);
+object_imgcount_bin=Array.concat(newArray("[f]"),Vigimgcountbin);
 
 table_results=newArray(String.join(newArray( "object_id","object_bru_id","object_bru_area","object_image_name", "object_image_index","object_corrected_depth","object_corrected_min_depth_bin","object_corrected_max_depth_bin","object_volume_bin","object_imgcount_bin")));
 for (l=0;l<object_id.length;l++) {
@@ -410,21 +423,40 @@ firstimg =parseInt(firstimg);
 return firstimg;
 } // function ProcessProfilePID
 
-function testDAT(datlines,firstimg,profmin,depth_correction,pressure_gain){
+function testDAT(datlines,firstimg,profmin,profileprocessed,depth_correction,pressure_gain){
 test=false;
 if (datlines.length>0 ) {
 vignumber=processDATvignumber(datlines,firstimg,profmin,depth_correction,pressure_gain);
+vignanme=processDATVigecotaxaname(datlines,firstimg,profmin,profileprocessed,depth_correction,pressure_gain);
 if (File.exists(ecotaxa_table)){
 //Table.open(ecotaxa_table);n=Table.size()-1;print(Table.headings());
 Tablelines=split(File.openAsString(ecotaxa_table),"\n");
 n=(Tablelines.length-2);
+ecotaxa_name=newArray();
+for (i=2; i<Tablelines.length ; i++) {
+dataline = Tablelines[i];
+dataline = split(dataline," ");
+dataline= split(dataline[0],",\t");
+if (Arraycontains(vignanme,dataline[2])){
+ecotaxa_name=Array.concat(ecotaxa_name,dataline[2]);
+} else{// If vigname name is in Ecotaxa table
+n=n-1;
+} // else vigname name not in Ecotaxa table
+} // for loop ecotaxa_name
 //run("Close");
-if (vignumber==n) {test=true;}
+if (vignumber==n && n!=0) {test=true;}
 } // Ecotaxa table exists
 } // DAT file exists
 return test;
 } // function testDAT
 
+function Arraycontains(array, value ) {
+test=false;
+for (i=0; i<array.length; i++) {
+if ( array[i] == value ) {test=true;}
+} // for loop
+return test;
+}
 
 // Function #1 to processDAT: retrieve vignette number  (vignumber)
 ////////////////////////////////////////////////////////////////////
@@ -443,12 +475,12 @@ for (i=0; i<ligne.length ; i++) {
 	vigname = dataline[1];   // Image name
 	vigdepth =dataline[2];   // Depth reading
 	depth=parseFloat(vigdepth);
-                        depth=depth_correction+(depth/pressure_gain);
-                        vignb = dataline[17];     // Number of vignettes 
+         depth=depth_correction+(depth/pressure_gain);
+         vignb = dataline[17];     // Number of vignettes 
 	vignb = parseInt(vignb);
 	noimg = dataline[0];    // Image index 
-                        index=parseInt(noimg);
-                        vigdate=parseInt(substring(vigname,0,14));
+        index=parseInt(noimg);
+        vigdate=parseInt(substring(vigname,0,14));
 	// --------------- First image name & index ----
                         if(vigdate==image0_date){image0 = substring(vigname,0,15);	
                                                                   image0text = image0;	
@@ -468,7 +500,7 @@ for (i=0; i<ligne.length ; i++) {
                                                    if (File.exists(pathraw+profileraw+separator+Blobname+".bmp")){;
 		   
                                                    prevdepth = depth;
-		   vignumber++;	
+		                                  vignumber++;	
                                                    ;} // if bmp vignette exists
 		} // for
 	} // if
@@ -496,12 +528,12 @@ for (i=0; i<ligne.length ; i++) {
 	vigname = dataline[1];   // Image name
 	vigdepth =dataline[2];   // Depth reading
 	depth=parseFloat(vigdepth);
-                        depth=depth_correction+(depth/pressure_gain);
-                        vignb = dataline[17];     // Number of vignettes 
+         depth=depth_correction+(depth/pressure_gain);
+         vignb = dataline[17];     // Number of vignettes 
 	vignb = parseInt(vignb);
 	noimg = dataline[0];    // Image index 
-                        index=parseInt(noimg);
-                        vigdate=parseInt(substring(vigname,0,14));
+         index=parseInt(noimg);
+         vigdate=parseInt(substring(vigname,0,14));
 	// --------------- First image name & index ----
                         if(vigdate==image0_date){image0 = substring(vigname,0,15);	
                                                                   image0text = image0;	
