@@ -34,7 +34,10 @@ dependencies:
   - idna=3.4=pyhd8ed1ab_0
   - imagecodecs=2022.9.26=py311ha4ff2e3_4
   - imageio=2.22.4=pyhfa7a67d_1
+  - imglyb=2.0.1=pyh8a188c0_0
+  - jgo=1.0.4=pyhd8ed1ab_0
   - jpeg=9e=hac89ed1_2
+  - jpype1=1.4.1=py311hd2070f0_1
   - jxrlib=1.1=h35c211d_2
   - krb5=1.19.3=hb98e516_0
   - lcms2=2.14=h90f4b2a_0
@@ -68,18 +71,21 @@ dependencies:
   - llvm-openmp=15.0.6=h61d9ccf_0
   - locket=1.0.0=pyhd8ed1ab_0
   - lz4-c=1.9.3=he49afe7_1
+  - maven=3.9.0=h694c41f_0
   - ncurses=6.3=h96cf925_1
   - networkx=2.8.8=pyhd8ed1ab_0
   - numpy=1.23.5=py311h62c7003_0
+  - openjdk=11.0.15=hbc0c0cd_3
   - openjpeg=2.5.0=h5d0d7b0_1
-  - openssl=3.0.7=hfd90126_1
+  - openssl=3.0.8=hfd90126_0
   - packaging=22.0=pyhd8ed1ab_0
   - pandas=1.5.2=py311hd84f3f5_0
   - partd=1.3.0=pyhd8ed1ab_0
   - pillow=9.2.0=py311he7df5c9_3
-  - pip=22.3.1=pyhd8ed1ab_0
+  - psutil=5.9.4=py311h5547dcb_0
   - pthread-stubs=0.4=hc929b4f_1001
   - pycparser=2.21=pyhd8ed1ab_0
+  - pyjnius=1.4.2=py311hfedeb7c_1
   - pyopenssl=22.1.0=pyhd8ed1ab_0
   - pysocks=1.7.1=pyha2e5f31_6
   - python=3.11.0=h559f36b_0_cpython
@@ -92,7 +98,7 @@ dependencies:
   - requests=2.28.1=pyhd8ed1ab_1
   - scikit-image=0.19.3=py311hd84f3f5_2
   - scipy=1.9.3=py311h939689b_2
-  - setuptools=65.5.1=pyhd8ed1ab_0
+  - scyjava=1.8.1=pyhd8ed1ab_0
   - six=1.16.0=pyh6c4a22f_0
   - snappy=1.1.9=h225ccf5_2
   - tifffile=2022.10.10=pyhd8ed1ab_0
@@ -125,6 +131,7 @@ dependencies:
       - contourpy==1.0.6
       - cssselect==1.2.0
       - cycler==0.11.0
+      - cython==0.29.33
       - easydev==0.12.0
       - ecotaxa-py-client==1.0.21
       - et-xmlfile==1.1.0
@@ -134,13 +141,16 @@ dependencies:
       - geopandas==0.12.2
       - h11==0.14.0
       - h3==3.7.6
+      - imagej==0.3.1
       - importlib-metadata==5.2.0
       - joblib==1.2.0
       - kiwisolver==1.4.4
+      - labeling==0.1.13
       - lxml==4.9.2
       - matplotlib==3.6.2
       - mizani==0.8.1
       - munch==2.5.0
+      - natsort==8.2.0
       - openpyxl==3.0.10
       - outcome==1.2.0
       - palettable==3.3.0
@@ -149,11 +159,13 @@ dependencies:
       - pexpect==4.8.0
       - pint==0.20.1
       - pint-pandas==0.3
+      - pip==23.0
       - plotly==5.11.0
       - plotnine==0.10.1
       - ptyprocess==0.7.0
       - pyasn1==0.4.8
       - pyee==8.2.2
+      - pyimagej==1.3.2
       - pyparsing==3.0.9
       - pyppeteer==1.0.2
       - pyproj==3.4.1
@@ -167,12 +179,14 @@ dependencies:
       - scikit-learn==1.2.1
       - seaborn==0.12.1
       - selenium==4.7.2
+      - setuptools==67.3.2
       - shapely==2.0.0
       - sklearn==0.0.post1
       - sniffio==1.3.0
       - sortedcontainers==2.4.0
       - soupsieve==2.3.2.post1
       - statsmodels==0.13.5
+      - suncalc==0.1.2
       - tenacity==8.1.0
       - threadpoolctl==3.1.0
       - timezonefinder==6.1.9
@@ -184,6 +198,7 @@ dependencies:
       - websockets==10.4
       - wget==3.2
       - wsproto==1.2.0
+      - xarray==2023.2.0
       - xlsxwriter==3.0.3
       - zipp==3.11.0
 prefix: /Users/mc4214/opt/anaconda3/envs/PSSdb
