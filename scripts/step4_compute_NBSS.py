@@ -46,7 +46,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
         df = pd.concat(map((lambda path: (pd.read_csv(path))), file_list)).reset_index(drop=True)
-        df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'range_size_bin', 'sizeClasses', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
+        df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
 
         if depth_binning == 'Y':
             NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True)
@@ -84,8 +84,8 @@ elif not os.path.exists(dirpath):
 
 lat = lin_fit_1b['latitude']
 lon = lin_fit_1b['longitude']
-slope = lin_fit_1b['slope_']
-intercept_t = lin_fit_1b['intercept']
+slope = lin_fit_1b['slope_mean']
+intercept_t = lin_fit_1b['intercept_mean']
 
 intercept_plot = [x*3 for x in intercept_t]
 ax = plt.axes(projection=ccrs.PlateCarree())
