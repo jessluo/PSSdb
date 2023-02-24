@@ -71,13 +71,13 @@ path_to_standardizer=path_to_git/ 'raw' / 'project_UVP_standardizer.xlsx'
 if path_to_standardizer.exists():
      df_standardizer_ecotaxa = pd.read_excel(path_to_standardizer,sheet_name='ecotaxa', index_col=0).dropna(subset=['Sampling_description'])
      columns_for_description = df_standardizer_ecotaxa['Sampling_description'].apply(lambda description: dict(zip([item.split(':', 1)[0].capitalize() for item in description.split(';')],[eval(re.sub(r'(\w+)', r'"\1"', item.split(':', 1)[1])) for item in description.split(';')])) if str(description) != 'nan' else description)
-     fields_for_description = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
-     df_standardizer_ecotaxa = pd.concat([df_standardizer_ecotaxa, fields_for_description], axis=1)
+     fields_for_description_ecotaxa = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
+     df_standardizer_ecotaxa = pd.concat([df_standardizer_ecotaxa, fields_for_description_ecotaxa], axis=1)
 
      df_standardizer_ecopart = pd.read_excel(path_to_standardizer, sheet_name='ecopart', index_col=0).dropna(subset=['Sampling_description'])
      columns_for_description = df_standardizer_ecopart['Sampling_description'].apply(lambda description: dict(zip([item.split(':', 1)[0].capitalize() for item in description.split(';')],[eval(re.sub(r'(\w+)', r'"\1"', item.split(':', 1)[1])) for item in description.split(';')])) if str(description) != 'nan' else description)
-     fields_for_description = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
-     df_standardizer_ecopart =pd.concat([df_standardizer_ecopart,fields_for_description],axis=1)
+     fields_for_description_ecopart = columns_for_description.apply(lambda description: pd.Series([description[key][index] for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)],[key.capitalize() for key, value in description.items() if (type(value) == dict) for index, fields in description[key].items() if ('field' in index)]) if description != 'nan' else pd.Series({}))
+     df_standardizer_ecopart =pd.concat([df_standardizer_ecopart,fields_for_description_ecopart],axis=1)
 # Set headers for bru and dat UVP files
 dat_headers=['image_index','image','pressure','tilt_1','tilt_2','board_temperature','voltage','unknown_1','unknown_2','unknown_3','unknown_4','cooler_temperature','camera_temperature','internal_time','nb_blobs_SMbase','mean_area_SMbase','mean_grey_SMbase','nb_blobs_SMzoo','mean_grey_SMzoo']
 bru_headers=['image_index','blob','area','mean_grey','x_center','y_center']
@@ -210,6 +210,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
    """
    if project_id in standardizer.index and str(standardizer.at[project_id, "External_project"])!='nan':
        path_to_standardizer=path_to_git / 'raw' / 'project_UVP_standardizer.xlsx'
+       standardizer_headers=pd.read_excel(path_to_standardizer,nrows=1).columns
        path_to_extended_file = Path(localpath_metadata).expanduser()
        path_to_extended_file.mkdir(parents=True, exist_ok=True)
        path_to_project = Path(standardizer.at[project_id, "Project_localpath"]).expanduser()
@@ -233,36 +234,46 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
            df_ecopart['object_volume_bin']=df_ecopart.acq_volimage*df_ecopart.object_imgcount_bin
            if path_to_export.exists() and len(df_ecopart) and len(df_metadata):
               df_ecotaxa_columns=pd.read_table(path_to_export,nrows=0).columns
-              df_ecotaxa=pd.read_table(path_to_export,usecols=[column for column in df_ecotaxa_columns if column not in ecotaxa_fields_to_drop])
+              df_ecotaxa=pd.read_table(path_to_export,usecols=[column for column in df_ecotaxa_columns if column  in list(standardizer.loc[project_id,[column for column in standardizer.loc[project_id].index if '_field' in column]].dropna().values)+list(fields_for_description_ecotaxa.loc[project_id].values)+['acq_smbase']]).assign(object_number=1)
               depth_offset= df_metadata[df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(standardizer.at[project_id, "External_project"].split(';'))]["Depth_offset"].values[0]].values[0]
               sm_zoo=df_metadata.at[0,'acq_smzoo']
               nativefolder_dict=df_metadata[['Project_ID','Localpath_project']].drop_duplicates().to_dict('r')
 
               #1) Generate extended ecopart dataframe with all particles number/area using df_ecopart nbr (=number of ROI with corresponding area)
-              df_ecopart_extended=df_ecopart[df_ecopart.area<=sm_zoo].groupby(by=['Project_ID','profileid','object_corrected_min_depth_bin','object_corrected_max_depth_bin','object_volume_bin','object_imgcount_bin'],observed=True).apply(lambda df:pd.DataFrame({'object_id':['particle_unknown_id_{}'.format(str(index)) for index in pd.Series(np.repeat(df.area.values,repeats=df.nbr.values)).index],'object_bru_id':['particle_unknown_id_{}'.format(str(index)) for index in pd.Series(np.repeat(df.area.values,repeats=df.nbr.values)).index],'object_bru_area':np.repeat(df.area.values,repeats=df.nbr.values)})).reset_index()
-              df_ecopart_extended=df_ecopart_extended.drop(['level_6'],axis=1)
-              #2) Merge df_ecopart_extended to df_ecotaxa based on object_areai (raw ecopart), area (plankton ecopart), or object_bru_area (updated ecotaxa)
+              df_ecopart_extended=df_ecopart[df_ecopart.area<=sm_zoo].rename(columns={'area':'object_bru_area','nbr':'object_number'})#df_ecopart[df_ecopart.area<=sm_zoo].groupby(by=['Project_ID','profileid','object_corrected_min_depth_bin','object_corrected_max_depth_bin','object_volume_bin','object_imgcount_bin'],observed=True).apply(lambda df:pd.DataFrame({'object_id':['particle_unknown_id_{}'.format(str(index)) for index in pd.Series(np.repeat(df.area.values,repeats=df.nbr.values)).index],'object_bru_id':['particle_unknown_id_{}'.format(str(index)) for index in pd.Series(np.repeat(df.area.values,repeats=df.nbr.values)).index],'object_bru_area':np.repeat(df.area.values,repeats=df.nbr.values)})).reset_index()
+              #df_ecopart_extended=df_ecopart_extended.drop(['level_6'],axis=1)
+
+              #2) Merge df_ecopart_extended to df_ecotaxa based on object_area (plankton ecopart), or object_bru_area (updated ecotaxa)
+              path_to_metadata = Path(localpath_metadata).expanduser() / cfg['UVP_consolidation_metadata_subdir'] / "ecotaxa_{}_metadata".format(project_id)
+              path_to_metadata.mkdir(parents=True, exist_ok=True)
+              path_to_projects = df_metadata[['Project_ID', 'ptitle', 'Localpath_project']].drop_duplicates().reset_index().drop('index', axis=1)
+              # Create readme file:
+              if not Path(localpath_metadata / 'README.txt').exists():
+                  with open(str(Path(localpath_metadata / 'README.txt')), 'w') as file:
+                      file.write( "README file for UVP project consolidated files (First created on February 10, 2023):\n\nThis directory contains the consolidated files for Ecotaxa/Ecopart UVP projects with the format:ecotaxa_export_projectID(Ecotaxa)_Exportdate_Exporttime_ecopart_projectID(Ecopart).\nThe consolidation include the following steps:\n\n1) Ecotaxa default exported file and Ecopart raw particles exported file are loaded \n\n2) An extended Ecopart datatable is created using (1) the nbr/area columns to generate a row for each particle of the observed sizes, (2) the imgcount column to calculate the volume imaged in each 1-m depth bins.\nEach particle is assigned an id (object_id:particle_unknown_id_#), a null taxonomic annotation and the 'unclassified' status.\nAttention: this table contains small particles only (particles>sm_zoo are filtered out since they correspond to Ecotaxa vignettes)  \n\n3) Additional variables are appended to the native Ecotaxa table, including the object_corrected_depth (accounting for the spatial offset between the imaging frame and the depth sensor), object_min/max_depth_bin (1m-depth bins matching those of Ecopart), object_volume_bin (matching the cumulative volume in 1m-depth bins, in liters). The 'object_bru_area' variable is created (if run_macro=True) using a custom PyimageJ macro that reproduce the initial processing step of all particles segmentation, from the native project folder located in ~/plankton/uvpx_missions\nAttention: If the project folder does not include the required sub-directories (raw with all bmp images, config, and work directories), the object_bru_area will correspond to 'object_bru'  \n\n4) Both data tables are concatenated and saved in {}\n\nContact us: nmfs.pssdb@noaa.gov".format(str(localpath_metadata).replace(str(Path.home()), '~')))
+
               if all(pd.Series(['object_bru_id','object_bru_area','object_image_name','object_image_index','object_corrected_depth','object_corrected_min_depth_bin','object_corrected_max_depth_bin','object_volume_bin','object_imgcount_bin']).isin(list(df_ecotaxa.columns))):
                   print('Additional metadata found in Ecotaxa export datfile')
+              elif str(Path.home()) != '/home/rkiko':
+                  print('Script run outside the Complex server Marie.\nConsolidated file will be done with vignettes object_area')
+                  df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
+                  df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
+                  df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
+                  df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6001, step=1)),right=False,labels=np.arange(0, 6000, step=1)).astype( str).astype(int)
+                  df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa['object_corrected_min_depth_bin'] + 1
+                  df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin', 'object_imgcount_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
+
               else:
                   decision='Please run the ImageJ macro on your computer and update the metadata of your project by following the macro instructions.\nBy default, the consolidation will be done by matching up Ecotaxa vignettes to native project folder .bru files containing the area for all particles' if not run_macro else 'Running the ImageJ macro to generate metadata automatically.'
                   print('Additional metadata (e.g. object_bru_area) not found in Ecotaxa export datafile.\n{}'.format(decision))
-                  path_to_metadata = Path(localpath_metadata).expanduser() / cfg['UVP_consolidation_metadata_subdir'] / "ecotaxa_{}_metadata".format(project_id)
-                  path_to_metadata.mkdir(parents=True, exist_ok=True)
-                  # Create readme file:
-                  if not Path(localpath_metadata / 'README.txt').exists():
-                      with open(str(Path(localpath_metadata / 'README.txt')), 'w') as file:
-                          file.write( "README file for UVP project consolidated files (First created on February 10, 2023):\n\nThis directory contains the consolidated files for Ecotaxa/Ecopart UVP projects with the format:ecotaxa_export_projectID(Ecotaxa)_Exportdate_Exporttime_ecopart_projectID(Ecopart).\nThe consolidation include the following steps:\n\n1) Ecotaxa default exported file and Ecopart raw particles exported file are loaded \n\n2) An extended Ecopart datatable is created using (1) the nbr/area columns to generate a row for each particle of the observed sizes, (2) the imgcount column to calculate the volume imaged in each 1-m depth bins.\nEach particle is assigned an id (object_id:particle_unknown_id_#), a null taxonomic annotation and the 'unclassified' status.\nAttention: this table contains small particles only (particles>sm_zoo are filtered out since they correspond to Ecotaxa vignettes)  \n\n3) Additional variables are appended to the native Ecotaxa table, including the object_corrected_depth (accounting for the spatial offset between the imaging frame and the depth sensor), object_min/max_depth_bin (1m-depth bins matching those of Ecopart), object_volume_bin (matching the cumulative volume in 1m-depth bins, in liters). The 'object_bru_area' variable is created (if run_macro=True) using a custom PyimageJ macro that reproduce the initial processing step of all particles segmentation, from the native project folder located in ~/plankton/uvpx_missions\nAttention: If the project folder does not include the required sub-directories (raw with all bmp images, config, and work directories), the object_bru_area will correspond to 'object_bru'  \n\n4) Both data tables are concatenated and saved in {}\n\nContact us: nmfs.pssdb@noaa.gov".format( str(localpath_metadata).replace(str(Path.home()), '~')))
                   # Check for home path and set path to native UVP project folders:
                   if str(Path.home()) == '/home/rkiko':
                       localpath_to_project = Path('/home/rkiko/plankton/uvp5_missions').expanduser()
-                  elif (str(Path.home()) == '/Users/dugennem') or (str(Path.home()) == '/Users/mc4214'):
-                      localpath_to_project = Path.home().expanduser()
                   else:
                       print("Consolidation only available on the server. Please run the script on Marie")
                       return
 
-                  path_to_projects = df_metadata[['Project_ID', 'ptitle', 'Localpath_project']].drop_duplicates().reset_index().drop('index',axis=1)
+
                   if run_macro and (str(Path.home()) == '/home/rkiko'):
                       #1) Step 1: Generate ecotaxa metadata using the ImageJ macro PyImageJ_ecotaxa_append_metadata.txt
                       for path in path_to_projects.Localpath_project:
@@ -288,23 +299,31 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                                 table['sample_id']=table.object_id.apply(lambda id: id[0:(id.rfind("_"))])
                                 table.groupby(by='sample_id').apply(lambda x: pd.concat([pd.DataFrame(table_headings,index=table.columns[0:len(table.columns)-1]).T,x.drop('sample_id',axis=1)],ignore_index=True,axis=0).to_csv(path_to_metadata/"ecotaxa_{}_metadata_v1.tsv".format(x.sample_id.unique()[0]), sep="\t",index=False))
                                 print('Saving project metadata to {}.'.format(str(path_to_metadata)))
-                      path_to_ecotaxa_metadata = natsorted(list(path_to_metadata.parent.rglob('*_metadata_v1.tsv')))
-                      df_ecotaxa_metadata = pd.concat(map(lambda path: pd.read_table(path, skiprows=0), path_to_ecotaxa_metadata)).drop(index=0)
-                      df_ecotaxa_metadata = df_ecotaxa_metadata.astype(dict(zip(['object_id', 'object_bru_id', 'object_bru_area', 'object_image_name','object_image_index', 'object_corrected_depth', 'object_corrected_min_depth_bin','object_corrected_max_depth_bin', 'object_volume_bin', 'object_imgcount_bin'], [str, str, float, str, int, float, float, float, float, int])))
-                      df_ecotaxa_metadata = df_ecotaxa_metadata.sort_values(['object_bru_id'])
-                      df_ecotaxa = pd.merge(df_ecotaxa, df_ecotaxa_metadata, how="left", on=['object_id'])
-                      # df_ecotaxa = df_ecotaxa[['object_id', 'object_bru_id', 'object_area','object_bru_area','profileid','sample_corrected_min_depth_bin','sample_corrected_max_depth_bin','sample_volume_bin','sample_imgcount_bin']]
-                      df_ecotaxa = df_ecotaxa.sort_values(['sample_id', 'object_depth_min', 'object_id'])
+                                path_to_ecotaxa_metadata = natsorted(list(path_to_metadata.parent.rglob('*_metadata_v1.tsv')))
+                                df_ecotaxa_metadata = pd.concat(map(lambda path: pd.read_table(path, skiprows=0), path_to_ecotaxa_metadata)).drop(index=0)
+                                df_ecotaxa_metadata = df_ecotaxa_metadata.astype(dict(zip(['object_id', 'object_bru_id', 'object_bru_area', 'object_image_name','object_image_index', 'object_corrected_depth', 'object_corrected_min_depth_bin','object_corrected_max_depth_bin', 'object_volume_bin', 'object_imgcount_bin'], [str, str, float, str, int, float, float, float, float, int])))
+                                df_ecotaxa_metadata = df_ecotaxa_metadata.sort_values(['object_bru_id'])
+                                df_ecotaxa = pd.merge(df_ecotaxa, df_ecotaxa_metadata, how="left", on=['object_id'])
+                                if len(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_bru_area']):
+                                    df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_bru_id', 'object_bru_area']] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_id', 'object_area']]
+                                    df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_depth_min'] + depth_offset
+                                    df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype(int)
+                                    df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_max_depth_bin'] = df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] + 1
+                                    df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin','object_volume_bin']].drop_duplicates(), how='left',left_on=['sample_id', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
+
+                                # df_ecotaxa = df_ecotaxa[['object_id', 'object_bru_id', 'object_area','object_bru_area','profileid','sample_corrected_min_depth_bin','sample_corrected_max_depth_bin','sample_volume_bin','sample_imgcount_bin']]
+                                df_ecotaxa = df_ecotaxa.sort_values(['sample_id', 'object_depth_min', 'object_id'])
+                          else:
+                                print('Consolidated file will be done with vignettes object_area')
+                                df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
+                                df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
+                                df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
+                                df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)),right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype(int)
+                                df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa['object_corrected_min_depth_bin'] + 1
+                                df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
 
-                  elif run_macro and ((str(Path.home()) == '/Users/dugennem') or (str(Path.home()) == '/Users/mc4214')):
-                      print('Consolidated file will be done with vignettes object_area')
-                      df_ecotaxa['object_bru_area'] =df_ecotaxa['object_area']
-                      df_ecotaxa['object_bru_id']=df_ecotaxa['object_id']
-                      df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min']+depth_offset
-                      df_ecotaxa['object_corrected_min_depth_bin'] =pd.cut(df_ecotaxa['object_corrected_depth'],bins=list(np.arange(0,6001,step=1)),right=False,labels=np.arange(0,6000,step=1)).astype(str).astype(int)
-                      df_ecotaxa['object_corrected_max_depth_bin'] =df_ecotaxa['object_corrected_min_depth_bin'] +1
-                      df_ecotaxa=pd.merge(df_ecotaxa,df_ecopart_extended[['profileid','object_corrected_min_depth_bin','object_volume_bin']].drop_duplicates(),how='left',left_on=['sample_id','object_corrected_min_depth_bin'],right_on=['profileid','object_corrected_min_depth_bin'])
+
                   else:
                       print('Running PyimageJ macro set to False, the consolidation will be done after vignettes-bru files match-up, using the area saved in the bru files')
                       df_matchup_all = pd.DataFrame({})
@@ -312,57 +331,71 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                       for path in path_to_projects.Localpath_project:
                           print('Checking profiles for {}'.format(str(localpath_to_project / path).replace(str(Path.home()),'~')))
                           df_matchup = UVP_vignettes_matchup(project_path=localpath_to_project / path, dat_path=None, pressure_gain=10, depth_offset=depth_offset,profileid=None)['vignettes']
-                          # Check if dat files give the same number of vignettes/depth as Ecotaxa
-                          df_test=df_matchup.groupby(['Sample']).apply(lambda x:pd.Series({'Correct_files':(len(x)==len(df_ecotaxa[df_ecotaxa.sample_id==x['Sample'].unique()[0]])) or all(x.rename(columns={'object_depth':'object_depth_min'})[x.object_id.isin(list(df_ecotaxa[df_ecotaxa.sample_id == x['Sample'].unique()[0]].object_id))].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']==df_ecotaxa[df_ecotaxa.sample_id == x['Sample'].unique()[0]].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']),'dat_file':list(Path(localpath_to_project/ path / "work" / str(x['Sample'].unique()[0])).glob('*_datfile.txt'))[0]})).reset_index()
-                          profile_dict = dict(zip(list(df_metadata[df_metadata.Localpath_project == path].profileid),["HDR" + str(id) for id in list(df_metadata[df_metadata.Localpath_project == path].filename)]))
-                          # Update dat files from work, results, or raw folders and check for profiles that didn't pass the test
-                          if len(df_test[df_test.Correct_files == False]):
-                              for profile in df_test[df_test.Correct_files == False].Sample.unique():
-                                  dat_path = localpath_to_project / path / 'work'  # list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
-                                  df_new_matchup =UVP_vignettes_matchup(project_path=localpath_to_project / path, dat_path=dat_path,pressure_gain=10, depth_offset=depth_offset,profileid=[profile])['vignettes']
-                                  if len(df_new_matchup) != len(df_ecotaxa[df_ecotaxa.sample_id == profile]) or any(df_new_matchup.rename(columns={'object_depth': 'object_depth_min'})[df_new_matchup.object_id.isin(list(df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))].sort_values( ['object_depth_min']).reset_index(drop=True)['object_depth_min'] != df_ecotaxa[df_ecotaxa.sample_id == profile].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']):
-                                      dat_path = localpath_to_project / path / 'results'  # list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
-                                      df_new_matchup = UVP_vignettes_matchup(project_path=localpath_to_project / path, dat_path=dat_path, pressure_gain=10, depth_offset=depth_offset,profileid=[profile])['vignettes']
-                                      if len(df_new_matchup) != len(df_ecotaxa[df_ecotaxa.sample_id == profile]) or any( df_new_matchup.rename(columns={'object_depth': 'object_depth_min'})[df_new_matchup.object_id.isin(list( df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min'] !=df_ecotaxa[df_ecotaxa.sample_id == profile].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']):
-                                          dat_path = localpath_to_project / path / 'raw'  # list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
-                                          df_new_matchup = UVP_vignettes_matchup(project_path=localpath_to_project / path,dat_path=dat_path, pressure_gain=10,depth_offset=depth_offset, profileid=[profile])['vignettes']
-                                          if (len(df_new_matchup) != len(df_ecotaxa[df_ecotaxa.sample_id == profile])) or any(df_new_matchup.rename(columns={'object_depth': 'object_depth_min'})[ df_new_matchup.object_id.isin(list(df_ecotaxa[ df_ecotaxa.sample_id == profile].object_id))].sort_values( ['object_depth_min']).reset_index(drop=True)['object_depth_min'] != df_ecotaxa[df_ecotaxa.sample_id == profile].sort_values( ['object_depth_min']).reset_index(drop=True)['object_depth_min']):
-                                              print('No complete match was found with dat files in the work, result, or raw folder based on the vignette number.\nPlease check the profile {} manually (possible missing vignettes).\nSetting object_bru_id to NA and object_bru_area to object_area'.format(profile))
-                                              df_test.loc[df_test.Sample == profile, 'dat_file'] = ''
-                                              # Dropping profile
-                                              df_matchup = df_matchup[df_matchup.Sample != profile]
-                                              df_test = df_test[df_test.Sample != profile]
+                          if len(df_matchup):
+                              # Check if dat files give the same number of vignettes/depth as Ecotaxa
+                              df_test=df_matchup.groupby(['Sample']).apply(lambda x:pd.Series({'Correct_files':(len(x)==len(df_ecotaxa[df_ecotaxa.sample_id==x['Sample'].unique()[0]])) or all(x.rename(columns={'object_depth':'object_depth_min'})[x.object_id.isin(list(df_ecotaxa[df_ecotaxa.sample_id == x['Sample'].unique()[0]].object_id))].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']==df_ecotaxa[df_ecotaxa.sample_id == x['Sample'].unique()[0]].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']),'dat_file':list(Path(localpath_to_project/ path / "work" / str(x['Sample'].unique()[0])).glob('*_datfile.txt'))[0]})).reset_index()
+                              profile_dict = dict(zip(list(df_metadata[df_metadata.Localpath_project == path].profileid),["HDR" + str(id) for id in list(df_metadata[df_metadata.Localpath_project == path].filename)]))
+                              # Update dat files from work, results, or raw folders and check for profiles that didn't pass the test
+                              if len(df_test[df_test.Correct_files == False]):
+                                  for profile in df_test[df_test.Correct_files == False].Sample.unique():
+                                      dat_path = localpath_to_project / path / 'work'  # list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
+                                      df_new_matchup =UVP_vignettes_matchup(project_path=localpath_to_project / path, dat_path=dat_path,pressure_gain=10, depth_offset=depth_offset,profileid=[profile])['vignettes']
+                                      if len(df_new_matchup) != len(df_ecotaxa[df_ecotaxa.sample_id == profile]) or any(df_new_matchup.rename(columns={'object_depth': 'object_depth_min'})[df_new_matchup.object_id.isin(list(df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))].sort_values( ['object_depth_min']).reset_index(drop=True)['object_depth_min'] != df_ecotaxa[df_ecotaxa.sample_id == profile].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']):
+                                          dat_path = localpath_to_project / path / 'results'  # list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
+                                          df_new_matchup = UVP_vignettes_matchup(project_path=localpath_to_project / path, dat_path=dat_path, pressure_gain=10, depth_offset=depth_offset,profileid=[profile])['vignettes']
+                                          if len(df_new_matchup) != len(df_ecotaxa[df_ecotaxa.sample_id == profile]) or any( df_new_matchup.rename(columns={'object_depth': 'object_depth_min'})[df_new_matchup.object_id.isin(list( df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min'] !=df_ecotaxa[df_ecotaxa.sample_id == profile].sort_values(['object_depth_min']).reset_index(drop=True)['object_depth_min']):
+                                              dat_path = localpath_to_project / path / 'raw'  # list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
+                                              df_new_matchup = UVP_vignettes_matchup(project_path=localpath_to_project / path,dat_path=dat_path, pressure_gain=10,depth_offset=depth_offset, profileid=[profile])['vignettes']
+                                              if (len(df_new_matchup) != len(df_ecotaxa[df_ecotaxa.sample_id == profile])) or any(df_new_matchup.rename(columns={'object_depth': 'object_depth_min'})[ df_new_matchup.object_id.isin(list(df_ecotaxa[ df_ecotaxa.sample_id == profile].object_id))].sort_values( ['object_depth_min']).reset_index(drop=True)['object_depth_min'] != df_ecotaxa[df_ecotaxa.sample_id == profile].sort_values( ['object_depth_min']).reset_index(drop=True)['object_depth_min']):
+                                                  print('No complete match was found with dat files in the work, result, or raw folder based on the vignette number.\nPlease check the profile {} manually (possible missing vignettes).\nSetting object_bru_id to NA and object_bru_area to object_area'.format(profile))
+                                                  df_test.loc[df_test.Sample == profile, 'dat_file'] = ''
+                                                  # Dropping profile
+                                                  df_matchup = df_matchup[df_matchup.Sample != profile]
+                                                  df_test = df_test[df_test.Sample != profile]
+                                              else:
+                                                  df_test.loc[df_test.Sample == profile, ['Correct_files', 'dat_file']] = [ True, ';'.join([str(path) for path in list((Path(dat_path).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))])]
+                                                  df_matchup = pd.concat([df_matchup[df_matchup.Sample != profile], df_new_matchup[df_new_matchup.object_id.isin(list( df_ecotaxa[ df_ecotaxa.sample_id == profile].object_id))]],axis=0).reset_index(drop=True)
                                           else:
-                                              df_test.loc[df_test.Sample == profile, ['Correct_files', 'dat_file']] = [ True, ';'.join([str(path) for path in list((Path(dat_path).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))])]
-                                              df_matchup = pd.concat([df_matchup[df_matchup.Sample != profile], df_new_matchup[df_new_matchup.object_id.isin(list( df_ecotaxa[ df_ecotaxa.sample_id == profile].object_id))]],axis=0).reset_index(drop=True)
+                                              df_test.loc[df_test.Sample == profile, ['Correct_files', 'dat_file']] = [True, ';'.join([str(path) for path in list((Path(dat_path).expanduser()).rglob( '{}*.dat'.format( profile_dict[ profile])))])]
+                                              df_matchup = pd.concat([df_matchup[df_matchup.Sample != profile],df_new_matchup[df_new_matchup.object_id.isin(list( df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))]],axis=0).reset_index(drop=True)
                                       else:
-                                          df_test.loc[df_test.Sample == profile, ['Correct_files', 'dat_file']] = [True, ';'.join([str(path) for path in list((Path(dat_path).expanduser()).rglob( '{}*.dat'.format( profile_dict[ profile])))])]
-                                          df_matchup = pd.concat([df_matchup[df_matchup.Sample != profile],df_new_matchup[df_new_matchup.object_id.isin(list( df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))]],axis=0).reset_index(drop=True)
-                                  else:
-                                      df_test.loc[df_test.Sample == profile, ['Correct_files', 'dat_file']] = [True,';'.join([str(path) for path in list((Path(dat_path).expanduser()).rglob( '{}*.dat'.format( profile_dict[ profile])))])]
-                                      df_matchup = pd.concat([df_matchup[df_matchup.Sample != profile], df_new_matchup[ df_new_matchup.object_id.isin(list(df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))]],axis=0).reset_index(drop=True)
+                                          df_test.loc[df_test.Sample == profile, ['Correct_files', 'dat_file']] = [True,';'.join([str(path) for path in list((Path(dat_path).expanduser()).rglob( '{}*.dat'.format( profile_dict[ profile])))])]
+                                          df_matchup = pd.concat([df_matchup[df_matchup.Sample != profile], df_new_matchup[ df_new_matchup.object_id.isin(list(df_ecotaxa[df_ecotaxa.sample_id == profile].object_id))]],axis=0).reset_index(drop=True)
 
-                          df_test['bru_file'] = df_test.Sample.apply(lambda profile: ';'.join( [str(path) for path in list((localpath_to_project / path / "raw" / profile_dict[profile]).glob( profile_dict[profile] + '*.bru'))]) if len(list( (localpath_to_project / path / "raw" / profile_dict[profile]).glob( profile_dict[profile] + '*.bru'))) else str(Path( localpath_to_project / path / "work" / profile / ( profile_dict[profile] + '.bru'))) if Path( localpath_to_project / path / "work" / profile / ( profile_dict[profile] + '.bru')).exists() else str(Path(localpath_to_project / path / "results" / (profile_dict[profile] + '.bru'))) if Path(localpath_to_project / path / "results" / ( profile_dict[profile] + '.bru')).exists() else '')
-                          df_matchup_all = pd.concat([df_matchup_all, df_matchup], axis=0).reset_index(drop=True)
-                          summary_matchup_all = pd.concat([summary_matchup_all, df_test], axis=0).reset_index(drop=True)
+                              df_test['bru_file'] = df_test.Sample.apply(lambda profile: ';'.join( [str(path) for path in list((localpath_to_project / path / "raw" / profile_dict[profile]).glob( profile_dict[profile] + '*.bru'))]) if len(list( (localpath_to_project / path / "raw" / profile_dict[profile]).glob( profile_dict[profile] + '*.bru'))) else str(Path( localpath_to_project / path / "work" / profile / ( profile_dict[profile] + '.bru'))) if Path( localpath_to_project / path / "work" / profile / ( profile_dict[profile] + '.bru')).exists() else str(Path(localpath_to_project / path / "results" / (profile_dict[profile] + '.bru'))) if Path(localpath_to_project / path / "results" / ( profile_dict[profile] + '.bru')).exists() else '')
+                              df_matchup_all = pd.concat([df_matchup_all, df_matchup], axis=0).reset_index(drop=True)
+                              summary_matchup_all = pd.concat([summary_matchup_all, df_test], axis=0).reset_index(drop=True)
+                      if len(summary_matchup_all) and len(df_matchup_all):
+                          # Prepare metadata for upload on Ecotaxa by adding the area in the original bru files and save profile tables to ecotaxa_projectID_metadata
+                          df_bru = pd.concat(map(lambda path_all: pd.concat(map(lambda path: read_bru(Path(path)).assign(Sample=summary_matchup_all.loc[path_all[0], 'Sample']), path_all[1].split(";"))),enumerate(summary_matchup_all.bru_file)))
+                          df_matchup_all['object_blob'] = df_matchup_all.object_bru_id.apply(lambda id: int(id[1 + id.rfind("_"):len(id)]))
+                          df_matchup_all['object_image_index'] = df_matchup_all.object_image_index.astype(int)
+                          df_matchup_all = pd.merge(df_matchup_all, df_bru[['Sample', 'image_index', 'blob', 'area']], how='left',left_on=['Sample', 'object_image_index', 'object_blob'], right_on=['Sample', 'image_index', 'blob']).rename(columns={'area': 'object_bru_area'})[ ['Sample', 'object_id', 'object_bru_id', 'object_bru_area', 'object_image_name', 'object_image_index', 'object_corrected_depth', 'object_corrected_min_depth_bin','object_corrected_max_depth_bin']]
+                          df_matchup_all = pd.merge(df_matchup_all, df_ecopart[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin', 'object_imgcount_bin']].drop_duplicates(), how='left', left_on=['Sample', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
+                          df_matchup_all = df_matchup_all.drop(columns='profileid').reset_index(drop=True)
+                          # Metadata should include a header specifying the new columns types (t for text, f for float) to be ingested on Ecotaxa
+                          table_headings_dict = {'object_id': '[t]', 'object_bru_id': '[t]', 'object_bru_area': '[f]','object_image_name': '[t]', 'object_image_index': '[f]', 'object_corrected_depth': '[f]', 'object_corrected_min_depth_bin': '[f]','object_corrected_max_depth_bin': '[f]', 'object_volume_bin': '[f]', 'object_imgcount_bin': '[f]'}
+                          table_headings = [value for index, value in table_headings_dict.items() if index in df_matchup_all.columns]
+                          df_matchup_all.groupby(by='Sample').apply(lambda x: pd.concat([pd.DataFrame(table_headings,index=[index for index, value in table_headings_dict.items() if index in df_matchup_all.columns]).T, x.drop(['Sample'], axis=1)[ [index for index, value in  table_headings_dict.items() if index in df_matchup_all.columns]]],ignore_index=True, axis=0).to_csv( path_to_metadata / "ecotaxa_{}_metadata_v1.tsv".format(x.Sample.unique()[0]), sep="\t", index=False))
+                          print('Metadata saved to {} along with original project files path for reproducibility'.format(path_to_metadata))
+                          summary_matchup_all.to_csv(path_to_metadata / "metadata_files_path.tsv", sep="\t", index=False)
+                          # Merge matchup table to Ecotaxa and replace missing object_bru_id size by object_area
+                          df_ecotaxa = pd.merge(df_ecotaxa, df_matchup_all.drop(['Sample'], axis=1),how='left', on='object_id')
+                          if len(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_bru_area']):
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_bru_id', 'object_bru_area']] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_id', 'object_area']]
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'] =  df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_depth_min'] + depth_offset
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype(int)
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_max_depth_bin'] =  df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] + 1
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
-                      # Prepare metadata for upload on Ecotaxa by adding the area in the original bru files and save profile tables to ecotaxa_projectID_metadata
-                      df_bru = pd.concat(map(lambda path_all: pd.concat(map(lambda path: read_bru(Path(path)).assign(Sample=summary_matchup_all.loc[path_all[0], 'Sample']), path_all[1].split(";"))),enumerate(summary_matchup_all.bru_file)))
-                      df_matchup_all['object_blob'] = df_matchup_all.object_bru_id.apply(lambda id: int(id[1 + id.rfind("_"):len(id)]))
-                      df_matchup_all['object_image_index'] = df_matchup_all.object_image_index.astype(int)
-                      df_matchup_all = pd.merge(df_matchup_all, df_bru[['Sample', 'image_index', 'blob', 'area']], how='left',left_on=['Sample', 'object_image_index', 'object_blob'], right_on=['Sample', 'image_index', 'blob']).rename(columns={'area': 'object_bru_area'})[ ['Sample', 'object_id', 'object_bru_id', 'object_bru_area', 'object_image_name', 'object_image_index', 'object_corrected_depth', 'object_corrected_min_depth_bin','object_corrected_max_depth_bin']]
-                      df_matchup_all = pd.merge(df_matchup_all, df_ecopart[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin', 'object_imgcount_bin']].drop_duplicates(), how='left', left_on=['Sample', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
-                      df_matchup_all = df_matchup_all.drop(columns='profileid').reset_index(drop=True)
-                      # Metadata should include a header specifying the new columns types (t for text, f for float) to be ingested on Ecotaxa
-                      table_headings_dict = {'object_id': '[t]', 'object_bru_id': '[t]', 'object_bru_area': '[f]','object_image_name': '[t]', 'object_image_index': '[f]', 'object_corrected_depth': '[f]', 'object_corrected_min_depth_bin': '[f]','object_corrected_max_depth_bin': '[f]', 'object_volume_bin': '[f]', 'object_imgcount_bin': '[f]'}
-                      table_headings = [value for index, value in table_headings_dict.items() if index in df_matchup_all.columns]
-                      df_matchup_all.groupby(by='Sample').apply(lambda x: pd.concat([pd.DataFrame(table_headings,index=[index for index, value in table_headings_dict.items() if index in df_matchup_all.columns]).T, x.drop(['Sample'], axis=1)[ [index for index, value in  table_headings_dict.items() if index in df_matchup_all.columns]]],ignore_index=True, axis=0).to_csv( path_to_metadata / "ecotaxa_{}_metadata_v1.tsv".format(x.Sample.unique()[0]), sep="\t", index=False))
-                      print('Metadata saved to {} along with original project files path for reproducibility'.format(path_to_metadata))
-                      summary_matchup_all.to_csv(path_to_metadata / "metadata_files_path.tsv", sep="\t", index=False)
-                      # Merge matchup table to Ecotaxa and replace missing object_bru_id size by object_area
-                      df_ecotaxa = pd.merge(df_ecotaxa, df_matchup_all.drop(['Sample'], axis=1),how='left', on='object_id')
-                      if len(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_bru_area']):
-                          df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_bru_area'] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_area']
+                      else:
+                          print('Matchup of Ecotaxa vignette not possible.\nConsolidated file will be done with vignettes object_area')
+                          df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
+                          df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
+                          df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
+                          df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6001, step=1)),right=False, labels=np.arange(0, 6000,step=1)).astype(str).astype(int)
+                          df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa[ 'object_corrected_min_depth_bin'] + 1
+                          df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin','object_imgcount_bin']].drop_duplicates(), how='left',left_on=['sample_id', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
 
                   if len(list(path_to_metadata.glob("*_metadata_v1.tsv"))):
                   # 2) Step 2: Zip all ecotaxa_profileID_metadata files and merge to existing Ecotaxa project using the API
@@ -378,9 +411,10 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
 
               # 4) Merge df_ecotaxa to all metadata_v1_tables
               ## Append sample, process, and acquistion fields to df_ecopart_extended and concatenate to ecotaxa
-              df_ecopart_extended = pd.concat([pd.merge(df_ecopart_extended.assign(sample_id=df_ecopart_extended.profileid,object_annotation_category='',object_annotation_status='unclassified'),df_ecotaxa[['object_lat','object_lon','object_date','object_time']+[column for column in df_ecotaxa.columns if len(re.findall( r'sample_|acq_|process_', column))>0]].drop_duplicates(),how='left',on='sample_id'), df_ecotaxa], axis=0)
-              df_ecopart_extended =pd.merge(df_ecopart_extended ,df_metadata[['profileid','filename']],how="left",left_on=['sample_id'],right_on=['profileid'])
+              df_ecopart_extended = pd.concat([pd.merge(df_ecopart_extended.assign(sample_id=df_ecopart_extended.profileid,object_annotation_category='',object_annotation_status='unclassified').drop(columns=['acq_volimage']),df_ecotaxa[['object_lat','object_lon','object_date','object_time']+[column for column in df_ecotaxa.columns if len(re.findall( r'sample_|acq_|process_', column))>0]].drop_duplicates(),how='left',on='sample_id'), df_ecotaxa], axis=0)#pd.concat([pd.merge(df_ecopart_extended.assign(sample_id=df_ecopart_extended.profileid,object_annotation_category='',object_annotation_status='unclassified'),df_ecotaxa[['object_lat','object_lon','object_date','object_time']+[column for column in df_ecotaxa.columns if len(re.findall( r'sample_|acq_|process_', column))>0]].drop_duplicates(),how='left',on='sample_id'), df_ecotaxa], axis=0)
+              df_ecopart_extended =pd.merge(df_ecopart_extended.drop(columns=['profileid']) ,df_metadata[['profileid','filename']],how="left",left_on=['sample_id'],right_on=['profileid'])
               df_ecopart_extended =df_ecopart_extended[['filename']+list(df_ecotaxa.columns)].sort_values(['filename', 'object_corrected_min_depth_bin','object_bru_area'],ascending=[True,True,False]).reset_index(drop=True)
+              df_ecopart_extended = df_ecopart_extended[['filename']+[column for column in df_ecopart_extended if 'object_' in column]+[column for column in df_ecopart_extended if 'sample_' in column]+[column for column in df_ecopart_extended if 'acq_' in column]+[column for column in df_ecopart_extended if 'process_' in column]]
               df_ecopart_extended['acq_smbase']=df_ecopart_extended['acq_smbase']+1
               df_ecopart_extended.groupby(by='filename').apply(lambda x:x.drop(columns=['filename']).to_csv(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated_profile_{}.tsv').format('_'.join(path_to_projects.Project_ID.astype(str)),str(1+np.argwhere(df_ecopart_extended.filename.unique()==x.filename.unique()[0])[0][0])),sep="\t" ,index=False))
               print('Consolidated project created at {}'.format(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format('_'.join(path_to_projects.Project_ID.astype(str)))))
@@ -389,7 +423,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
               index_columns_to_replace = [index for index, column in enumerate(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])) if str(standardizer.loc[project_id, column]) != 'nan']
               standardizer.loc[project_id, list(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])[index_columns_to_replace])] = list(pd.Series([str(path_to_extended_file).replace(str(Path.home()), '~'), pd.NA,'object_corrected_min_depth_bin', 'object_corrected_max_depth_bin', 'object_bru_area', pd.NA,pd.NA, 'object_volume_bin', 'acq_smbase', 'pixel'])[index_columns_to_replace])
               with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                        standardizer.rename_axis('Project_ID').reset_index().to_excel(writer, sheet_name=sheetname, index=False)
+                  (standardizer.rename_axis('Project_ID').reset_index())[standardizer_headers].to_excel(writer, sheet_name=sheetname, index=False)
               print('Consolidation done')
 
            else:
@@ -536,9 +570,9 @@ def descending_images(image_series,depth_series,portal='Ecopart',first_image=Non
    images_in_profile = []
    depth_min=depth_min
    prev_depth_image = depth_min
-   for index,image in enumerate(image_series):
+   for index in pd.Series(image_series).index:
       depth =depth_series[index] if depth_series[index] > 0 else 0
-      if (depth >= prev_depth_image) & (depth >= depth_min): # if (depth > prev_depth_image) & (depth >= depth_min): Attention the filter to extract the last image for Ecopart does not allow for stable depth (see l.481 of function GenerateRawHistogram https://github.com/ecotaxa/ecopart/blob/master/py/part_app/funcs/uvp_sample_import.py)
+      if (depth >= prev_depth_image) & (depth >= depth_min) : # if (depth > prev_depth_image) & (depth >= depth_min): Attention the filter to extract the last image for Ecopart does not allow for stable depth (see l.481 of function GenerateRawHistogram https://github.com/ecotaxa/ecopart/blob/master/py/part_app/funcs/uvp_sample_import.py)
          images_in_profile = images_in_profile+[image_series[index]]
          prev_depth_image = depth
    return images_in_profile
@@ -564,60 +598,66 @@ def UVP_vignettes_matchup(project_path,dat_path=None,pressure_gain=10,depth_offs
    df_meta['filename']=df_meta['filename'].apply(lambda profile:"HDR"+str(profile))
    profile_dict=dict(zip(list(df_meta[['profileid','filename']].drop_duplicates()['profileid']),list(df_meta[['profileid','filename']].drop_duplicates()['filename'])))
    profiles=next(os.walk(Path(project_path) / "work"))[1] if str(profileid)=='None' else profileid
-   print('Processing profile:')
-   for profile in profiles:
-      # Set path to configurations, dat, and bru files
-      ## Attention: first image used to generate vignettes UVP profiles may differ from the indices recorded in project_path/meta/uvp5_header_project.txt
-      path_config=list(Path(project_path / "work" / profile).glob('*dat1.pid'))[0] # Use pid table for processed first images
-      path_dat=list(Path(project_path / "work" / profile).glob('*_datfile.txt')) if str(dat_path)=='None' else list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
-      #path_bru = Path(project_path) / "work"/ profile / (profile+'.bru') if  Path(project_path / "work"/ profile / (profile+'.bru')).exists() else list(Path(project_path / "work" / profile).glob('HDR*.bru'))[0]
-      if path_config.exists() & all([path.exists() for path in path_dat]):
-         # Read config file to get first image index
-         df_config = read_pid(path_config)['metadata_process']
-         first_image=int(df_config.at[profile,'First_image'])
-         first_image0=first_image
-         df_dat=pd.concat(map(lambda path: read_dat(path),path_dat))
-         df_dat.index=df_dat.index.astype(int)
-         df_dat['depth']=df_dat.pressure/pressure_gain
+   df_bmp=pd.Series([path.name for path in list(Path(project_path / "raw").rglob('*.bmp'))],name='bmp')
+   if not len(df_bmp):
+       print('Native bmp vignettes not found in {}.\nPlease check project folder (possible issues: compressed raw folder).\nQuitting'.format(str(Path(project_path / "raw"))))
+       return pd.DataFrame({})
+   else:
+       print('Processing profile:')
+       for profile in profiles:
+          # Set path to configurations, dat, and bru files
+          ## Attention: first image used to generate vignettes UVP profiles may differ from the indices recorded in project_path/meta/uvp5_header_project.txt
+          path_config=list(Path(project_path / "work" / profile).glob('*dat1.pid'))[0] # Use pid table for processed first images
+          path_dat=list(Path(project_path / "work" / profile).glob('*_datfile.txt')) if str(dat_path)=='None' else list((Path(dat_path ).expanduser()).rglob('{}*.dat'.format(profile_dict[profile])))
+          #path_bru = Path(project_path) / "work"/ profile / (profile+'.bru') if  Path(project_path / "work"/ profile / (profile+'.bru')).exists() else list(Path(project_path / "work" / profile).glob('HDR*.bru'))[0]
+          if path_config.exists() & all([path.exists() for path in path_dat]):
+             # Read config file to get first image index
+             df_config = read_pid(path_config)['metadata_process']
+             first_image=int(df_config.at[profile,'First_image'])
+             first_image0=first_image
+             df_dat=pd.concat(map(lambda path: read_dat(path),path_dat))
+             df_dat.index=df_dat.index.astype(int)
+             df_dat['depth']=df_dat.pressure/pressure_gain
 
-         # Get Ecopart volume in 1m depth bins
-         #images_in_Ecopart=descending_images(image_series=df_dat.index, depth_series=df_dat.depth, portal='Ecopart', first_image=firstimage_Ecopart, last_image=lastimage_Ecopart,depth_min=0)
-         #bins_in_Ecopart= pd.cut(df_dat.loc[images_in_Ecopart,'depth']+depth_offset,bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype( int)
-         #vignettes_volume_bins=pd.DataFrame(bins_in_Ecopart.values,columns=['object_corrected_min_depth_bin']).groupby(by=['object_corrected_min_depth_bin'], observed=True).apply(lambda x: pd.Series( {'Sample': profile, 'object_volume_bin': len(x) * df_config.volimage.astype(float).values[0],'object_imgcount_bin': len(x)})).reset_index()
+             # Get Ecopart volume in 1m depth bins
+             #images_in_Ecopart=descending_images(image_series=df_dat.index, depth_series=df_dat.depth, portal='Ecopart', first_image=firstimage_Ecopart, last_image=lastimage_Ecopart,depth_min=0)
+             #bins_in_Ecopart= pd.cut(df_dat.loc[images_in_Ecopart,'depth']+depth_offset,bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype( int)
+             #vignettes_volume_bins=pd.DataFrame(bins_in_Ecopart.values,columns=['object_corrected_min_depth_bin']).groupby(by=['object_corrected_min_depth_bin'], observed=True).apply(lambda x: pd.Series( {'Sample': profile, 'object_volume_bin': len(x) * df_config.volimage.astype(float).values[0],'object_imgcount_bin': len(x)})).reset_index()
 
-         # Use Zooprocess first image and depth condition to get vignettes matchup
-         first_image_date=(df_dat.at[int(first_image),'image'])[0:13] ## Attention: the date used in Zooprocess is truncated at the 10 second
-         first_image=df_dat.loc[(df_dat['image'].apply(lambda date: date[0:13]).values==first_image_date),'image_index'].index[0]
-         # Filter out ascending depths
-         images_in_profile={}
-         vignettes=pd.DataFrame({})
-         prev_depth = 0  # df_dat.at[int(first_image),"pressure"]/pressure_gain if (df_dat.at[int(first_image),"pressure"]/pressure_gain)>0 else 0
-         prev_depth_image = prev_depth
-         for i in df_dat.image_index.loc[df_dat.image_index.astype(float)>=first_image].index:
-             depth=df_dat.at[i,"pressure"]/pressure_gain if (df_dat.at[i,"pressure"]/pressure_gain)>0 else 0
-             if depth>=prev_depth_image:
-                if depth>=depth_min:
-                    images_in_profile[i] = depth
-                    prev_depth_image=depth
-                    last_image = i
-             if depth>=prev_depth:
-                if (df_dat.at[i,"nb_blobs_SMzoo"]>0) & (depth>=depth_min):
-                    # Attention: Some bmps are missing and thus vignette must discard missing bmps
-                    object_id=[profile+'_'+str(len(vignettes)+blob) for blob in np.arange(1,df_dat.at[i,"nb_blobs_SMzoo"]+1,step=1) if len(list(Path(project_path / "raw" ).rglob(str(df_dat.at[i, "image"] + '_' + str(blob-1).zfill(4))+'.bmp')))]
-                    object_bru_id=[df_dat.at[i, "image"] + '_' + str(blob).zfill(4) for blob in np.arange(0, df_dat.at[i, "nb_blobs_SMzoo"], step=1) if len(list(Path(project_path / "raw" ).rglob(str(df_dat.at[i, "image"] + '_' + str(blob).zfill(4))+'.bmp')))]
-                    corrected_depth=depth+depth_offset
-                    vignettes=pd.concat([vignettes,pd.DataFrame({'Sample':profile,'object_id':object_id,'object_bru_id':object_bru_id,'object_image_index':df_dat.at[i, "image_index"],'object_image_name':df_dat.at[i,"image"],'object_depth':depth,'object_corrected_depth':corrected_depth},index=[df_dat.at[i, "image"]+'_'+str(blob).zfill(4) for blob in np.arange(0,df_dat.at[i,"nb_blobs_SMzoo"],step=1) if len(list(Path(project_path / "raw" ).rglob(str(df_dat.at[i, "image"] + '_' + str(blob).zfill(4))+'.bmp')))])],axis=0)
-                    prev_depth=depth # Update previous depth
-         # Append additional columns based on Ecopart raw depth bins
-         if len(vignettes):
-             vignettes['object_corrected_min_depth_bin'] = pd.cut(vignettes['object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype( int)
-             vignettes['object_corrected_max_depth_bin'] = vignettes['object_corrected_min_depth_bin'] + 1
+             # Use Zooprocess first image and depth condition to get vignettes matchup
+             first_image_date=(df_dat.at[int(first_image),'image'])[0:13] ## Attention: the date used in Zooprocess is truncated at the 10 second
+             first_image=df_dat.loc[(df_dat['image'].apply(lambda date: date[0:13]).values==first_image_date),'image_index'].index[0]
+
+             images_in_profile={}
+             vignettes=pd.DataFrame({})
+             prev_depth = 0  # df_dat.at[int(first_image),"pressure"]/pressure_gain if (df_dat.at[int(first_image),"pressure"]/pressure_gain)>0 else 0
+             prev_depth_image = prev_depth
+
+             for i in df_dat.image_index.loc[df_dat.image_index.astype(float)>=first_image].index:
+                 depth=df_dat.at[i,"pressure"]/pressure_gain if (df_dat.at[i,"pressure"]/pressure_gain)>0 else 0
+                 if depth>=prev_depth_image:
+                    if depth>=depth_min:
+                        images_in_profile[i] = depth
+                        prev_depth_image=depth
+                        last_image = i
+                 if depth>=prev_depth:
+                     if (df_dat.at[i,"nb_blobs_SMzoo"]>0) & (depth>=depth_min):
+                        # Attention: Some bmps are missing and thus vignette must discard missing bmps
+                        object_id=[profile+'_'+str(len(vignettes)+blob) for blob in np.arange(1,df_dat.at[i,"nb_blobs_SMzoo"]+1,step=1) if any(df_bmp.isin([str(df_dat.at[i, "image"] + '_' + str(blob-1).zfill(4))+'.bmp']))]
+                        object_bru_id=[df_dat.at[i, "image"] + '_' + str(blob).zfill(4) for blob in np.arange(0, df_dat.at[i, "nb_blobs_SMzoo"], step=1) if any(df_bmp.isin([str(df_dat.at[i, "image"] + '_' + str(blob).zfill(4))+'.bmp']))]
+                        corrected_depth=depth+depth_offset
+                        vignettes=pd.concat([vignettes,pd.DataFrame({'Sample':profile,'object_id':object_id,'object_bru_id':object_bru_id,'object_image_index':df_dat.at[i, "image_index"],'object_image_name':df_dat.at[i,"image"],'object_depth':depth,'object_corrected_depth':corrected_depth},index=[df_dat.at[i, "image"]+'_'+str(blob).zfill(4) for blob in np.arange(0,df_dat.at[i,"nb_blobs_SMzoo"],step=1) if len(list(Path(project_path / "raw" ).rglob(str(df_dat.at[i, "image"] + '_' + str(blob).zfill(4))+'.bmp')))])],axis=0)
+                        prev_depth=depth # Update previous depth
+             # Append additional columns based on Ecopart raw depth bins
+             if len(vignettes):
+                 vignettes['object_corrected_min_depth_bin'] = pd.cut(vignettes['object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype( int)
+                 vignettes['object_corrected_max_depth_bin'] = vignettes['object_corrected_min_depth_bin'] + 1
              #vignettes=pd.merge(vignettes, vignettes_volume_bins,how='left',on=['Sample','object_corrected_min_depth_bin'])
-             df_images=pd.concat([df_images,pd.DataFrame({'Sample': profile, 'image_depth': images_in_profile.values(), 'image_index': images_in_profile.keys(),'image':(df_dat.query('image_index.isin({})'.format(list(images_in_profile.keys()))).image.values)})])
-             df_vignettes =pd.concat([df_vignettes,vignettes])
-         print('{} ({} vignettes)'.format(str(profile),len(vignettes)))
+                 df_images=pd.concat([df_images,pd.DataFrame({'Sample': profile, 'image_depth': images_in_profile.values(), 'image_index': images_in_profile.keys(),'image':(df_dat.query('image_index.isin({})'.format(list(images_in_profile.keys()))).image.values)})])
+                 df_vignettes =pd.concat([df_vignettes,vignettes])
+             print('{} ({} vignettes)'.format(str(profile),len(vignettes)))
 
-      else:
-          print("File(s) {} not found for profile {}".format(list(compress([str(path_config),' '.join(path_dat)], [not path_config.exists()]+[not path.exists() for path in path_dat])),profile))
-          continue
-   return {'vignettes':df_vignettes.reset_index(drop=True),'images':df_images.reset_index(drop=True)}
+          else:
+              print("File(s) {} not found for profile {}".format(list(compress([str(path_config),' '.join(path_dat)], [not path_config.exists()]+[not path.exists() for path in path_dat])),profile))
+              continue
+       return {'vignettes':df_vignettes.reset_index(drop=True),'images':df_images.reset_index(drop=True)}
