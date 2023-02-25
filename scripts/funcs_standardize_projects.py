@@ -946,8 +946,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
 
-        df.datetime = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6), format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[ project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
-        df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
+        df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6), format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[ project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
+        df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
 
         # Update taxonomic annotations standards (df_taxonomy) with new annotations
         if 'Category' in df.columns:
@@ -961,6 +961,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+        # Split small-large particles from consolidated UVP projects and use object_number column to add corresponding ROI
         if path_to_data.stem==cfg['UVP_consolidation_subdir']: # Add individual small particles for UVP consolidated dataframe
             df_small_particles=df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
             df_small_particles =df_small_particles.sort_values(['Sample','Depth_min','Area'],ascending=[True,True,False])
@@ -976,7 +977,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                        Sample=df.Sample if 'Sample' in df.columns else pd.NA,
                        Sampling_date=df.datetime.dt.strftime('%Y%m%d') if all(np.isnan(df.datetime)==False) else pd.NA,
                        Sampling_time=df.datetime.dt.strftime('%H%M%S') if all(np.isnan(df.datetime)==False) else pd.NA,
-                       Pixel=pixel_size_ratio if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
+                       Pixel=pixel_size_ratio[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
                        Volume_analyzed=1000*(list(df.Volume_analyzed)*ureg(units_of_interest['Volume_analyzed_unit']).to(ureg.cubic_meter))if 'Volume_analyzed' in df.columns else pd.NA, # cubic decimeter
                        Latitude=list(df.Latitude)*ureg(units_of_interest['Latitude_unit']).to(ureg.degree) if 'Latitude' in df.columns else pd.NA, # degree decimal
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal

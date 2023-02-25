@@ -52,7 +52,7 @@ for project in list(df_standardizer.index):
             consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa', run_macro=False, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
         except Exception as e:
             print('Skipping consolidation of project ', str(project), '\n', e, sep='')
-"""
+
 #2) Flag samples and generate a report using the filling_standardizer_flag_func function in funcs_standardize_projects.py
 print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPScoordinatesonland: GPS coordinates on land\nFlag_dubiousGPScoordinates: Dubious GPS coordinates\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(0:flag, 1:no flag)')
 for standardizer in natsorted(standardizer_files)[::-1]:
@@ -75,4 +75,3 @@ for standardizer in natsorted(standardizer_files)[::-1]:
             standardization_func(standardizer_path=standardizer, project_id=project,plot='diversity')
         except Exception as e:
             print('Skipping standardization of project ', str(project),'\n',e, sep='')
-"""
