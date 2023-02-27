@@ -208,14 +208,14 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
    :param localpath_metadata: local path of the project metadata storage (must have writing access, canno't be plankton server).
    :return: Extended dataframe ecotaxa_ecopart/ecotaxa_export_projectID_yyyymmdd_hhmm_extended.tsv
    """
+   path_to_standardizer = path_to_git / 'raw' / 'project_UVP_standardizer.xlsx'
    if project_id in standardizer.index and str(standardizer.at[project_id, "External_project"])!='nan':
-       path_to_standardizer=path_to_git / 'raw' / 'project_UVP_standardizer.xlsx'
        standardizer_headers=pd.read_excel(path_to_standardizer,nrows=1).columns
        path_to_extended_file = Path(localpath_metadata).expanduser()
        path_to_extended_file.mkdir(parents=True, exist_ok=True)
        path_to_project = Path(standardizer.at[project_id, "Project_localpath"]).expanduser()
        path_to_project =path_to_project if path_to_project.stem!=path_to_extended_file.stem else Path(path_to_extended_file.parent).expanduser() / sheetname
-       path_to_export = list(path_to_project.rglob('**/*_{}_*'.format(str(project_id))))[0]
+       path_to_export = list(path_to_project.rglob('**/*_{}_*'.format(str(project_id))))[0] if len(list(path_to_project.rglob('**/*_{}_*'.format(str(project_id))))) else ''
        path_to_external_project = path_to_project.parent / {'ecotaxa':'ecopart','ecopart':'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name]
        path_external_export=list(itertools.chain.from_iterable([path_to_external_project.rglob('**/{}_export_*_{}_*.tsv'.format({'ecotaxa': 'ecopart', 'ecopart': 'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name].lower(),project)) for project in str(standardizer.at[project_id, "External_project"]).split(';')]))
        # Add small particles (area<=sm_zoo) to Ecotaxa/Ecopart and save to export_*_extended.tsv:
@@ -232,10 +232,10 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
            df_metadata['Localpath_project']=df_metadata.rawfolder.apply(lambda path: Path(path).expanduser().stem)
            df_ecopart=pd.merge(df_ecopart,df_metadata[['profileid','acq_volimage']],how='left',on='profileid')
            df_ecopart['object_volume_bin']=df_ecopart.acq_volimage*df_ecopart.object_imgcount_bin
-           if path_to_export.exists() and len(df_ecopart) and len(df_metadata):
+           if Path(path_to_export).is_file() and len(df_ecopart) and len(df_metadata):
               df_ecotaxa_columns=pd.read_table(path_to_export,nrows=0).columns
               df_ecotaxa=pd.read_table(path_to_export,usecols=[column for column in df_ecotaxa_columns if column  in list(standardizer.loc[project_id,[column for column in standardizer.loc[project_id].index if '_field' in column]].dropna().values)+list(fields_for_description_ecotaxa.loc[project_id].values)+['acq_smbase']]).assign(object_number=1)
-              depth_offset= df_metadata[df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(standardizer.at[project_id, "External_project"].split(';'))]["Depth_offset"].values[0]].values[0]
+              depth_offset= df_metadata[df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Depth_offset"].values[0]].values[0]
               sm_zoo=df_metadata.at[0,'acq_smzoo']
               nativefolder_dict=df_metadata[['Project_ID','Localpath_project']].drop_duplicates().to_dict('r')
 
@@ -259,7 +259,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                   df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
                   df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
                   df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
-                  df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6001, step=1)),right=False,labels=np.arange(0, 6000, step=1)).astype( str).astype(int)
+                  df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6501, step=1)),right=False,labels=np.arange(0, 6500, step=1)).astype( str).astype(int)
                   df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa['object_corrected_min_depth_bin'] + 1
                   df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin', 'object_imgcount_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
@@ -307,7 +307,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                                 if len(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_bru_area']):
                                     df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_bru_id', 'object_bru_area']] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_id', 'object_area']]
                                     df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_depth_min'] + depth_offset
-                                    df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype(int)
+                                    df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)), right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int)
                                     df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_max_depth_bin'] = df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] + 1
                                     df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin','object_volume_bin']].drop_duplicates(), how='left',left_on=['sample_id', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
 
@@ -318,7 +318,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                                 df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
                                 df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
                                 df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
-                                df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)),right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype(int)
+                                df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)),right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int)
                                 df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa['object_corrected_min_depth_bin'] + 1
                                 df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
@@ -384,7 +384,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                           if len(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_bru_area']):
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_bru_id', 'object_bru_area']] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), ['object_id', 'object_area']]
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'] =  df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_depth_min'] + depth_offset
-                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype(int)
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)), right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int)
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_max_depth_bin'] =  df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] + 1
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
@@ -393,7 +393,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                           df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
                           df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
                           df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
-                          df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6001, step=1)),right=False, labels=np.arange(0, 6000,step=1)).astype(str).astype(int)
+                          df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6501, step=1)),right=False, labels=np.arange(0, 6500,step=1)).astype(str).astype(int)
                           df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa[ 'object_corrected_min_depth_bin'] + 1
                           df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin','object_imgcount_bin']].drop_duplicates(), how='left',left_on=['sample_id', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
 
@@ -650,7 +650,7 @@ def UVP_vignettes_matchup(project_path,dat_path=None,pressure_gain=10,depth_offs
                         prev_depth=depth # Update previous depth
              # Append additional columns based on Ecopart raw depth bins
              if len(vignettes):
-                 vignettes['object_corrected_min_depth_bin'] = pd.cut(vignettes['object_corrected_depth'],bins=list(np.arange(0, 6001, step=1)), right=False,labels=np.arange(0, 6000, step=1)).astype(str).astype( int)
+                 vignettes['object_corrected_min_depth_bin'] = pd.cut(vignettes['object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)), right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype( int)
                  vignettes['object_corrected_max_depth_bin'] = vignettes['object_corrected_min_depth_bin'] + 1
              #vignettes=pd.merge(vignettes, vignettes_volume_bins,how='left',on=['Sample','object_corrected_min_depth_bin'])
                  df_images=pd.concat([df_images,pd.DataFrame({'Sample': profile, 'image_depth': images_in_profile.values(), 'image_index': images_in_profile.keys(),'image':(df_dat.query('image_index.isin({})'.format(list(images_in_profile.keys()))).image.values)})])

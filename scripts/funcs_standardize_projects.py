@@ -449,10 +449,10 @@ def flag_func(dataframe):
         # dataframe'0' in dataframe['Flag_count'].astype('str')].Sample.unique()
         # Flag #4: Presence of artefacts (>20% of the total sample ROIs)
         dataframe['Flag_artefacts'] = 0
-        if 'Category' in dataframe.columns:
+        dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
+        if ('Category' in dataframe.columns) and len(dataframe.dropna(subset=['Category'])):
             # Extract number of artefacts per samples
-            dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
-            summary = dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI), 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI) if len( x.ROI) else 0})).reset_index()
+            summary = dataframe.dropna(subset=['Category']).groupby(['Sample'],observed=True).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) if len(x.ROI) else 0, 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI) if len( x.ROI) else 0})).reset_index()
             dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > 0.2].Sample.tolist()), 1, dataframe['Flag_artefacts'])
         # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
         # Flag #5: Multiple size calibration factors
@@ -500,7 +500,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
          if any(index_duplicated_fields):
              # Append duplicated fields
-             df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict(zip(list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace("_field","")[index_duplicated_fields]), list( map(lambda item: df.loc[:, df.columns[old_columns.isin([item])][0]].values.tolist(),list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().values[index_duplicated_fields])))))).reset_index( drop=True)], axis=1)
+             df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict(zip(list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace("_field","")[index_duplicated_fields]), list( map(lambda item: df.loc[:, columns_dict[item]].values.tolist(),list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().values[index_duplicated_fields])))))).reset_index( drop=True)], axis=1)
          # Skip existing samples if flag file exists
          if Path(flag_overrule_path).expanduser().is_file():
              df_flags = pd.read_csv(flag_overrule_path, sep=',')
@@ -530,11 +530,13 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  return str(pd.DataFrame({'NA': na}, index=[0]).NA.astype(type)[0])
              except ValueError:
                  str(na)
-         # Replace NA ROI or annotation by '' to avoid flagging project on missing ROI id / annotations
+         # Replace NA ROI or annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
          df.ROI = np.where(df.ROI.isna(), '', df.ROI)
+         if 'Category' not in df.columns:
+             df['Category'] = ''
+             df['Annotation'] = 'unclassified'
          df.Category = np.where(df.Category.isna(), '', df.Category) # Avoid flagging of small particles without annotations for UVP projects
-
-         df = df.astype(dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])))
+         df = df.astype({key:value for key,value in dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])).items() if key in df.columns})
          df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
          columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
          df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
@@ -543,7 +545,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          # Append flags
          flagged_df=flag_func(df)
          # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
-         flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in x.split(';'))).all() else x)
+         flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
          flagged_df.loc[flagged_df['Missing_field'] == '', 'Flag_missing'] = 0
          flagged_df['Flag'] = np.where(flagged_df[[column for column in flagged_df.columns if 'Flag_' in column]].sum(axis=1)==0,0,1)
 
@@ -598,13 +600,9 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          flagged_df = pd.concat([df_flagged_existing.reset_index(drop=True), flagged_df.reset_index(drop=True)], axis=0)
 
          # Map, left column
-         if 'Category' not in df.columns:
-             flagged_df['Category']=''
-             flagged_df['Annotation']='unclassified'
          flagged_df['Annotation'] = flagged_df['Annotation'] if 'Annotation' in flagged_df.columns else 'predicted' if ( 'Annotation' not in flagged_df.columns) and ('Category' in flagged_df.columns) else 'unclassified'
          # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
-         flagged_df['Category'] = np.where(flagged_df.Category == '', pd.NA, df.Category)
-
+         flagged_df.Category = np.where(flagged_df.Category == '', pd.NA, df.Category)
          summary_df = flagged_df.dropna(subset=['Category']).groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
          summary_df['Sample_URL'] =  summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
@@ -738,7 +736,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  fig.update_yaxes(domain=[ 0.05 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])], row=2, col=2)  # Update scatter 3
                  fig.update_traces(domain={'y': [0, 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])]}, row=3, col=1)  # Update table
 
-             title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df["Cruise"].unique())) if all(df["Cruise"].isna()) == False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
+             title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df.dropna(subset=['Cruise'])["Cruise"].astype(str).unique())) if all(df["Cruise"].isna()) == False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
              fig.update_layout(legend=dict(y=0.95,xanchor="left",yanchor='top',x=-0.02,bgcolor='rgba(255,255,255,0)'),
                 margin=dict(l=0, r=30, t=30, b=30),
                 title={'text': title,'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
@@ -825,7 +823,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         index_duplicated_fields = pd.Series(fields_of_interest.keys()).isin(list(df.columns)) == False
         if any(index_duplicated_fields):
             # Append duplicated fields
-            df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, df.columns[ old_columns.isin( [ fields_of_interest.get( item)])][ 0]].values.tolist(), list(pd.Series( fields_of_interest.keys())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
+            df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist(), list(pd.Series( fields_of_interest.keys())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
 
         # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
         df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],natsorted(path_files_list)))
@@ -880,7 +878,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 str(na)
 
         # Convert known data types to ensure masking of missing values is correct
-        df=df.astype(dict(zip(['Sample','Latitude','Longitude','Volume_analyzed','Pixel'],[str,float,float,float,float])))
+        df=df.astype({key:value for key,value in dict(zip(['Sample','Latitude','Longitude','Volume_analyzed','Pixel'],[str,float,float,float,float])).items() if key in df.columns})
+
         # Convert NAs
         df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
@@ -1153,7 +1152,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                                 # visible should have the same length as number of subplots, second argument specifies which subplot is updated
                                 label=cols_labels[k]) for k in np.where(np.isin(list(cols), ['Abundance', 'Average_diameter', 'Std_diameter']))[0]]
 
-            title =  r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df_standardized["Cruise"].unique())) if all(df_standardized["Cruise"].isna())==False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))
+            title =  r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df_standardized.dropna(subset=['Cruise'])["Cruise"].astype(str).unique())) if all(df_standardized["Cruise"].isna())==False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))
             fig.update_layout(updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
             title={'text': title, 'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
             xaxis={'title': 'Sample ID', 'nticks': 2, 'tickangle': 0, 'tickfont': dict(size=10),'titlefont': dict(size=12)},
