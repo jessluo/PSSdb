@@ -309,7 +309,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                                     df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'] = df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_depth_min'] + depth_offset
                                     df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)), right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int)
                                     df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_max_depth_bin'] = df_ecotaxa.loc[ df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] + 1
-                                    df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin','object_volume_bin']].drop_duplicates(), how='left',left_on=['sample_id', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
+                                    df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin','object_volume_bin','object_imgcount_bin']].drop_duplicates(), how='left',left_on=['sample_id', 'object_corrected_min_depth_bin'],right_on=['profileid', 'object_corrected_min_depth_bin'])
 
                                 # df_ecotaxa = df_ecotaxa[['object_id', 'object_bru_id', 'object_area','object_bru_area','profileid','sample_corrected_min_depth_bin','sample_corrected_max_depth_bin','sample_volume_bin','sample_imgcount_bin']]
                                 df_ecotaxa = df_ecotaxa.sort_values(['sample_id', 'object_depth_min', 'object_id'])
@@ -320,7 +320,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                                 df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
                                 df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)),right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int)
                                 df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa['object_corrected_min_depth_bin'] + 1
-                                df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
+                                df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin','object_imgcount_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
 
 
@@ -386,7 +386,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'] =  df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_depth_min'] + depth_offset
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_depth'],bins=list(np.arange(0, 6501, step=1)), right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int)
                               df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_max_depth_bin'] =  df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna(), 'object_corrected_min_depth_bin'] + 1
-                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
+                              df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()] = pd.merge( df_ecotaxa.loc[df_ecotaxa.object_bru_area.isna()], df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin','object_imgcount_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
 
                       else:
                           print('Matchup of Ecotaxa vignette not possible.\nConsolidated file will be done with vignettes object_area')

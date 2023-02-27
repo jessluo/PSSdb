@@ -434,8 +434,13 @@ def flag_func(dataframe):
         world = gpd.read_file(path_to_zip.with_suffix('') / 'ne_10m_admin_0_countries.shp') #gpd.datasets.get_path("naturalearth_lowres")
         world_polygon = unary_union(world.geometry.tolist())
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
+        point_in_polygons = gpd.tools.sjoin(gdf, world, predicate="within", how='left')
+        if any(point_in_polygons.index_right.isna() == False):
+            gdf['Flag_GPScoordinatesonland'] = point_in_polygons.index_right.astype(str) != 'nan'
+        else:
+            gdf['Flag_GPScoordinatesonland'] = False
         # gdf=unary_union(gdf.geometry.tolist())
-        gdf['Flag_GPScoordinatesonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
+        #gdf['Flag_GPScoordinatesonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
         dataframe['Flag_GPScoordinatesonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPScoordinatesonland'] == True]['Sample'].tolist()), 1, 0)
         dataframe['Flag_dubiousGPScoordinates'] = 0
         dataframe['Flag_dubiousGPScoordinates'] = np.where(dataframe['Sample'].isin(gdf.get('Sample')[list(map(lambda x: x.contains(Point(0, 0)), gdf.geometry.tolist()))]), 1,dataframe['Flag_dubiousGPScoordinates'])
@@ -545,7 +550,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          # Append flags
          flagged_df=flag_func(df)
          # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
-         flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
+         flagged_df = pd.merge(flagged_df.drop(columns=['Missing_field']), flagged_df.groupby(['Sample']).apply( lambda x: pd.Series({'Missing_field': '' if all(pd.Series(['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution']).isin((x['Missing_field'].astype(str).unique()[0]).split(';'))) else x['Missing_field'].astype(str).unique()[0]})).reset_index(), how='left', on='Sample')
+         #flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
          flagged_df.loc[flagged_df['Missing_field'] == '', 'Flag_missing'] = 0
          flagged_df['Flag'] = np.where(flagged_df[[column for column in flagged_df.columns if 'Flag_' in column]].sum(axis=1)==0,0,1)
 
@@ -556,7 +562,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  api_instance = samples_api.SamplesApi(api_client)
                  samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
              flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
-         flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}&bin={}'.format(df_standardizer['Project_source'][project_id],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''
+         #flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}&bin={}'.format(df_standardizer['Project_source'][project_id],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''
+         flagged_df = pd.merge(flagged_df, flagged_df.groupby(['Sample']).apply(lambda x: pd.Series({ 'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format( df_standardizer['Project_source'][ project_id], str(x.Sample_ID.unique()[0]), project_id) if df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str( project_id) else r'{}&bin={}'.format( df_standardizer['Project_source'][ project_id],str(x.Sample.unique()[0])) if 'ifcb' in df_standardizer['Project_source'][ project_id] else ''})), how='left', on='Sample')
 
          # Generating flags overruling datafile that will be read to filter samples out during standardization
          path_to_datafile = Path(cfg['raw_dir']).expanduser() / 'flags' / Path(df_standardizer['Project_localpath'][project_id]).stem
@@ -618,7 +625,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                           lon=sub_data.Longitude,
                           lat=sub_data.Latitude,
                           hovertext='Sample ID: ' + sub_data.Sample.astype(str)+ '<br> Longitude (ºE): '+sub_data.Longitude.astype(str)+'<br> Latitude (ºN): '+sub_data.Latitude.astype(str),
-                          hoverinfo="text", marker=dict(size=3, color='black'), geojson="natural earth", showlegend=True,
+                          hoverinfo="text", marker=dict(size=3, line=dict(color=sub_data.colors, width=2), color='black'), geojson="natural earth", showlegend=True,
                           geo='geo')
 
                  layout = dict()
