@@ -834,7 +834,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         index_duplicated_fields = pd.Series(fields_of_interest.keys()).isin(list(df.columns)) == False
         if any(index_duplicated_fields):
             # Append duplicated fields
-            df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist(), list(pd.Series( fields_of_interest.values())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
+            df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist() if columns_dict[item] in df.columns else pd.NA, list(pd.Series( fields_of_interest.values())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
 
         # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
         df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],natsorted(path_files_list))).reset_index(drop=True)
