@@ -51,6 +51,11 @@ if depth_binning == 'Y':
 
 ## processing starts here
 files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
+test_1 = int(input('Would you like to test step3 and step4 on a small number of standardized files? \n Enter how many files you want to run through the pipeline, 0 for all files'))
+if test_1 == 0:
+    files_data = files_data
+else:
+    files_data = files_data[0:test_1]
 #if instrument == 'IFCB':  # this removal is only for testing,
         #since the standardizer should be able to deal with projects with empty rows
     #IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
