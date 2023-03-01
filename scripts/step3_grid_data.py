@@ -84,6 +84,9 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             print('gridding and binning ' + i)
             df = pd.read_csv(i, header=0)
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
+            if len(df) == 0:
+                print('no data left after removing ROIS with no Lat-lon information in' + filename)
+                continue
             df = df[df['Area'] != 0].reset_index(drop=True)
             if instrument == 'UVP':
                 df = remove_UVP_noVal(df)
