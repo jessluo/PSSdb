@@ -6,10 +6,10 @@ Ecotaxa_API_pw.yaml
 raw/ecotaxa
 raw/raw_standardized
 raw/ecotaxa_ecopart_consolidation
-figures/Standardizer
+figures/standardizer
 figures/*.html
 raw/IFCB_dashboard_downloads
-Reports
+reports
 raw/flags
 raw/ecopart
 raw/matlab
