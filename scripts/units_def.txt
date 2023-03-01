@@ -13,6 +13,7 @@ millimeter= 1e-3 * meter=mm
 square_millimeter=1e-6 * meter=mm2
 pixel_per_micron= pixel / micron=pixelperum
 micron_per_pixel=micron / pixel=umperpixel
+micrometer_per_pixel=micrometer / pixel
 pixel_per_millimeter= pixel / millimeter=pixelpermm
 millimeter_per_pixel= millimeter / pixel=mmperpixel
 square_millimeter_per_square_pixel=(millimeter / pixel )**2=mm2perpixel2
