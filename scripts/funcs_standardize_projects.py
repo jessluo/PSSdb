@@ -896,6 +896,18 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
         df[columns_to_convert] =  df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
 
+        # Convert datetime and longitude format
+        if 'Sampling_date' in df.columns:
+            if is_float(df.at[0, 'Sampling_date']):
+                df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
+                df = df.loc[df['Sampling_date'].astype(float).isna() == False]
+        if 'Sampling_time' in df.columns:
+            if is_float(df.at[0, 'Sampling_time']):
+                df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
+
+        df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'], utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6), format=df_standardizer.at[project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
+        df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
+
         # Transform variables based on field units
         units=[string for string in list(df_standardizer.columns) if "_unit" in string]
         units_of_interest =  dict(zip(units,df_standardizer.loc[project_id][units].values.flatten().tolist()))
@@ -955,15 +967,6 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
-        if 'Sampling_date' in df.columns:
-            if is_float(df.at[0,'Sampling_date']):
-                df['Sampling_date']=df['Sampling_date'].astype(float).astype(int).astype(str)
-        if 'Sampling_time' in df.columns:
-            if is_float(df.at[0,'Sampling_time']):
-                df['Sampling_time']=df['Sampling_time'].astype(float).astype(int).astype(str)
-
-        df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6), format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[ project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
-        df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
 
         # Update taxonomic annotations standards (df_taxonomy) with new annotations
         if 'Category' in df.columns:
@@ -977,6 +980,15 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+        # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
+        if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
+            df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
+            df_small_particles = df_small_particles.sort_values(['Sample', 'Depth_min', 'Area'], ascending=[True, True, False])
+            # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
+            df_small_particles['ROI'] = ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
+            df_small_particles['Annotation'] = 'unclassified'
+            df_small_particles['Category'] = ''
+            df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['Sample', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
 
         df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
                        Station=df.Station if 'Station' in df.columns else pd.NA,
@@ -984,7 +996,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                        Sample=df.Sample if 'Sample' in df.columns else pd.NA,
                        Sampling_date=df.datetime.dt.strftime('%Y%m%d') if all(np.isnan(df.datetime)==False) else pd.NA,
                        Sampling_time=df.datetime.dt.strftime('%H%M%S') if all(np.isnan(df.datetime)==False) else pd.NA,
-                       Pixel=pixel_size_ratio if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
+                       Pixel=pixel_size_ratiomagnitude[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
                        Volume_analyzed=1000*(list(df.Volume_analyzed)*ureg(units_of_interest['Volume_analyzed_unit']).to(ureg.cubic_meter))if 'Volume_analyzed' in df.columns else pd.NA, # cubic decimeter
                        Latitude=list(df.Latitude)*ureg(units_of_interest['Latitude_unit']).to(ureg.degree) if 'Latitude' in df.columns else pd.NA, # degree decimal
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
@@ -1014,16 +1026,6 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             dilution_factor=1
 
         df_standardized = df_standardized.assign(Volume_imaged=df_standardized.Volume_analyzed/dilution_factor) # cubic decimeters
-
-        # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
-        if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
-            df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
-            df_small_particles = df_small_particles.sort_values(['Sample', 'Depth_min', 'Area'], ascending=[True, True, False])
-            # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
-            df_small_particles['ROI'] = ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
-            df_small_particles['Annotation'] = 'unclassified'
-            df_small_particles['Category'] = ''
-            df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['Sample', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
 
         # Save data and metadata sheet
         df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
