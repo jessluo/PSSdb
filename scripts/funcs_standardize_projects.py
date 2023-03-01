@@ -982,7 +982,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                        Sample=df.Sample if 'Sample' in df.columns else pd.NA,
                        Sampling_date=df.datetime.dt.strftime('%Y%m%d') if all(np.isnan(df.datetime)==False) else pd.NA,
                        Sampling_time=df.datetime.dt.strftime('%H%M%S') if all(np.isnan(df.datetime)==False) else pd.NA,
-                       Pixel=pixel_size_ratio[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
+                       Pixel=pixel_size_ratio if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
                        Volume_analyzed=1000*(list(df.Volume_analyzed)*ureg(units_of_interest['Volume_analyzed_unit']).to(ureg.cubic_meter))if 'Volume_analyzed' in df.columns else pd.NA, # cubic decimeter
                        Latitude=list(df.Latitude)*ureg(units_of_interest['Latitude_unit']).to(ureg.degree) if 'Latitude' in df.columns else pd.NA, # degree decimal
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
