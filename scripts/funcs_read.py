@@ -21,12 +21,16 @@ def proj_id_list_func(instrument, data_status):
     # read config file (text file) with inputs:  project ID, output directory
     # prepare access based on path stored in the yaml config file and instrument type
     path_to_ecotaxa = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['Ecotaxa_subdir']
+    path_to_consolidated_UVP= Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['UVP_consolidation_subdir']/ cfg['UVP_consolidation_subdir'] #tiny glitch here (repeated subdirectories)
     path_to_IFCBdashboard = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['IFCB_dir']
     if data_status == 'standardized':
-        if instrument  == 'Zooscan' or instrument == 'UVP':
+        if instrument  == 'Zooscan':
             path_to_data =  path_to_ecotaxa / instrument
             file_list = os.listdir(path_to_data)
             files_data = [(str(path_to_data / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
+        elif instrument == 'UVP':
+            file_list = os.listdir(path_to_consolidated_UVP)
+            files_data = [(str(path_to_consolidated_UVP / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
         elif instrument  == 'IFCB':
             #get data from ecotaxa
             path_to_ecotaxa_data = path_to_ecotaxa / instrument
