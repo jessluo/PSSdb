@@ -965,8 +965,6 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         if len(df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])])>0:
             df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit']) if instrument !='Zooscan' else (2*(((camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2))/np.pi)**0.5)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
 
-        # Use pint units system to convert units in standardizer spreadsheet to standard units
-        # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
 
         # Update taxonomic annotations standards (df_taxonomy) with new annotations
         if 'Category' in df.columns:
@@ -980,6 +978,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+
         # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
         if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
             df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
@@ -990,13 +989,16 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df_small_particles['Category'] = ''
             df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['Sample', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
 
+        # Use pint units system to convert units in standardizer spreadsheet to standard units
+        # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
+
         df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
                        Station=df.Station if 'Station' in df.columns else pd.NA,
                        Profile=df.Profile if 'Profile' in df.columns else pd.NA,
                        Sample=df.Sample if 'Sample' in df.columns else pd.NA,
                        Sampling_date=df.datetime.dt.strftime('%Y%m%d') if all(np.isnan(df.datetime)==False) else pd.NA,
                        Sampling_time=df.datetime.dt.strftime('%H%M%S') if all(np.isnan(df.datetime)==False) else pd.NA,
-                       Pixel=pixel_size_ratiomagnitude[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
+                       Pixel=pixel_size_ratio.magnitude[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
                        Volume_analyzed=1000*(list(df.Volume_analyzed)*ureg(units_of_interest['Volume_analyzed_unit']).to(ureg.cubic_meter))if 'Volume_analyzed' in df.columns else pd.NA, # cubic decimeter
                        Latitude=list(df.Latitude)*ureg(units_of_interest['Latitude_unit']).to(ureg.degree) if 'Latitude' in df.columns else pd.NA, # degree decimal
                        Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
@@ -1015,7 +1017,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
 
         # Set volume analyzed to 5 mL for IFCB projects
-        if df_standardizer.loc[project_id]['Instrument'] in ['IFCB'] and all(df_standardized[['Volume_analyzed']].isna()):
+        if (df_standardizer.loc[project_id]['Instrument'] in ['IFCB']) and all(df_standardized['Volume_analyzed'].isna()):
             df_standardized['Volume_analyzed']=PQ(5*ureg('milliliter').to('liter')).magnitude
 
         # Convert volume analyzed to volume imaged to account for samples dilution or fractionation
