@@ -28,7 +28,7 @@ path_to_git=Path(cfg['git_dir']).expanduser()
 path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
 standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
-"""
+
 #1) Consolidate UVP projects before control quality check and standardization, see README file for a description of consolidation steps and objectives
 # There are 4 options to consolidate a UVP project:
 #a- The data owner runs the ImageJ macro on their computer and upload the metadata on Ecotaxa following the instructions of the README file and macro dialog window
@@ -66,7 +66,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
             filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path)
         except Exception as e:
             print('Skipping flagging of project ',str(project),'\n',e,sep='')
-"""
+
 #3) Standardize project export files using the standardization_func function in funcs_standardize_projects.py
 print('Performing project standardization')
 for standardizer in natsorted(standardizer_files)[::-1]:

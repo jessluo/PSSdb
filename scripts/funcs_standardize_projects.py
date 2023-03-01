@@ -110,7 +110,10 @@ from scipy.stats import poisson # Estimate counts uncertainties assuming detecti
 import math
 
 # Standardization of taxonomic annotations
-from funcs_standardize_annotations import taxon_color_palette,annotation_in_WORMS
+try:
+    from funcs_standardize_annotations import taxon_color_palette,annotation_in_WORMS
+except:
+    from scripts.funcs_standardize_annotations import taxon_color_palette, annotation_in_WORMS
 import ast
 from tqdm import tqdm
 
@@ -822,8 +825,9 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         # Load export tsv file
         columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))
         columns_dict['object_number'] = 'object_number'  # Adding this column for UVP consolidated projects
-
-        df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path))[-1],natsorted(path_files_list)))
+        dtypes_dict=dict(zip(['Cruise','Station','Profile','Sample','Latitude','Longitude','Depth_min','Depth_max','Sampling_date','Sampling_time','Volume_analyzed','ROI','Area','Pixel','Minor','Biovolume','ESD','Category','Annotation','Sampling_type','Sampling_lower_size','Sampling_upper_size','object_number','Sampling_description'],[str,str,str,str,float,float,float,float,str,str,float,str,int,float,float,float,float,str,str,str,float,float,int,str]))
+        dtypes_dict ={fields_of_interest_series.loc[key]:value for key,value in  dtypes_dict.items() if key in fields_of_interest_series.index}
+        df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()],dtype=dtypes_dict).rename(columns=columns_dict).assign(File_path=path))[-1],natsorted(path_files_list))).reset_index(drop=True)
         old_columns = df.columns
         # Standardize column names
         #df.columns = [(list(fields_of_interest_series.index)[list(fields_of_interest_series.values).index(value)]) for value in  old_columns.drop('File_path')] + ['File_path'] # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
@@ -833,7 +837,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist(), list(pd.Series( fields_of_interest.keys())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
 
         # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
-        df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],natsorted(path_files_list)))
+        df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],natsorted(path_files_list))).reset_index(drop=True)
         df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
         df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
@@ -951,6 +955,10 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
+        if is_float(df.at[0,'Sampling_date']):
+            df['Sampling_date']=df['Sampling_date'].astype(float).astype(int).astype(str)
+        if is_float(df.at[0,'Sampling_time']):
+            df['Sampling_time']=df['Sampling_time'].astype(float).astype(int).astype(str)
 
         df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6), format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[ project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
         df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
@@ -967,15 +975,6 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
-        # Split small-large particles from consolidated UVP projects and use object_number column to add corresponding ROI
-        if path_to_data.stem==cfg['UVP_consolidation_subdir']: # Add individual small particles for UVP consolidated dataframe
-            df_small_particles=df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
-            df_small_particles =df_small_particles.sort_values(['Sample','Depth_min','Area'],ascending=[True,True,False])
-            #summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
-            df_small_particles['ROI']= ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
-            df_small_particles['Annotation']='unclassified'
-            df_small_particles['Category'] = ''
-            df=pd.concat([df[df.ROI.isna()==False].drop(columns='object_number'),df_small_particles],axis=0,ignore_index=True).sort_values(['Sample','Depth_min','Area'],ascending=[True,True,False]).reset_index(drop=True)
 
         df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
                        Station=df.Station if 'Station' in df.columns else pd.NA,
@@ -1013,6 +1012,17 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             dilution_factor=1
 
         df_standardized = df_standardized.assign(Volume_imaged=df_standardized.Volume_analyzed/dilution_factor) # cubic decimeters
+
+        # Split small-large particles from consolidated UVP projects and use object_number column to add corresponding ROI
+        if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
+            df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
+            df_small_particles = df_small_particles.sort_values(['Sample', 'Depth_min', 'Area'], ascending=[True, True, False])
+            # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
+            df_small_particles['ROI'] = ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
+            df_small_particles['Annotation'] = 'unclassified'
+            df_small_particles['Category'] = ''
+            df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['Sample', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
+
         # Generate metadata sheet
         df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
                                     'ROI', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
