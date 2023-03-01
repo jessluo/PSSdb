@@ -955,10 +955,12 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
-        if is_float(df.at[0,'Sampling_date']):
-            df['Sampling_date']=df['Sampling_date'].astype(float).astype(int).astype(str)
-        if is_float(df.at[0,'Sampling_time']):
-            df['Sampling_time']=df['Sampling_time'].astype(float).astype(int).astype(str)
+        if 'Sampling_date' in df.columns:
+            if is_float(df.at[0,'Sampling_date']):
+                df['Sampling_date']=df['Sampling_date'].astype(float).astype(int).astype(str)
+        if 'Sampling_time' in df.columns:
+            if is_float(df.at[0,'Sampling_time']):
+                df['Sampling_time']=df['Sampling_time'].astype(float).astype(int).astype(str)
 
         df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6), format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[ project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
         df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
@@ -1013,7 +1015,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         df_standardized = df_standardized.assign(Volume_imaged=df_standardized.Volume_analyzed/dilution_factor) # cubic decimeters
 
-        # Split small-large particles from consolidated UVP projects and use object_number column to add corresponding ROI
+        # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
         if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
             df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
             df_small_particles = df_small_particles.sort_values(['Sample', 'Depth_min', 'Area'], ascending=[True, True, False])
@@ -1023,7 +1025,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df_small_particles['Category'] = ''
             df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['Sample', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
 
-        # Generate metadata sheet
+        # Save data and metadata sheet
         df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
                                     'ROI', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
         df_standardized_metadata=pd.DataFrame({'Variables':df_standardized.columns,'Variable_types':df_standardized.dtypes,

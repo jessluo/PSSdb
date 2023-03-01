@@ -13,11 +13,16 @@ import pandas as pd
 from natsort import natsorted
 
 ## standardization functions
-from funcs_consolidate_UVP_files import *
-
+try:
+    from funcs_consolidate_UVP_files import *
+except:
+    from scripts.funcs_consolidate_UVP_files import *
 
 ## standardization functions
-from funcs_standardize_projects import *
+try:
+    from funcs_standardize_projects import *
+except:
+    from scripts.funcs_standardize_projects import *
 
 path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
