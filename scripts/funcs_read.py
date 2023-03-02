@@ -5,7 +5,7 @@ import pandas as pd
 import yaml
 from pathlib import Path
 
-def proj_id_list_func(instrument, data_status):
+def proj_id_list_func(instrument, data_status, big_grid = False):
     """
     Objective:
     generate a list and create the path  of the standardized Ecotaxa projects
@@ -47,8 +47,10 @@ def proj_id_list_func(instrument, data_status):
     elif data_status == 'gridded':
         path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir'] / instrument
         file_list = os.listdir(path_to_gridded)
-        files_data = [(str(path_to_gridded / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
-
+        if big_grid == False:
+            files_data = [(str(path_to_gridded / x)) for x in file_list if not 'metadata' in x and not 'grid_N_' in x and  '.csv' in x]
+        elif big_grid == True:
+            files_data = [(str(path_to_gridded / x)) for x in file_list if 'grid_N_' in x]
     return files_data
 
 
