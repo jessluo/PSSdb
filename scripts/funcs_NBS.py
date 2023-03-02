@@ -1,7 +1,57 @@
 # functions to calculate normalized biomass size spectra, based on ecopart size bins and a logarithmic scale
 # data needs to be gridded and temporally and spatially binned. proj_nbs_func summarizes all the steps
+import numpy as np
+from pathlib import Path
+import pandas as pd
+import yaml
+from funcs_read import *
+import os
+from tqdm import tqdm
 
-
+def group_gridded_files_func(instrument, already_gridded= 'N'):
+    """
+    Objective: assign a label to each gridded dataset, so when the compilation of files occurs, it is only done with a group of data and prevents
+    the creation of a huge file
+    """
+    #first, create series of numbers that break the globe into 15x15 degree cells:
+    lat_left = np.arange(-90, 90+15, 15, dtype=int)
+    lat_right = np.arange(-75,105 + 15, 15, dtype=int)
+    lat_int = pd.IntervalIndex.from_arrays(lat_left, lat_right)
+    lon_left = np.arange(-180, 180+15, 15, dtype=int)
+    lon_right = np.arange(-165, 195+15, 15, dtype=int)
+    lon_int = pd.IntervalIndex.from_arrays(lon_left, lon_right)
+    grid_list = []
+    # create a dictionary that has unique keys for each grid interval
+    #grid_dict = {}
+    #for x in range(0, len(lon_int)):
+        #for y in range(0, len(lat_int)):
+            #grid_dict[(str(x) + '_' + str(y))] = {'lon': lon_int[x], 'lat': lat_int[y]} ## however, this might not be necessary
+    # try now to assing lat & lon grid numbers to the dataframe directly
+    file_list = proj_id_list_func(instrument, data_status='gridded')
+    for i in tqdm(file_list):
+        if already_gridded == 'N':
+            print('generating subsets of data for 15 degree grids from ' + i)
+        else:
+            print('extracting big grid labels for subsetting from ' + i)
+        filename = i.split('/')[-1]
+        dirpath = i.replace(filename, '')
+        df = pd.read_csv(i, header = 0)
+        df['lat_grid'] = None
+        df['lon_grid'] = None
+        for la in df['midLatBin'].unique():
+            df.loc[df['midLatBin'] == la, 'lat_grid']= int(np.where(lat_int.contains(la) == True)[0])
+        for lo in df['midLonBin'].unique():
+            df.loc[df['midLonBin'] == lo, 'lon_grid'] = int(np.where(lon_int.contains(lo) == True)[0])
+        # combine these numbers to form a grid identifier
+        df['grid_id'] = df.lat_grid.astype(str).str.cat(df.lon_grid.astype(str), sep='_')
+        df_subgrouped = [x for _, x in df.groupby('grid_id')]
+        for s in df_subgrouped:
+            grid_list.append(str(s['grid_id'].unique()[0]))
+            if already_gridded == 'N':
+                s.to_csv(str(dirpath) + 'grid_N_'+str(s['grid_id'].unique()[0]) + '_'+ filename, index=False)
+            #os.remove(i)
+    grid_list_unique = [*set(grid_list)]
+    return grid_list_unique
 
 
 
@@ -13,10 +63,7 @@ def size_binning_func(df_subset):
     :param biovolume: column of a dataframe that contains the biovolume (in cubic micrometers)
     :return: a binned dataframe by sizes, containing the range of the size bin for each
     """
-    import numpy as np
-    from pathlib import Path
-    import pandas as pd
-    import yaml
+
     # open dataframe with the size bins
     path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
     # open the metadata of the standardized files
@@ -230,7 +277,7 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
 
     return (lin_fit)
 
-def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=False, depth_parsing=False):
+def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=False, depth_parsing=False, bin_loc = 1, group_by = 'yyyymm'):
     """
     Objective: parse out any df that come from files that include multiple stations, dates and depths.
     dataframe needs to be already binned. Steps are: 1) parse the data 2) bin ROIs by size  3) calculate the NBS
@@ -289,9 +336,9 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
     NBSS_1a = NBSS_1a.rename(columns={'midLatBin': 'latitude', 'midLonBin': 'longitude', 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
                                       'NB': 'normalized_biovolume', 'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
     if light_parsing==True:
-        lin_fit_1b = stats_linfit_func(lin_fit_data, light_parsing = True)
+        lin_fit_1b = stats_linfit_func(lin_fit_data, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
     else:
-        lin_fit_1b = stats_linfit_func(lin_fit_data)
+        lin_fit_1b = stats_linfit_func(lin_fit_data, bin_loc = bin_loc, group_by = group_by)
 
     return NBSS_1a, lin_fit_1b
 
@@ -365,38 +412,38 @@ def NBSS_stats_func(df):
 
     return NBSS_avg, NBSS_1a
 
-def stats_linfit_func(df, light_parsing = False):
+def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm'):
     """
     Objective: create summary statistics for the linear fit dataframes
     param df: a dataframe containing the results of the linear fits for each station, time and depth for a given imaging instrument
     """
     from funcs_gridding import gridding_func
     import numpy as np
-    bin_loc =input('Group data by location? \n Enter Y/N ')
-    if bin_loc == 'Y':
-        st_increment = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
-        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['latitude'], df['longitude'])
-    bin_date =input('Group data by date? \n Enter Y/N ')
-    if bin_date == 'Y':
-        group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
-        date_df= df['Date'].str.split("_", expand=True)
-        if group_by == 'yyyy':
-            df['date_bin'] = date_df[0]
-        elif group_by == 'yyyymm':
-            df['year_week'] = date_df[0] + '_' + date_df[2]
-            df['month'] = date_df[1]
-            week_dict = {key:None for key in df['year_week'].unique()}
-            for i in df['year_week'].unique():
-                week_dict[i] =list(df['month'].where(df['year_week'] == i).dropna().unique()) #.astype(int)
-                if len(week_dict[i]) == 1:
-                    week_dict[i] = week_dict[i][0]
-                else:
-                    week_dict[i] = list(map(int, week_dict[i]))
-                    week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
-            df['year'] = date_df[0]
-            df['month'] = df['year_week'].map(week_dict)
-            df['date_bin'] = date_df[0] + '_' + df['month']
-            df = df.drop(columns=['Date', 'year_week'])
+    #bin_loc =input('Group data by location? \n Enter Y/N ') commented out query since new method of parsing data added 3/2/2023 makes this a nuisance, will be asked in step4
+    #if bin_loc == 'Y':
+        #st_increment = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
+    df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(bin_loc, df['latitude'], df['longitude'])
+    #bin_date =input('Group data by date? \n Enter Y/N ')
+    #if bin_date == 'Y':
+        #group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
+    date_df= df['Date'].str.split("_", expand=True)
+    if group_by == 'yyyy':
+        df['date_bin'] = date_df[0]
+    elif group_by == 'yyyymm':
+        df['year_week'] = date_df[0] + '_' + date_df[2]
+        df['month'] = date_df[1]
+        week_dict = {key:None for key in df['year_week'].unique()}
+        for i in df['year_week'].unique():
+            week_dict[i] =list(df['month'].where(df['year_week'] == i).dropna().unique()) #.astype(int)
+            if len(week_dict[i]) == 1:
+                week_dict[i] = week_dict[i][0]
+            else:
+                week_dict[i] = list(map(int, week_dict[i]))
+                week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
+        df['year'] = date_df[0]
+        df['month'] = df['year_week'].map(week_dict)
+        df['date_bin'] = date_df[0] + '_' + df['month']
+        df = df.drop(columns=['Date', 'year_week'])
 
     if light_parsing ==True:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin', 'light_condition']).agg(
@@ -415,6 +462,7 @@ def stats_linfit_func(df, light_parsing = False):
     del lin_fit_stats['date_bin']
 
     return lin_fit_stats
+
 
 
 
