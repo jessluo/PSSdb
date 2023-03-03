@@ -33,7 +33,7 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
             files_data = [(str(path_to_consolidated_UVP / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
         elif instrument  == 'IFCB':
             #get data from ecotaxa
-            path_to_ecotaxa_data = path_to_ecotaxa / instrument
+            path_to_ecotaxa_data = path_to_ecotaxa / instrument / instrument # little glitch here
             ecotaxa_list = os.listdir(path_to_ecotaxa_data)
             ecotaxa_data = [(str(path_to_ecotaxa_data / x)) for x in ecotaxa_list  if not 'metadata' in x and '.csv' in x]
             #get data from dashboards
