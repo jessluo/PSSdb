@@ -17,7 +17,7 @@ from tqdm import tqdm
 instrument = input ('for which instrument do you want to grid the standardized dataset? \n Enter IFCB, Zooscan or UVP ')
 cats = input ('the gridding process by default removes ROIs that have been identified as \n '
                     'BEADS, DETRITUS, ARTEFACTS or BUBBLES, would you like to keep any of these categories?'
-                    '  \n Enter Y/N ')
+                    '  \n Enter Y/N \n')
 
 day_night = input('Would you like to group data by day/night? Enter Y/N \n' )
 
@@ -25,22 +25,22 @@ st_increment = float(input('select the size of the spatial grid to group the dat
 
 if cats == 'Y':
     keep_cat=[]
-    n = int(input("how many categories do you want to keep? : "))
+    n = int(input("how many categories do you want to keep? : \n"))
     # iterating till the range
     for i in range(0, n):
-        ele = input('type category to keep')
+        ele = input('type category to keep \n')
         keep_cat.append(ele)  # adding the element
 elif cats == 'N':
     keep_cat = 'none'
 
-date_group = input ('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n mm by month \n week for weekly average for each month or \n None to keep all time information as is')
-depth_binning = input ('Would you like to bin the data by depth? \n Enter Y/N')
+date_group = input ('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n mm by month \n week for weekly average for each month or \n None to keep all time information as is \n')
+depth_binning = input ('Would you like to bin the data by depth? \n Enter Y/N \n ')
 if depth_binning == 'Y':
     custom_depth_bin = input ('default depth binning is done at depths: 0, 25, 50, 100, 200, 500, 1000, 3000, 8000 \n '
-                              'Would you like to bin data using different depths \n Enter Y/N ')
+                              'Would you like to bin data using different depths \n Enter Y/N \n')
     if custom_depth_bin == 'Y':
         depth_bins = []
-        n = int(input("how many depths would you like to use for binning? : "))
+        n = int(input("how many depths would you like to use for binning? : \n"))
         # iterating till the range
         for i in range(0, n):
             ele = int(input('type depth #' + str(i+1) ))
@@ -51,7 +51,7 @@ if depth_binning == 'Y':
 
 ## processing starts here
 files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
-test_1 = int(input('Would you like to test step3 and step4 on a small number of standardized files? \n Enter how many files you want to run through the pipeline, 0 for all files'))
+test_1 = int(input('Would you like to test step3 and step4 on a small number of standardized files? \n Enter how many files you want to run through the pipeline, 0 for all files \n '))
 if test_1 == 0:
     files_data = files_data
 else:
@@ -79,6 +79,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
         print('Overwriting gridded file(s), please wait')
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
+        n_del_files = 0
         for i in tqdm(files_data):
             filename= i.split('/')[-1]
             print('gridding and binning ' + i)
@@ -86,17 +87,20 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
             if len(df) == 0:
                 print('no data left after removing ROIS with no Lat-lon information in' + filename)
+                n_del_files += 1
                 continue
             df = df[df['Area'] != 0].reset_index(drop=True)
             if instrument == 'UVP':
                 df = remove_UVP_noVal(df)
                 if len(df) == 0:
                     print ('no data left after assessing validation status for ' + filename)
+                    n_del_files += 1
                     continue
             if (instrument == 'Zooscan') or (instrument == 'UVP'):
                 df = depth_parsing_func(df, instrument)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
+                    n_del_files += 1
                     continue
             elif instrument == 'IFCB':
                 df = depth_parsing_func(df, instrument)
@@ -106,6 +110,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                 df = df.replace('', np.nan)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
+                    n_del_files += 1
                     continue
             df = biovol_func(df, instrument, keep_cat='none')
             if day_night == 'Y':
@@ -114,6 +119,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                 df = date_binning_func(df, group_by=date_group, day_night=False, ignore_high_lat=True)
             if len(df)==0:
                 print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
+                n_del_files += 1
                 continue
             df['date_bin'] = df['date_bin'].astype(str)
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
@@ -148,10 +154,14 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             filename = filename.replace("standardized", "gridded")
             df.to_csv(str(dirpath) +'/'+ instrument + '_' + filename, index=False)
             metadata_bins.to_csv(str(dirpath) +'/'+ instrument + '_' + 'metadata_' + filename, index=False)
+        print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
+
     elif replace == 'N':
         print('previously gridded files will be kept')
+
 elif not os.path.exists(dirpath):
     os.mkdir(dirpath)
+    n_del_files = 0
     for i in tqdm(files_data):
         filename = i.split('/')[-1]
         print('gridding and binning ' + i)
@@ -160,6 +170,7 @@ elif not os.path.exists(dirpath):
             df = remove_UVP_noVal(df)
             if len(df) == 0:
                 print('no data left after assessing validation status for ' + filename)
+                n_del_files += 1
                 continue
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
@@ -167,6 +178,7 @@ elif not os.path.exists(dirpath):
             df = depth_parsing_func(df, instrument)
             if len(df) == 0:
                 print('no data left after restricting depths to less than 200 meters in ' + filename)
+                n_del_files += 1
                 continue
         elif instrument == 'IFCB':
             df = depth_parsing_func(df, instrument)
@@ -176,12 +188,17 @@ elif not os.path.exists(dirpath):
             df = df.replace('', np.nan)
             if len(df) == 0:
                 print('no data left after restricting depths to less than 200 meters in ' + filename)
+                n_del_files += 1
                 continue
         df = biovol_func(df, instrument, keep_cat='none')
         if day_night == 'Y':
             df = date_binning_func(df, group_by=date_group, day_night=True, ignore_high_lat=True)
         elif day_night == 'N':
             df = date_binning_func(df, group_by=date_group, day_night=False, ignore_high_lat=True)
+        if len(df) == 0:
+            print('no data left after removing data without proper time stamp in ' + filename)  # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
+            n_del_files += 1
+            continue
         df['date_bin'] = df['date_bin'].astype(str)
         df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'],df['Longitude'])
         if depth_binning == 'N':
@@ -212,9 +229,10 @@ elif not os.path.exists(dirpath):
                      'latitude of the center point of the 1x1 degree cell',
                      'longitude of the center point of the 1x1 degree cell',
                      'middle point within a depth bin']})
+
         filename = filename.replace("standardized", "gridded")
         df.to_csv(str(dirpath)  + '/'+ instrument + '_' + filename, index=False)
         metadata_bins.to_csv(str(dirpath)  + '/'+ instrument + '_' +'metadata_'+ filename, index=False)
-
+    print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
 
     #return df, metadata_bins
