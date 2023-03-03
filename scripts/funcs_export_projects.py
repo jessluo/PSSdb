@@ -61,7 +61,7 @@ def Ecopart_export(project,localpath,username,password):
       -zooplankton: profile ID, raw profile folder, datetime (yyyy-mm-dd hh:mm:ss), mid depth bin (meters), cumulative volume in depth bin (number of images within depth bin x image volume), project name, group-specific abundances (particles_per_cubic_meter), group-specific summed biovolumes (cubic_millimeter_per_liter), group-specific average equivalent circular diameter (millimeter)
              :param project: dictionary with key ID and name value for Ecopart project.
              :param localpath: Path locating the directory where project export will be stored
-             :param username: Email for Ecopart acount authentication
+             :param username: Email for Ecopart account authentication
              :param password: Password for Ecopart account authentication
              :return: Ecopart export files in localpath/project/ecopart_export_detailed_uvp5_sn010_2014_m108_metadata/particles/zooplankton.tsv.
     """
@@ -172,16 +172,22 @@ def Ecopart_export(project,localpath,username,password):
     # Correcting newline character created in ctd desc column for some files
     df_meta['ctd_desc'] = df_meta.ctd_desc.str.replace('\r|\n', '', regex=True)
     df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+    rawfiles_path = list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))
+    # Filter out dark-field raw particles files used for UVP6 data calibration
+    rawfiles_path = [path for path in rawfiles_path if 'black.tsv' not in str(path.name)]
 
-    if len(list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))):
-        pd.concat(map(lambda path: pd.read_csv(path, sep='\t',encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_PAR_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))),axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])),sep="\t",index=False)
-        [file.unlink(missing_ok=True) for file in  list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))]
+    if len(rawfiles_path): # Attention: Using index_col=False since some UVP6 raw particle datafiles have an extra column with datetime (uvp6_sn000130hf_2021_amazomix)
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1', index_col=False).assign(profileid=path.name[1 + path.name.find('_'):path.name.find('_PAR_raw_{}'.format(status['d']['ExtraAction'][ 11 + status['d']['ExtraAction'].find('export_raw_'): status['d'][ 'ExtraAction'].find('.zip')]))]),rawfiles_path), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])), sep="\t", index=False)
+         [file.unlink(missing_ok=True) for file in  list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))]
     if len(list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))):
          pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_ZOO_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))]
     if len(list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))):
          pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_CTD_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))]
+    if len(list(path_to_zip.parent.glob('*_rawfiles.zip'))):
+        [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_rawfiles.zip'))]
+
     # Delete original zip file
     path_to_zip.unlink(missing_ok=True)
 
