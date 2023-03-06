@@ -27,6 +27,9 @@ with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_to_git=Path(cfg['git_dir']).expanduser()
 path_to_data=path_to_git / cfg['dataset_subdir']
+path_to_config_pw = path_to_git / 'Scripts' / 'Configuration_masterfile_pw.yaml'
+with open(path_to_config_pw, 'r') as config_file:
+    cfg_pw = yaml.safe_load(config_file)
 
 # Modules for webpage handling/scraping:
 import urllib3
@@ -50,6 +53,7 @@ from ecotaxa_py_client.api import jobs_api
 #import progressbar # Attention: Use pip install progressbar2 to install
 from tqdm import tqdm
 import datetime, time # Time module for break and current date
+from natsort import natsorted
 
 ## Functions start here:
 
@@ -173,20 +177,21 @@ def Ecopart_export(project,localpath,username,password):
     df_meta['ctd_desc'] = df_meta.ctd_desc.str.replace('\r|\n', '', regex=True)
     df_meta.to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_metadata.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
     rawfiles_path = list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))
+    if len([path for path in rawfiles_path if 'black.tsv' in str(path.name)]):
+        [file.unlink(missing_ok=True) for file in rawfiles_path if 'black.tsv' in str(file.name)]
+
     # Filter out dark-field raw particles files used for UVP6 data calibration
     rawfiles_path = [path for path in rawfiles_path if 'black.tsv' not in str(path.name)]
 
     if len(rawfiles_path): # Attention: Using index_col=False since some UVP6 raw particle datafiles have an extra column with datetime (uvp6_sn000130hf_2021_amazomix)
-         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1', index_col=False).assign(profileid=path.name[1 + path.name.find('_'):path.name.find('_PAR_raw_{}'.format(status['d']['ExtraAction'][ 11 + status['d']['ExtraAction'].find('export_raw_'): status['d'][ 'ExtraAction'].find('.zip')]))]),rawfiles_path), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])), sep="\t", index=False)
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1', index_col=False).assign(profileid=path.name[1 + path.name.find('_'):path.name.find('_PAR_raw_{}'.format(status['d']['ExtraAction'][ 11 + status['d']['ExtraAction'].find('export_raw_'): status['d'][ 'ExtraAction'].find('.zip')]))]),natsorted(rawfiles_path)), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_particles.tsv'.format(list(project.keys())[0])), sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in  list(path_to_zip.parent.glob('*_PAR_raw*.tsv'))]
     if len(list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))):
-         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_ZOO_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_ZOO_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),natsorted(list(path_to_zip.parent.glob('*_ZOO_raw*.tsv')))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_zooplankton.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_ZOO_raw*.tsv'))]
     if len(list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))):
-         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_CTD_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
+         pd.concat(map(lambda path: pd.read_csv(path, sep='\t', encoding='latin1').assign(profileid=path.name[1+path.name.find('_'):path.name.find('_CTD_raw_{}'.format(status['d']['ExtraAction'][11+status['d']['ExtraAction'].find('export_raw_'):status['d']['ExtraAction'].find('.zip')] ))]),natsorted(list(path_to_zip.parent.glob('*_CTD_raw*.tsv')))), axis=0).to_csv(Path(path_to_zip.parent / 'ecopart_export_raw_{}_CTD.tsv'.format(list(project.keys())[0])),sep="\t", index=False)
          [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_CTD_raw*.tsv'))]
-    if len(list(path_to_zip.parent.glob('*_rawfiles.zip'))):
-        [file.unlink(missing_ok=True) for file in list(path_to_zip.parent.glob('*_rawfiles.zip'))]
 
     # Delete original zip file
     path_to_zip.unlink(missing_ok=True)
