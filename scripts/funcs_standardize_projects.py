@@ -467,6 +467,9 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
             summary =dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) if len(x.ROI) else 0,'Artefacts_percentage': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0,'Validation_percentage': len(x[x.Annotation.str.lower().apply(lambda annotation:len(re.findall(r'validated',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0})).reset_index()
             dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > artefacts_threshold].Sample.tolist()),1, dataframe['Flag_artefacts'])
             dataframe['Flag_validation'] =np.where(dataframe['Sample'].isin(summary[summary.Validation_percentage >=validation_threshold].Sample.tolist()),0, dataframe['Flag_validation'])
+        if validation_threshold==0:
+            dataframe['Flag_validation'] = 0
+
         # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
         # Flag #5: Multiple size calibration factors
         if 'Pixel' in dataframe.columns:
@@ -556,8 +559,9 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
          df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
 
-         # Append flags
-         flagged_df=flag_func(df)
+         # Append flags, Avoid flagging on low validation for IFCB projects by setting validation threshold to 0
+         validation_threshold = 0.95 if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
+         flagged_df=flag_func(df,validation_threshold=validation_threshold)
          # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
          flagged_df = pd.merge(flagged_df.drop(columns=['Missing_field']), flagged_df.groupby(['Sample']).apply( lambda x: pd.Series({'Missing_field': '' if all(pd.Series(['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution']).isin((x['Missing_field'].astype(str).unique()[0]).split(';'))) else x['Missing_field'].astype(str).unique()[0]})).reset_index(), how='left', on='Sample')
          #flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
@@ -626,6 +630,29 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
              subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPScoordinatesonland==1, 'red','black')
              subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample.unique(),ordered=True)
              #gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
+             if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland==0])>0:
+                 sub_data = subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 0]
+                 data_geo =dict(type='scattergeo',
+                             name='No flag',
+                             lon=sub_data.Longitude,
+                             lat=sub_data.Latitude,
+                             hovertext='Sample ID: ' + sub_data.Sample.astype(str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
+                             hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)), geojson="natural earth", showlegend=True,geo='geo')
+                 layout = dict()
+                 layout['geo2'] = dict(
+                 projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
+                 center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
+                 projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
+                 domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
+                 layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],
+                                  domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
+                 # go.Figure(data=[data_geo, data_geo], layout=layout)
+                 fig.add_trace(data_geo, row=1, col=1).update_layout( go.Figure(data=[data_geo, data_geo], layout=layout).layout, margin={"r": 0, "t": 0, "l": 0, "b": 0})
+                 fig.layout['geo'] = layout['geo']
+                 data_geo.update({'geo': 'geo2', 'showlegend': False})  # Update geo trace before adding the zoomed
+                 fig.add_trace(data_geo, row=1, col=1)
+                 fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
+                 fig.layout['geo2'] = layout['geo2']
              if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]) > 0:
                  # Definition of the zoomed (geo2) and inset (geo) maps
                  sub_data=subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]
@@ -650,29 +677,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                  fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
                  fig.layout['geo2'] = layout['geo2']
 
-             if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland==0])>0:
-                 sub_data = subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 0]
-                 data_geo =dict(type='scattergeo',
-                             name='No flag',
-                             lon=sub_data.Longitude,
-                             lat=sub_data.Latitude,
-                             hovertext='Sample ID: ' + sub_data.Sample.astype(str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
-                             hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)), geojson="natural earth", showlegend=True,geo='geo')
-                 layout = dict()
-                 layout['geo2'] = dict(
-                 projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
-                 center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
-                 projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
-                 domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
-                 layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],
-                                  domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
-                 # go.Figure(data=[data_geo, data_geo], layout=layout)
-                 fig.add_trace(data_geo, row=1, col=1).update_layout( go.Figure(data=[data_geo, data_geo], layout=layout).layout, margin={"r": 0, "t": 0, "l": 0, "b": 0})
-                 fig.layout['geo'] = layout['geo']
-                 data_geo.update({'geo': 'geo2', 'showlegend': False})  # Update geo trace before adding the zoomed
-                 fig.add_trace(data_geo, row=1, col=1)
-                 fig.data[len(fig.data) - 1]['geo'] = 'geo2'  # Need to update geo trace manually
-                 fig.layout['geo2'] = layout['geo2']
+
              subset_summary_df['colors'] = np.where(subset_summary_df.Flag_dubiousGPScoordinates == 1, 'orange', 'black')
              if len(subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]) > 0:
                  sub_data = subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]
@@ -712,7 +717,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                                  hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==0].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==0].ROI_count.astype(int).astype(str), hoverinfo="text",
                                  marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==0].colors,width=2)), mode='markers',showlegend=False, visible=True), row=1, col=2)
              # Scatterplot 2, middle-right panel: Percentage of artefacts
-             subset_summary_df['colors'] = np.where(subset_summary_df.Flag_artefacts == 1, 'rgba(212,85,0,0.6)','black')  # High percentage of artefacts
+             subset_summary_df['colors'] = np.where(subset_summary_df.Flag_validation == 1, 'rgba(95,211,188,0.6)', 'black')
              fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
                                   name='Percentage of validation',
                                   y=subset_summary_df.Validation_percentage,
@@ -720,6 +725,13 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
                                   hoverinfo="text", marker=dict(color='black'), mode='lines',
                                   showlegend=True, visible=True), row=2, col=2)
 
+             if len(subset_summary_df[subset_summary_df.Flag_validation == 1]) > 0:
+                 fig.add_trace(go.Scatter(name='Low percentage of validation<br>(Flag_validation)',x=subset_summary_df[subset_summary_df.Flag_validation == 1].Sample,
+                                          y=subset_summary_df[subset_summary_df.Flag_validation == 1].Validation_percentage,
+                                          hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_validation == 1].Sample.astype(str) + '<br>% of validation: ' + np.round(100 * subset_summary_df[subset_summary_df.Flag_validation == 1].Validation_percentage, 1).astype( str) + '%',
+                                          hoverinfo="text",marker=dict(size=4.5, color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_validation == 1].colors,width=2)), mode='markers', showlegend=True, visible=True), row=2, col=2)
+
+             subset_summary_df['colors'] = np.where(subset_summary_df.Flag_artefacts == 1, 'rgba(212,85,0,0.6)','black')  # High percentage of artefacts
              if len(subset_summary_df[subset_summary_df.Flag_artefacts == 1]) > 0:
                  fig.add_trace(go.Scatter(name='High percentage of artefacts<br>(Flag_artefacts)',
                              x=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample,
