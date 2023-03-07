@@ -414,11 +414,14 @@ def diagnostic_plots_func(standardizer_path,project_id):
    """
 
 # Function (3): Flag project samples based on 5 criteria, update standardizer spreadsheet flagged sample ID, and generate automatic report
-def flag_func(dataframe):
+def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2,validation_threshold=0.95):
     """
         Objective: This function assign flags to image samples contained in a dataframe based on multiple criteria.
         Criteria include missing data/metadata, anomalous GPS location, low ROI counts, presence of artefacts, multiple size calibration factors
         :param dataframe: dataframe whose samples need to be quality controlled
+        :param count_uncertainty_threshold: threshold used to flag samples with low ROI counts [0-1]
+        :param artefacts_threshold: threshold used to flag samples with high percentage of artefacts [0-1]
+        :param validation_threshold: threshold used to flag samples with low percentage of taxonomic annotation [0-1]
         :return: dataframe with flags
     """
 
@@ -453,24 +456,27 @@ def flag_func(dataframe):
         # kwargs={'mapping':'x:Sample,y:ROI_count,ymin:Count_lower,ymax:Count_upper','scale_y_log10()':'','theme(axis_text_x=element_blank())':''}
         # ggplot_funcs(dataframe=summary,output_path='~/GIT/PSSdb_LOV_orga/Plots/EcoTaxa_3315_count_uncertainty.png',xlab='Sample ID',ylab='Number of pictures per sample',geom='geom_pointrange',**kwargs)
         dataframe['Flag_count'] = 0
-        dataframe['Flag_count'] = np.where(dataframe['Sample'].isin(summary[summary.Count_uncertainty > 0.05].Sample.tolist()), 1,dataframe['Flag_count'])
+        dataframe['Flag_count'] =np.where(dataframe['Sample'].isin(summary[summary.Count_uncertainty>count_uncertainty_threshold].Sample.tolist()),1,dataframe['Flag_count'])
         # dataframe'0' in dataframe['Flag_count'].astype('str')].Sample.unique()
         # Flag #4: Presence of artefacts (>20% of the total sample ROIs)
         dataframe['Flag_artefacts'] = 0
+        dataframe['Flag_validation'] = 1 # Flagged by default to allow correct flagging of unclassified projects
         dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
         if ('Category' in dataframe.columns) and len(dataframe.dropna(subset=['Category'])):
             # Extract number of artefacts per samples
-            summary = dataframe.dropna(subset=['Category']).groupby(['Sample'],observed=True).apply(lambda x: pd.Series({'Artefacts_count': len(x[ x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) if len(x.ROI) else 0, 'Artefacts_percentage': len(x[x.Category.str.lower().apply( lambda annotation: len( re.findall( r'bead|bubble|artefact|artifact', annotation)) > 0)].ROI) / len( x.ROI) if len( x.ROI) else 0})).reset_index()
-            dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > 0.2].Sample.tolist()), 1, dataframe['Flag_artefacts'])
+            summary =dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) if len(x.ROI) else 0,'Artefacts_percentage': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0,'Validation_percentage': len(x[x.Annotation.str.lower().apply(lambda annotation:len(re.findall(r'validated',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0})).reset_index()
+            dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > artefacts_threshold].Sample.tolist()),1, dataframe['Flag_artefacts'])
+            dataframe['Flag_validation'] =np.where(dataframe['Sample'].isin(summary[summary.Validation_percentage >=validation_threshold].Sample.tolist()),0, dataframe['Flag_validation'])
         # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
         # Flag #5: Multiple size calibration factors
         if 'Pixel' in dataframe.columns:
             dataframe['Flag_size']=0
             # Extract pixel size per sample/profile
-            summary=dataframe.groupby(['Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
+            summary=dataframe.groupby(['Cruise','Sample','Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
             summary=summary.sort_values(by=['Profile_percentage'],ascending=False).reset_index()
-            pixel_list=summary.loc[1:,'Pixel'].astype('str').to_list() if len(summary.Pixel.values)>1 else ['inf']
-            dataframe['Flag_size'] = np.where(dataframe['Pixel'].astype('str').isin(pixel_list),1, dataframe['Flag_size'])
+            summary_subset =summary.groupby(by=['Cruise','Sample']).apply(lambda x: pd.Series({'Flag_size':1 if len(summary[(summary.Cruise==x.Cruise.unique()[0])].Pixel.unique())>1 and (x.Pixel.astype('str').isin((summary[(summary.Cruise==x.Cruise.unique()[0])].sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False])).loc[1:,'Pixel'].astype('str').to_list())) else 0})).reset_index()
+            #pixel_list=summary.loc[1:,'Pixel'].astype('str').to_list() if len(summary.Pixel.values)>1 else ['inf']
+            dataframe['Flag_size'] = np.where(dataframe['Sample'].astype('str').isin(list(summary_subset[summary_subset.Flag_size==1].Sample.unique())),1, dataframe['Flag_size']) #np.where(dataframe['Pixel'].astype('str').isin(pixel_list),1, dataframe['Flag_size'])
             # dataframe['0' in dataframe['Flag_size'].astype('str')].Sample.unique()
 
     dataframe['Flag']=np.where(dataframe[[column for column in dataframe.columns if 'Flag_' in column]].sum(axis=1)==0,0,1) # Default is 0, aka no anomaly
