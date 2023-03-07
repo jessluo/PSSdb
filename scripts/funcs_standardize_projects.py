@@ -974,8 +974,9 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
                 df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
                 df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
-                df_taxonomy = pd.concat([df_taxonomy.reset_index(drop=True), df_taxonomy_new[df_taxonomy.columns].reset_index(drop=True)],axis=0, ignore_index=True)
+                df_taxonomy = pd.concat([df_taxonomy.reset_index(drop=True), df_taxonomy_new[[column for column in df_taxonomy.columns if column in df_taxonomy_new.columns]].reset_index(drop=True)],axis=0, ignore_index=True)
                 df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
+                print('New taxonomic annotations found in the project. Updating the taxonomic annotations lookup table')
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
 
