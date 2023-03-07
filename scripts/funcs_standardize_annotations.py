@@ -54,7 +54,7 @@ def annotation_in_WORMS(hierarchy):
     :param hierarchy: Single or hierarchical taxonomic annotation to standardize with WORMS. If hierarchical taxonomic annotation, use > to separate taxonomic ranks
     :return: dataframe with corresponding rank, domain, phylum, class, order, family, genus, functional group, Taxon url, reference, citation, and URL for the annotation
     """
-    hierarchy_levels = hierarchy.split('>')
+    hierarchy_levels = re.split('[<>]',hierarchy)
     df_hierarchy = pd.DataFrame({'EcoTaxa_hierarchy': hierarchy, 'Full_hierarchy': '', 'Rank': '', 'Type': '', 'Domain': '', 'Phylum': '','Class': '', 'Order': '', 'Family': '', 'Genus': '', 'Functional_group': '', 'WORMS_ID': '', 'Reference': '','Citation': ''}, index=[0])
     url = 'https://www.marinespecies.org/aphia.php?p=taxlist'
 
