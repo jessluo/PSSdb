@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 from funcs_read import *
+from funcs_gridding import *
 import os
 from tqdm import tqdm
 
@@ -309,7 +310,7 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
                             df_st_t_l_d_subset = df_st_t_l_subset[df_st_t_l_subset[parse_by[3]] == d].reset_index(drop=True)
                             df_binned, df_bins = size_binning_func(df_st_t_l_d_subset)  # create size bins
                             NBS_biovol_df = NB_SS_func(df_binned, df_bins, light_parsing = True, depth_parsing = True)  # calculate NBSS
-                            NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                            NBS_biovol_df = reshape_date_func(NBS_biovol_df, group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
                             lin_fit = linear_fit_func(NBS_biovol_df, light_parsing = True, depth_parsing = True)
                             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
@@ -317,21 +318,19 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
                         # print ('getting NBS for station ' + st + 'and date' + t)
                         df_binned, df_bins = size_binning_func(df_st_t_l_subset)  # create size bins
                         NBS_biovol_df = NB_SS_func(df_binned, df_bins, light_parsing = True)  # calculate NBSS
-                        NBS_biovol_df = reshape_date_func(NBS_biovol_df,
-                                                          group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                        NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
                         lin_fit = linear_fit_func(NBS_biovol_df, light_parsing = True)
                         NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                         lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             else:
                 df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
                 NBS_biovol_df = NB_SS_func(df_binned, df_bins)  # calculate NBSS
-                NBS_biovol_df = reshape_date_func(NBS_biovol_df,
-                                                  group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
                 lin_fit = linear_fit_func(NBS_biovol_df)
                 NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
 
-
+    NBSS_binned_all['Station_location'], NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'] = gridding_func(bin_loc, NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'])
     NBSS_1a = NBSS_binned_all.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'NB', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
     NBSS_1a = NBSS_1a.rename(columns={'midLatBin': 'latitude', 'midLonBin': 'longitude', 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
                                       'NB': 'normalized_biovolume', 'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
