@@ -235,7 +235,7 @@ def Ecopart_list(username,password,localpath):
     access={}
     access_code = {}
     samples = {}
-    with sessions.FuturesSession() as session: #replace by sessions.FuturesSession(session_loggedin) if necessary
+    with sessions.FuturesSession(session=session_loggedin) as session: #replace by sessions.FuturesSession(session_loggedin) if necessary
         futures = [session.get(url) for url in df_projects.Sample_search.tolist()]
         for future in as_completed(futures):
             resp = future.result()
