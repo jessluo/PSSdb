@@ -365,13 +365,14 @@ for instrument in inst:
                df=subset_df_instrument
             # Generating instrument-specific standardizer file
             if instrument != 'UVP':
-                with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))),engine="xlsxwriter") as writer:
+                with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                        subset_df_instrument.to_excel(writer, sheet_name='Data', index=False)
                        subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
             else:
-                with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))),engine="xlsxwriter") as writer:
-                    for portal in subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower()).unique():
-                        subset_df_instrument_portal = subset_df_instrument[subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower()) == portal]
-                        subset_df_instrument_portal.to_excel(writer, sheet_name=portal, index=False)
+                portal_dict = {'ecotaxa': ['ecotaxa', 'ecotaxa_ecopart_consolidation'], 'ecopart': ['ecopart']}
+                with pd.ExcelWriter(str(path_to_data / 'project_{}_standardizer.xlsx'.format(str(instrument))), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                    for portal in portal_dict.items():#subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower()).unique():
+                        subset_df_instrument_portal = subset_df_instrument[subset_df_instrument.Project_localpath.apply(lambda path: Path(path).name.lower() in portal[1])]
+                        subset_df_instrument_portal.to_excel(writer, sheet_name=portal[0], index=False)
                     subset_df_instrument_metadata.to_excel(writer, sheet_name='Metadata', index=False)
 
