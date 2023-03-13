@@ -295,19 +295,15 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False, ignore_high_lat=Tr
     obj = TimezoneFinder()
     df['Sampling_time']=df['Sampling_time'].astype(str)
 
-    df = df.loc[df['Sampling_time'].str.len() > 2].reset_index() # the file '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/IFCB/standardized_project_3326_20221102_1615.csv'  has a vaule of 36 for rows starting on 828094
-    # so had to apply a filter to remove times that had less than 3 numbers
 
     date = df['Sampling_date'].astype(str)
     time = df['Sampling_time'].astype(str)
     lat = df['Latitude']
     lon = df['Longitude']
     date_bin = pd.to_datetime(date, format='%Y%m%d')
-    time_bin = pd.to_datetime(time, format= '%H%M%S')
     year = np.char.array(pd.DatetimeIndex(date_bin).year.values)
     month = np.char.array(pd.DatetimeIndex(date_bin).month.values).zfill(2)
     week_of_year = np.char.array(pd.DatetimeIndex(date_bin).isocalendar().week.values).zfill(2) #zfill(2).
-
 
     if group_by == 'yyyy':
         df['date_bin'] = (year).astype(str)
@@ -316,10 +312,27 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False, ignore_high_lat=Tr
     elif group_by == 'mm':
         df['date_bin'] = (month).astype(str)
     elif group_by == 'week':
-        df['date_bin'] = (year + b'_' + month + b'_wk' + week_of_year).astype(str)
+        df['year_week'] = (year + b'_' + week_of_year).astype(str)
+        df['month'] = (month).astype(str)
+        week_dict = {key: None for key in df['year_week'].unique()}
+        for i in df['year_week'].unique():
+            week_dict[i] = list(df['month'].where(df['year_week'] == i).dropna().unique())  # .astype(int)
+            if len(week_dict[i]) == 1:
+                week_dict[i] = week_dict[i][0]
+            else:
+                week_dict[i] = list(map(int, week_dict[i]))
+                week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
+        df['month'] = df['year_week'].map(week_dict)
+        mwk_df = df['year_week'].str.split("_", expand=True)
+        df['date_bin'] = mwk_df[0] + '_' + df['month'] + '_wk'+ mwk_df[1]
+        df = df.drop(['year_week', 'month'], axis=1)
+
     elif group_by == 'None':
         df['date_bin'] == str(date_bin)
     if day_night == True:
+        df = df.loc[df['Sampling_time'].str.len() > 2].reset_index()  # the file '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/IFCB/standardized_project_3326_20221102_1615.csv'  has a vaule of 36 for rows starting on 828094
+        # so had to apply a filter to remove times that had less than 3 numbers
+        time_bin = pd.to_datetime(time, format='%H%M%S')
         day = np.char.array(pd.DatetimeIndex(date_bin).day.values).zfill(2)
         hour = np.char.array(pd.DatetimeIndex(time_bin).hour.values).zfill(2)  # zfill(2).
         minute = np.char.array(pd.DatetimeIndex(time_bin).minute.values).zfill(2)
