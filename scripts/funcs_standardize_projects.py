@@ -868,7 +868,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}*.csv'.format(str(project_id))))
         if len(path_to_standard_file):
-            df_standardized_existing = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, sep=","))[-1],natsorted(path_to_standard_file)))
+            dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
+            df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
             remaining_standard_samples = df[df.Sample.isin(list(df_standardized_existing.Sample.unique())) == False].Sample.unique()
             if len(remaining_standard_samples):
                 print('Existing standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))

@@ -257,8 +257,8 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                   print('Invalid values for depth offset. Updating Ecopart standardizer with alternative field for depth offset')
                   with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                        (df_standardizer_ecopart.rename_axis('Project_ID').reset_index()).loc[:,list((df_standardizer_ecopart.rename_axis('Project_ID').reset_index()).columns)[0:2+(np.argwhere(df_standardizer_ecopart.columns=='Sampling_description')[0][0])]].to_excel(writer,sheet_name='ecopart',index=False)
-
-              sm_zoo=df_metadata.at[0,'acq_smzoo']
+              # Attention: Ecopart metadata acq_smzoo is converted to pixel, even though Ecotaxa entries might be in micrometers (all UVP6 projects)
+              sm_zoo=df_metadata.at[0,'acq_smzoo'] # if df_metadata.at[0,'instrumtype']!='uvp6' else ((np.pi*((df_metadata['acq_smzoo']/2)**2))/df_metadata['acq_aa'])**(1/df_metadata['acq_exp'])
               nativefolder_dict=df_metadata[['Project_ID','Localpath_project']].drop_duplicates().to_dict('r')
 
               #1) Generate extended ecopart dataframe with all particles number/area using df_ecopart nbr (=number of ROI with corresponding area)
@@ -281,7 +281,8 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                   df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
                   df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
                   # Attention: Reset timestamp in Ecotaxa so that timestamp is unique per profile (UVP6 have image timestamp which cause error when merging Ecotaxa and Ecopart)
-                  df_ecotaxa['sampledate'] =np.where(df_ecotaxa.organizedbydepth == False,pd.to_datetime(df_ecotaxa['object_date'].astype(str).str.zfill(6)+df_ecotaxa['object_time'].astype(str).str.zfill(6),format='%Y%m%d%H%M%S').dt.floor("min").dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecotaxa[[ 'sample_id']],df_ecopart_extended[['profileid','sampledate']].groupby(['profileid']).first(),how='left',left_on='sample_id',right_on='profileid')['sampledate'])
+                  integration_time=df_ecopart_extended[['profileid','sampledate']].drop_duplicates().groupby(['profileid']).apply(lambda x:pd.Series({'integrationtime':int(pd.to_datetime(x.sampledate,format="%Y-%m-%d %H:%M:%S").diff().dt.seconds.min())}))
+                  df_ecotaxa['sampledate'] =np.where(df_ecotaxa.organizedbydepth == False,pd.to_datetime(df_ecotaxa['object_date'].astype(str).str.zfill(6)+df_ecotaxa['object_time'].astype(str).str.zfill(6),format='%Y%m%d%H%M%S').dt.floor("{}S".format(min(integration_time['integrationtime']))).dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecotaxa[[ 'sample_id']],df_ecopart_extended[['profileid','sampledate']].groupby(['profileid']).first(),how='left',left_on='sample_id',right_on='profileid')['sampledate'])
                   df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
                   df_depth_bins=df_ecopart_extended[['profileid','sampledate','object_corrected_min_depth_bin']].drop_duplicates() if any(df_ecotaxa.organizedbydepth==False) else df_ecopart_extended[['profileid','sampledate','object_corrected_min_depth_bin']].groupby(['profileid','sampledate']).first()
                   df_ecotaxa['object_corrected_min_depth_bin'] =np.where(df_ecotaxa.organizedbydepth==False,pd.merge(df_ecotaxa[['sample_id','sampledate']],df_depth_bins,how='left',right_on=['profileid','sampledate'],left_on=['sample_id','sampledate'])['object_corrected_min_depth_bin'],pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6501, step=1)),right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int))
