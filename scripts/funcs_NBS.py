@@ -133,7 +133,7 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         NBS_biovol_df = df_binned.groupby([dates, station, light, depths, sizeClasses]).agg(
             {sample_id:'first', depths:'first', size_range:'first', size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
              biovolume:['sum', 'count', 'mean'] }).reset_index()
-        df_vol = df_binned.groupby([dates, station, light, depths]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
+        df_vol = df_binned.groupby([dates, station, light, depths]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)
 
         # remove bins that have zero values
         # standardize by volume sample
