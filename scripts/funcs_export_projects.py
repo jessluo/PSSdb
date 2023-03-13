@@ -27,7 +27,7 @@ with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_to_git=Path(cfg['git_dir']).expanduser()
 path_to_data=path_to_git / cfg['dataset_subdir']
-path_to_config_pw = path_to_git / 'scripts' / 'Ecotaxa_API.yaml'
+path_to_config_pw = path_to_git / 'scripts' / 'Ecotaxa_API_pw.yaml'
 with open(path_to_config_pw, 'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
