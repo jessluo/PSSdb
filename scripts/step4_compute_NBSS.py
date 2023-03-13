@@ -67,8 +67,17 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
 
             NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
             lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
-        # Save NBSS results
+        # Save NBSS results and sorting
+        NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
+        NBSS_1a_full['year_int'] = NBSS_1a_full['year'].astype(int)
+        NBSS_1a_full = NBSS_1a_full.sort_values(by=['year_int', 'month_int'])
+        NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
         NBSS_1a_full.to_csv(str(dirpath) + '/' + instrument +'_NBSS_1a.csv', index=False)
+
+        lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
+        lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
+        lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
+        lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
         lin_fit_1b_full.to_csv(str(dirpath) + '/' + instrument + '_lin_fit_1b.csv', index=False)
 
     elif replace == 'N':
@@ -97,9 +106,17 @@ elif not os.path.exists(dirpath):
         NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
         lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
     # Save NBSS results
+    NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
+    NBSS_1a_full['year_int'] = NBSS_1a_full['year'].astype(int)
+    NBSS_1a_full = NBSS_1a_full.sort_values(by=['year_int', 'month_int'])
+    NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
     NBSS_1a_full.to_csv(str(dirpath) + '/' + instrument + '_NBSS_1a.csv', index=False)
-    lin_fit_1b_full.to_csv(str(dirpath) + '/' + instrument + '_lin_fit_1b.csv', index=False)
 
+    lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
+    lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
+    lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
+    lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
+    lin_fit_1b_full.to_csv(str(dirpath) + '/' + instrument + '_lin_fit_1b.csv', index=False)
 
 #lat = lin_fit_1b['latitude']
 #lon = lin_fit_1b['longitude']
