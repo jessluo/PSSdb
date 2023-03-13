@@ -75,6 +75,7 @@ def size_binning_func(df_subset):
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume, append bin range and bin class to the dataframe
     df_subset.loc[:, 'sizeClasses']= pd.cut(x=df_subset['Biovolume'], bins=bins_df['biovol_um3'], include_lowest=True)# size classes defined by biovolume
+    df_subset = df_subset.dropna(subset=['sizeClasses']).reset_index(drop=True) # hard pass, debug this
     range_size_bin = []
     size_class_mid = []
     for i in range(0, len(df_subset['sizeClasses'])):
