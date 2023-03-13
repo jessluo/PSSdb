@@ -435,7 +435,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         dataframe.loc[dataframe.Sample.isin(list(compress(missing_flag.Sample, missing_flag.Sample_missing))), 'Flag_missing'] = 1
         dataframe=pd.merge(dataframe, missing_flag[['Sample','Missing_field']],how='left',on='Sample')
 
-        # Flag #2: anomalous GPS location
+        # Flag #2/3: anomalous GPS location
         dataframe['Flag_GPScoordinatesonland'] = 0
         world = gpd.read_file(path_to_zip.with_suffix('') / 'ne_10m_admin_0_countries.shp') #gpd.datasets.get_path("naturalearth_lowres")
         world_polygon = unary_union(world.geometry.tolist())
@@ -450,7 +450,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         dataframe['Flag_GPScoordinatesonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPScoordinatesonland'] == True]['Sample'].tolist()), 1, 0)
         dataframe['Flag_dubiousGPScoordinates'] = 0
         dataframe['Flag_dubiousGPScoordinates'] = np.where(dataframe['Sample'].isin(gdf.get('Sample')[list(map(lambda x: x.contains(Point(0, 0)), gdf.geometry.tolist()))]), 1,dataframe['Flag_dubiousGPScoordinates'])
-
+         # Flag #4 (count), #5 (artefacts), #6(validation, UVP/Zooscan-only)
         # Calculate count uncertainties assuming Poisson distribution. Upper-lower count limit are based on 5% uncertainty
         summary=dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI) if 'object_number' not in dataframe.columns else x['object_number'].sum(),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)) if 'object_number' not in dataframe.columns else poisson.pmf(k=x['object_number'].sum(),mu=x['object_number'].sum()),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)) if 'object_number' not in dataframe.columns else poisson.ppf((0.05/2), mu=x['object_number'].sum()),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI)) if 'object_number' not in dataframe.columns else poisson.ppf(1-(0.05/2), mu=x['object_number'].sum())})).reset_index()
         # kwargs={'mapping':'x:Sample,y:ROI_count,ymin:Count_lower,ymax:Count_upper','scale_y_log10()':'','theme(axis_text_x=element_blank())':''}
@@ -458,7 +458,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         dataframe['Flag_count'] = 0
         dataframe['Flag_count'] =np.where(dataframe['Sample'].isin(summary[summary.Count_uncertainty>count_uncertainty_threshold].Sample.tolist()),1,dataframe['Flag_count'])
         # dataframe'0' in dataframe['Flag_count'].astype('str')].Sample.unique()
-        # Flag #4: Presence of artefacts (>20% of the total sample ROIs)
+        # Flag #5: Presence of artefacts (>20% of the total sample ROIs)
         dataframe['Flag_artefacts'] = 0
         dataframe['Flag_validation'] = 1 # Flagged by default to allow correct flagging of unclassified projects
         dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
@@ -471,7 +471,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
             dataframe['Flag_validation'] = 0
 
         # dataframe['0' in dataframe['Flag_artefacts'].astype('str')].Sample.unique()
-        # Flag #5: Multiple size calibration factors
+        # Flag #7: Multiple size calibration factors
         if 'Pixel' in dataframe.columns:
             dataframe['Flag_size']=0
             # Extract pixel size per sample/profile
@@ -486,11 +486,13 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
     return dataframe
 
 #filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb/reports')
-def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
+def filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95):
     """
     Objective: This function adds flags to image samples based on multiple criteria and automatically generate a report for a given project
     :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
     :param project_id: ID of the project to be flagged in the standardizer spreadsheet
+    :param report_path: Full path for the storage of the project control quality check interactive report
+    :param validation_threshold: Threshold for sample/profile taxonomic annotation validation in percentage [0-1]. UVP and Zooscan projects only. Default is 95%
     :return: interactive report showing project's flags and update standardizer spreadsheet with flagged samples ID
     """
     sheets = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
@@ -508,10 +510,12 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
     project_path_list = list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("ecotaxa_export_"+str(project_id)+'_*'))
 
     if len([path for path in project_path_list if 'flag' not in str(path)])>0:
+         # Set missing values to NA
+         na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
          project_path = natsorted([path for path in project_path_list if 'flag' not in str(path)])
          columns_dict=dict(zip(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().values),list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))))
          columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
-         df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True)
+         df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, na_values=na, keep_default_na=True, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True)
          old_columns = df.columns
          #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
          index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
@@ -560,7 +564,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
 
          # Append flags, Avoid flagging on low validation for IFCB projects by setting validation threshold to 0
-         validation_threshold = 0.95 if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
+         validation_threshold = validation_threshold if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
          flagged_df=flag_func(df,validation_threshold=validation_threshold)
          # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
          flagged_df = pd.merge(flagged_df.drop(columns=['Missing_field']), flagged_df.groupby(['Sample']).apply( lambda x: pd.Series({'Missing_field': '' if all(pd.Series(['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution']).isin((x['Missing_field'].astype(str).unique()[0]).split(';'))) else x['Missing_field'].astype(str).unique()[0]})).reset_index(), how='left', on='Sample')
@@ -588,10 +592,10 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          # Create readme file for the report and flag folders:
          if not Path(path_to_datafile.parent / 'README.txt').is_file():
              with open(str(Path(path_to_datafile.parent / 'README.txt')), 'w') as file:
-                 file.write( "README file for project control quality check (First created on February 10, 2023):\n\nThis directory contains a summary table of project control quality flags.\nCurrent flagging is done based on 6 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nThe overrule boolean factor allows to overrule this flag (reset False to True) if the data owner deemed the sample should be kept for further processing.\nFlagged samples will be discarded during standardization.\nThe flag table will be updated if a project have been updated with additional samples.\nInteractive reports of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(report_path))
+                 file.write("README file for project control quality check (First created on February 10, 2023):\n\nThis directory contains a summary table of project control quality flags.\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nThe overrule boolean factor allows to overrule this flag (reset False to True) if the data owner deemed the sample should be kept for further processing.\nFlagged samples will be discarded during standardization.\nThe flag table will be updated if a project have been updated with additional samples.\nInteractive reports of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(report_path))
          if not Path(report_path.parent / 'README.txt').is_file():
              with open(str(Path(report_path.parent / 'README.txt')), 'w') as file:
-                 file.write("README file for project control quality check report (First created on February 10, 2023):\n\nThis directory contains interactive reports of project control quality flags.\nThe bottom table include flagged samples that can be checked by clicking on the URL of the first column.\nCurrent flagging is done based on 6 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nFlagged samples will be discarded during standardization.\nThe flag report will be updated if a project have been updated with additional samples.\nTables of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format( path_to_datafile.parent))
+                 file.write("README file for project control quality check report (First created on February 10, 2023):\n\nThis directory contains interactive reports of project control quality flags.\nThe bottom table include flagged samples that can be checked by clicking on the URL of the first column.\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nFlagged samples will be discarded during standardization.\nThe flag report will be updated if a project have been updated with additional samples.\nTables of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(path_to_datafile.parent))
 
          #if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
          overrule_name ='project_{}_flags.csv'.format(str(project_id))
@@ -622,7 +626,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path):
          # Map, left column
          flagged_df['Annotation'] = flagged_df['Annotation'] if 'Annotation' in flagged_df.columns else 'predicted' if ( 'Annotation' not in flagged_df.columns) and ('Category' in flagged_df.columns) else 'unclassified'
          # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
-         flagged_df.Category = np.where(flagged_df.Category == '', pd.NA, df.Category)
+         flagged_df.Category =np.where((flagged_df.Category == '') | (flagged_df.Category.isna()), pd.NA, df.Category)
          summary_df = flagged_df.dropna(subset=['Category']).groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
          summary_df['Sample_URL'] =  summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
@@ -998,16 +1002,6 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                 with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                     df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
 
-        # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
-        if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
-            df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
-            df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index( drop=True)
-            # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
-            df_small_particles['ROI'] = ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
-            df_small_particles['Annotation'] = 'unclassified'
-            df_small_particles['Category'] = ''
-            df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['datetime', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
-
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
 
@@ -1049,8 +1043,48 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         df_standardized = df_standardized.assign(Volume_imaged=df_standardized.Volume_analyzed/dilution_factor) # cubic decimeters
 
         # Save data and metadata sheet
-        df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
+        path_dict = df[['File_path', 'Sample']].drop_duplicates().groupby(['File_path'])['Sample'].apply(list).to_dict()
+
+        # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
+        df_standardized =df_standardized.astype({key:value for key,value in dict(zip(['Sample','Profile','Cruise','Station','Sampling_date','Sampling_time', 'Category', 'Annotation'],8*[str])).items() if key in df_standardized.columns})
+        if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
+            profile_dict = dict({value[0]: key for key, value in path_dict.items()})
+            df_standardized_all = pd.DataFrame({})
+            with tqdm(desc='Saving standardized profile:', total=len(df_standardized.Sample.unique()), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+                for profile in df_standardized.Sample.unique():
+                    p = str(profile) + " ({}/{})".format(str(1 + np.argwhere(df_standardized.Sample.unique() == profile)[0][0]),len(df_standardized.Sample.unique()))
+                    bar.set_description("Saving standardized profile {}".format(p), refresh=True)
+                    subset_df_standardized = df_standardized[df_standardized.Sample == profile]
+                    df_small_particles = subset_df_standardized[subset_df_standardized.ROI.isna()].drop(columns=['Biovolume','ESD','Minor_axis']).groupby(by=list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','Minor_axis','ESD']) == False]),observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','ESD','Minor_axis']) == False])))],axis=1)
+                    df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index(drop=True)
+                    # summary_small_particles=df_small_particles.groupby(by=list(df_small_particles.columns[df_small_particles.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df_small_particles.columns[df_small_particles.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
+                    df_small_particles['ROI'] = ['{}_particle_{}'.format(str(profile),str(index)) for index in df_small_particles.index]
+                    df_small_particles['Annotation'] = 'unclassified'
+                    df_small_particles['Category'] = ''
+                    subset_df_standardized = pd.concat([subset_df_standardized[subset_df_standardized.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0, ignore_index=True).sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index(drop=True)
+                    subset_df_standardized =subset_df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged', 'ROI', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
+                    subset_df_standardized.to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(profile_dict.get(profile).stem)[str(profile_dict.get(profile).stem).rfind('_' + str(project_id) + '_') + 2 + len(str(project_id)):len(str(profile_dict.get(profile).stem))].replace('_features', '')), sep=",",index=False)
+                    df_standardized_all=pd.concat([df_standardized_all,subset_df_standardized], axis=0, ignore_index=True)
+                    ok = bar.update(n=1)
+            df_standardized = df_standardized_all.reset_index(drop=True)
+            """
+            df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
+            df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index( drop=True)
+            # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
+            df_small_particles['ROI'] = ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
+            df_small_particles['Annotation'] = 'unclassified'
+            df_small_particles['Category'] = ''
+            df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['datetime', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
+            """
+        else:
+            df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
                                     'ROI', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
+            print('Saving standardized datafile to', path_to_standard_dir, sep=' ')
+            df.groupby(['File_path']).apply( lambda x: df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[ 0].stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( x.File_path.unique()[ 0].stem))].replace( '_features', '')), sep=",", index=False))
+            # with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
+            # df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
+            # df_standardized_metadata.to_csv(path_to_metadata_standard, sep="\t",index=False)  # to_excel(writer, sheet_name='Metadata',index=False)
+
         df_standardized_metadata=pd.DataFrame({'Variables':df_standardized.columns,'Variable_types':df_standardized.dtypes,
         'Units/Values/Timezone':['','','','','','','','degree','degree','yyyymmdd (UTC)','hhmmss (UTC)','meter','meter','cubic_decimeter','cubic_decimeter','','','']+['micrometer' for ntimes in range(df_standardized[['Minor_axis']].shape[1])]+['micrometer' for ntimes in range(df_standardized[['ESD']].shape[1])]+['square_micrometer' for ntimes in range(df_standardized[['Area']].shape[1])]+['cubic_micrometer' for ntimes in range(df_standardized[['Biovolume']].shape[1])]+['pixel_per_millimeter','micrometer','micrometer',''],
         'Description':['Project ID','Project cruise','Instrument','Sampling type (e.g. platform, gear, strategy)','Station ID (native format)','Profile ID (native format)','Sample ID (native format)','Latitude','Longitude','Sampling date','Sampling time','Minimum sampling depth','Maximum sampling depth','Volume analyzed (not accounting for sample dilution and/or fractionation)','Volume imaged (accounting for sample dilution and/or fractionation)','Region of interest ID (native format)','Status of ROI annotation (e.g. unclassified, predicted, validated)','ROI assigned taxonomy']+ ['Object minor ellipsoidal axis derived from '+ field if field!='' or len(fields['Minor_axis'])>1 else 'Object minor ellipsoidal axis' for field in fields['Minor_axis'] ]+ ['Object equivalent spherical diameter derived from '+ field if field!='' or len(fields['ESD'])>1 else 'Object equivalent spherical diameter' for field in fields['ESD'] ]+ ['Object surface area derived from '+ field if field!='' or len(fields['Area'])>1 else 'Object surface area' for field in fields['Area'] ]+['Object biovolume derived from '+ field if field!='' or len(fields['Biovolume'])>1 else 'Object biovolume' for field in fields['Biovolume']]+['Pixel size used for size conversion','Smallest sampled size','Largest sampled size','Additional description of the sampling method or protocol']})
@@ -1059,17 +1093,10 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             with open(str(Path(path_to_standard_dir.parent.parent / 'README.txt')), 'w') as file:
                 file.write( "README file for project standardized files (First created on February 10, 2023):\n\nThis directory contains the standardized table(s) of accessible projects.\nEach table include the following variables:\n\n{}\n\nContact us: nmfs.pssdb@noaa.gov".format('\n'.join(list(df_standardized_metadata[['Variables', 'Units/Values/Timezone', 'Description']].apply(lambda x: str(x.Variables) + " (" + str(x['Units/Values/Timezone']).strip() + "): " + x.Description if len(x['Units/Values/Timezone']) else str(x.Variables) + ": " + x.Description, axis=1).values))))
 
-        # Save standardized dataframe
-        path_to_standard_plot = path_to_git / 'figures' / 'standardizer' /path_to_data.stem /  path_files_list[0].parent.stem/ 'standardized_project_{}.html'.format(str(project_id))
-        path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
-        print('Saving standardized datafile to', path_to_standard_dir,sep=' ')
-        path_dict = df[['File_path', 'Sample']].drop_duplicates().groupby(['File_path'])['Sample'].apply(list).to_dict()
-        df.groupby(['File_path']).apply(lambda x :df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv(path_to_standard_dir/'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[0].stem).rfind('_'+str(project_id)+'_')+2+len(str(project_id)):len(str(x.File_path.unique()[0].stem))].replace('_features','')), sep=",",index=False))
-        #with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
-        #df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
-        #df_standardized_metadata.to_csv(path_to_metadata_standard, sep="\t",index=False)  # to_excel(writer, sheet_name='Metadata',index=False)
-
         # Interactive plots
+        path_to_standard_plot = path_to_git / 'figures' / 'standardizer' / path_to_data.stem / path_files_list[ 0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
+        path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
+
         df_standardized=pd.concat([df_standardized_existing.reset_index(drop=True),df_standardized.reset_index(drop=True)],axis=0,ignore_index=True)
         if plot=='diversity':
             subplot_specs = [[{"type": "scattergeo", "rowspan": 2}, {"type": "scatter"}], [None, {"type": "pie"}]]

@@ -82,9 +82,6 @@ if path_to_standardizer.exists():
 dat_headers=['image_index','image','pressure','tilt_1','tilt_2','board_temperature','voltage','unknown_1','unknown_2','unknown_3','unknown_4','cooler_temperature','camera_temperature','internal_time','nb_blobs_SMbase','mean_area_SMbase','mean_grey_SMbase','nb_blobs_SMzoo','mean_grey_SMzoo']
 bru_headers=['image_index','blob','area','mean_grey','x_center','y_center']
 
-# Select native Ecotaxa file variables to be dropped during consoldation (otherwise consolidated files are big)
-ecotaxa_fields_to_drop=['object_link','object_annotation_person_name','object_annotation_person_email','object_annotation_date','object_annotation_time','object_mean','object_stdev','object_mode','object_min','object_max','object_intden','object_median','object_skew','object_kurt','object_fractal','object_skelarea','object_slope','object_histcum1','object_histcum2','object_histcum3','object_xmg5','object_ymg5','object_nb1','object_nb2','object_nb3','object_compentropy','object_compmean','object_compsloope','object_compm1','object_compm2','object_compm3','object_symetrieh','object_symetriev','object_symetrievc','object_convperim','object_convarea','object_fcons','object_thickr','object_tag','object_range','object_meanpos','object_centroids','object_cv','object_sr','object_circex','object_cdexc','object_kurt_mean','object_skew_mean','object_symetrieh_area','object_smetriev_area','object_nb1_area','object_nb2_area','object_nb3_area','object_nb1_range','object_nb2_range','object_nb3_range','object_median_mean_range','object_skeleton_area','sample_dataportal_descriptor','sample_winddir','sample_windspeed','sample_seastate','sample_nebulousness','acq_file_description','acq_disktype','acq_shutterspeed','acq_gain','acq_exposure']
-
 ## Functions start here:
 
 def update_ecotaxa_project(project_id,path_to_metadata,login=user_ecotaxa,password=password_ecotaxa):
@@ -210,6 +207,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
    """
    path_to_standardizer = path_to_git / 'raw' / 'project_UVP_standardizer.xlsx'
    if project_id in standardizer.index and str(standardizer.at[project_id, "External_project"])!='nan':
+       standardizer = standardizer.astype({'External_project': str})
        standardizer_headers=pd.read_excel(path_to_standardizer,nrows=1).columns
        path_to_extended_file = Path(localpath_metadata).expanduser()
        path_to_extended_file.mkdir(parents=True, exist_ok=True)
@@ -219,23 +217,47 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
        path_to_external_project = path_to_project.parent / {'ecotaxa':'ecopart','ecopart':'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name]
        path_external_export=list(itertools.chain.from_iterable([path_to_external_project.rglob('**/{}_export_*_{}_*.tsv'.format({'ecotaxa': 'ecopart', 'ecopart': 'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name].lower(),project)) for project in str(standardizer.at[project_id, "External_project"]).split(';')]))
        # Add small particles (area<=sm_zoo) to Ecotaxa/Ecopart and save to export_*_extended.tsv:
-       if path_to_external_project.name=='ecopart':
+       if (path_to_external_project.name=='ecopart') and len(path_external_export) and all(pd.Series(str(standardizer.at[project_id, "External_project"]).split(';')).isin(list(df_standardizer_ecopart.index.astype(str)))):
            path_ecopart_par_export =[path for path in path_external_export if ('_particles.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            path_ecopart_zoo_export = [path for path in path_external_export if ('_zooplankton.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            path_ecopart_metadata = [path for path in path_external_export if ('_metadata.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            dict_metadata_columns={'depth':'object_corrected_min_depth_bin','imgcount':'object_imgcount_bin'}
-           df_ecopart = pd.concat(map(lambda path:pd.read_table(path, encoding='latin-1').assign(Project_ID=int(re.findall(r'\d+',path.name)[0])).sort_values( ['profileid', 'depth']),path_ecopart_par_export)).rename(columns=dict_metadata_columns) if len(path_ecopart_par_export) else pd.DataFrame({})
-           df_ecopart = df_ecopart.reset_index(drop=True)
-           df_ecopart['object_corrected_max_depth_bin']=df_ecopart['object_corrected_min_depth_bin']+1
            df_metadata = pd.concat(map(lambda path:pd.read_table(path, encoding='latin-1').assign(Project_ID=int(re.findall(r'\d+',path.name)[0])),path_ecopart_metadata)) if len(path_ecopart_metadata) else pd.DataFrame({})
            df_metadata = df_metadata.reset_index(drop=True)
            df_metadata['Localpath_project']=df_metadata.rawfolder.apply(lambda path: Path(path).expanduser().stem)
+           depthprofile = df_metadata[['profileid'] + [column for column in df_metadata if 'organizedbyde' in column]].set_index('profileid').rename(columns={[column for column in df_metadata if 'organizedbyde' in column][0]: 'organizedbydepth'})  # Typo in header
+
+           fields_from_ecopart=dict({str(df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';'))].T.dropna().drop(index=['Sampling_description','Project_source','Project_localpath','Instrument','External_project']+[id for id in df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';'))].T.dropna().index if ('_unit' in id) or ('format' in id) ]).T.reset_index(drop=True).loc[0].index[ind]).replace("_field",''):column for ind,column in enumerate(df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';'))].T.dropna().drop(index=['Sampling_description','Project_source','Project_localpath','Instrument','External_project']+[id for id in df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';'))].T.dropna().index if ('_unit' in id) or ('format' in id) ]).T.reset_index(drop=True).loc[0]) if column in df_metadata.columns})
+           df_ecopart = pd.concat(map(lambda path:pd.read_table(path, encoding='latin-1').assign(Project_ID=int(re.findall(r'\d+',path.name)[0])).sort_values( ['profileid', 'depth']),path_ecopart_par_export)).rename(columns=dict_metadata_columns) if len(path_ecopart_par_export) else pd.DataFrame({})
+           df_ecopart = df_ecopart.reset_index(drop=True)
+           df_ecopart = pd.merge(df_ecopart, depthprofile, how='left', on='profileid')
+           df_ecopart['object_corrected_max_depth_bin']=np.where(df_ecopart.organizedbydepth==False,df_ecopart['object_corrected_min_depth_bin'],df_ecopart['object_corrected_min_depth_bin']+1)
            df_ecopart=pd.merge(df_ecopart,df_metadata[['profileid','acq_volimage']],how='left',on='profileid')
            df_ecopart['object_volume_bin']=df_ecopart.acq_volimage*df_ecopart.object_imgcount_bin
+           df_ecopart['datetime']=df_ecopart['datetime'] if 'datetime' in df_ecopart.columns else pd.to_datetime(df_ecopart[fields_from_ecopart['Sampling_time']],format=df_standardizer_ecopart.loc[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';')),'Sampling_time_format'].values[0]).dt.strftime('%Y%m%d%H%M%S')
+           df_ecopart['sampledate'] = np.where(df_ecopart.organizedbydepth == False, pd.to_datetime(df_ecopart['datetime'],format='%Y%m%d%H%M%S').dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecopart['profileid'],df_metadata[['profileid','sampledate']],how='left')['sampledate'])
+
+           if ('External_project' not in df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';'))].T.dropna().index):
+               df_standardizer_ecopart.loc[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';')),"External_project"]=project_id
+               with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                   (df_standardizer_ecopart.rename_axis('Project_ID').reset_index()).loc[:,list((df_standardizer_ecopart.rename_axis('Project_ID').reset_index()).columns)[0:2+(np.argwhere(df_standardizer_ecopart.columns=='Sampling_description')[0][0])]].to_excel(writer,sheet_name='ecopart',index=False)
+
+
            if Path(path_to_export).is_file() and len(df_ecopart) and len(df_metadata):
               df_ecotaxa_columns=pd.read_table(path_to_export,nrows=0).columns
+              fields_from_ecotaxa =dict({str(df_standardizer_ecotaxa.loc[project_id].T.dropna().drop(index=['Sampling_description','Project_source','Project_localpath','Instrument','External_project']+[id for id in df_standardizer_ecotaxa.loc[project_id].T.dropna().index if ('_unit' in id) or ('format' in id) ]).index[ind]).replace("_field",''):column for ind,column in enumerate(df_standardizer_ecotaxa.loc[project_id].T.dropna().drop(index=['Sampling_description','Project_source','Project_localpath','Instrument','External_project']+[id for id in df_standardizer_ecotaxa.loc[project_id].T.dropna().index if ('_unit' in id) or ('format' in id) ])) if column in df_ecotaxa_columns})
               df_ecotaxa=pd.read_table(path_to_export,usecols=[column for column in df_ecotaxa_columns if column  in list(standardizer.loc[project_id,[column for column in standardizer.loc[project_id].index if '_field' in column]].dropna().values)+list(fields_for_description_ecotaxa.loc[project_id].values)+['acq_smbase']]).assign(object_number=1)
-              depth_offset= df_metadata[df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Depth_offset"].values[0]].values[0]
+              df_ecotaxa = pd.merge(df_ecotaxa, depthprofile, how='left', right_on='profileid', left_on='sample_id')
+              field_for_depthoffset=df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Depth_offset"].values[0]
+              depth_offset= df_metadata[field_for_depthoffset].values[0]
+              alternative_depthoffset=df_metadata[[column for  column in ['acq_depthoffset','default_depthoffset'] if column not in [field_for_depthoffset]][0]].values[0]
+              if (str(depth_offset)=='nan') and (str(alternative_depthoffset)!='nan'):
+                  depth_offset=alternative_depthoffset
+                  df_standardizer_ecopart.loc[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';')), "Sampling_description"] =str(df_standardizer_ecopart.loc[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';')), "Sampling_description"].values[0]).replace(field_for_depthoffset,[column for  column in ['acq_depthoffset','default_depthoffset'] if column not in [field_for_depthoffset]][0])
+                  print('Invalid values for depth offset. Updating Ecopart standardizer with alternative field for depth offset')
+                  with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                       (df_standardizer_ecopart.rename_axis('Project_ID').reset_index()).loc[:,list((df_standardizer_ecopart.rename_axis('Project_ID').reset_index()).columns)[0:2+(np.argwhere(df_standardizer_ecopart.columns=='Sampling_description')[0][0])]].to_excel(writer,sheet_name='ecopart',index=False)
+
               sm_zoo=df_metadata.at[0,'acq_smzoo']
               nativefolder_dict=df_metadata[['Project_ID','Localpath_project']].drop_duplicates().to_dict('r')
 
@@ -258,10 +280,16 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
                   print('Script run outside the Complex server Marie.\nConsolidated file will be done with vignettes object_area')
                   df_ecotaxa['object_bru_area'] = df_ecotaxa['object_area']
                   df_ecotaxa['object_bru_id'] = df_ecotaxa['object_id']
+                  # Attention: Reset timestamp in Ecotaxa so that timestamp is unique per profile (UVP6 have image timestamp which cause error when merging Ecotaxa and Ecopart)
+                  df_ecotaxa['sampledate'] =np.where(df_ecotaxa.organizedbydepth == False,pd.to_datetime(df_ecotaxa['object_date'].astype(str).str.zfill(6)+df_ecotaxa['object_time'].astype(str).str.zfill(6),format='%Y%m%d%H%M%S').dt.floor("min").dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecotaxa[[ 'sample_id']],df_ecopart_extended[['profileid','sampledate']].groupby(['profileid']).first(),how='left',left_on='sample_id',right_on='profileid')['sampledate'])
                   df_ecotaxa['object_corrected_depth'] = df_ecotaxa['object_depth_min'] + depth_offset
-                  df_ecotaxa['object_corrected_min_depth_bin'] = pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6501, step=1)),right=False,labels=np.arange(0, 6500, step=1)).astype( str).astype(int)
-                  df_ecotaxa['object_corrected_max_depth_bin'] = df_ecotaxa['object_corrected_min_depth_bin'] + 1
-                  df_ecotaxa = pd.merge(df_ecotaxa, df_ecopart_extended[ ['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin', 'object_imgcount_bin']].drop_duplicates(), how='left', left_on=['sample_id', 'object_corrected_min_depth_bin'], right_on=['profileid', 'object_corrected_min_depth_bin'])
+                  df_depth_bins=df_ecopart_extended[['profileid','sampledate','object_corrected_min_depth_bin']].drop_duplicates() if any(df_ecotaxa.organizedbydepth==False) else df_ecopart_extended[['profileid','sampledate','object_corrected_min_depth_bin']].groupby(['profileid','sampledate']).first()
+                  df_ecotaxa['object_corrected_min_depth_bin'] =np.where(df_ecotaxa.organizedbydepth==False,pd.merge(df_ecotaxa[['sample_id','sampledate']],df_depth_bins,how='left',right_on=['profileid','sampledate'],left_on=['sample_id','sampledate'])['object_corrected_min_depth_bin'],pd.cut(df_ecotaxa['object_corrected_depth'], bins=list(np.arange(0, 6501, step=1)),right=False,labels=np.arange(0, 6500, step=1)).astype(str).astype(int))
+                  df_ecotaxa['object_corrected_max_depth_bin'] =np.where(df_ecotaxa.organizedbydepth==False,pd.merge(df_ecotaxa[['sample_id','sampledate']],df_depth_bins,how='left',right_on=['profileid','sampledate'],left_on=['sample_id','sampledate'])['object_corrected_min_depth_bin'],df_ecotaxa['object_corrected_min_depth_bin']+1)
+
+                  ecotaxa_ecopart_columns_dict=dict(zip([df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["First_image"].values[0],df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Last_image"].values[0],df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Depth_offset"].values[0]]+[fields_from_ecopart.get(column) for column,id in fields_from_ecotaxa.items() if (column in fields_from_ecopart.keys()) and (column not in ['Cruise','Station','Profile','Sample','Sampling_lower_size'])],['process_first_image','process_last_image','process_depth_offset']+[id for column,id in fields_from_ecotaxa.items() if (column in fields_from_ecopart.keys()) and (column not in ['Cruise','Station','Profile','Sample','Sampling_lower_size'])]))
+                  df_ecotaxa =pd.merge(df_ecotaxa.drop(columns=['acq_smbase']+[id for column,id in fields_from_ecotaxa.items() if (column in fields_from_ecopart.keys()) and (column not in ['Cruise','Station','Profile','Sample'])]), df_ecopart_extended[ list(set(['profileid', 'object_corrected_min_depth_bin', 'object_volume_bin', 'object_imgcount_bin','acq_smbase',df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["First_image"].values[0],df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Last_image"].values[0],df_standardizer_ecopart[df_standardizer_ecopart.index.astype(str).isin(str(standardizer.at[project_id, "External_project"]).split(';'))]["Depth_offset"].values[0]]+[id for column,id in fields_from_ecopart.items() if (column in fields_from_ecotaxa.keys())]))].drop_duplicates(), how='left', left_on=['sample_id','sampledate', 'object_corrected_min_depth_bin'], right_on=['profileid','sampledate', 'object_corrected_min_depth_bin']).rename(columns=ecotaxa_ecopart_columns_dict)
+                  df_ecopart_extended =df_ecopart_extended.rename(columns=ecotaxa_ecopart_columns_dict)
 
               else:
                   decision='Please run the ImageJ macro on your computer and update the metadata of your project by following the macro instructions.\nBy default, the consolidation will be done by matching up Ecotaxa vignettes to native project folder .bru files containing the area for all particles' if not run_macro else 'Running the ImageJ macro to generate metadata automatically.'
@@ -414,7 +442,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
               df_ecopart_extended = pd.concat([pd.merge(df_ecopart_extended.assign(sample_id=df_ecopart_extended.profileid,object_annotation_category='',object_annotation_status='unclassified').drop(columns=['acq_volimage']),df_ecotaxa[['object_lat','object_lon','object_date','object_time']+[column for column in df_ecotaxa.columns if len(re.findall( r'sample_|acq_|process_', column))>0]].drop_duplicates(),how='left',on='sample_id'), df_ecotaxa.dropna(subset=[ 'object_volume_bin', 'object_imgcount_bin'])], axis=0)#pd.concat([pd.merge(df_ecopart_extended.assign(sample_id=df_ecopart_extended.profileid,object_annotation_category='',object_annotation_status='unclassified'),df_ecotaxa[['object_lat','object_lon','object_date','object_time']+[column for column in df_ecotaxa.columns if len(re.findall( r'sample_|acq_|process_', column))>0]].drop_duplicates(),how='left',on='sample_id'), df_ecotaxa], axis=0)
               df_ecopart_extended =pd.merge(df_ecopart_extended.drop(columns=['profileid']) ,df_metadata[['profileid','filename']],how="left",left_on=['sample_id'],right_on=['profileid'])
               df_ecopart_extended =df_ecopart_extended[['filename']+list(df_ecotaxa.columns)].sort_values(['filename', 'object_corrected_min_depth_bin','object_bru_area'],ascending=[True,True,False]).reset_index(drop=True)
-              df_ecopart_extended = df_ecopart_extended[['filename']+[column for column in df_ecopart_extended if 'object_' in column]+[column for column in df_ecopart_extended if 'sample_' in column]+[column for column in df_ecopart_extended if 'acq_' in column]+[column for column in df_ecopart_extended if 'process_' in column]]
+              #df_ecopart_extended = df_ecopart_extended[['filename']+[column for column in df_ecopart_extended if 'object_' in column]+[column for column in df_ecopart_extended if 'sample_' in column]+[column for column in df_ecopart_extended if 'acq_' in column]+[column for column in df_ecopart_extended if 'process_' in column]]
               df_ecopart_extended['acq_smbase']=np.where(df_ecopart_extended['acq_smbase']==0,df_ecopart_extended['acq_smbase']+1,df_ecopart_extended['acq_smbase'])
               df_ecopart_extended.groupby(by='filename').apply(lambda x:x.drop(columns=['filename']).to_csv(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated_profile_{}.tsv').format('_'.join(path_to_projects.Project_ID.astype(str)),str(1+np.argwhere(df_ecopart_extended.filename.unique()==x.filename.unique()[0])[0][0])),sep="\t" ,index=False))
               print('Consolidated project created at {}'.format(path_to_extended_file / str(path_to_export.name).replace('.tsv', '_ecopart_{}_consolidated.tsv').format('_'.join(path_to_projects.Project_ID.astype(str)))))
@@ -422,8 +450,13 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
               print('Updating standardizer spreadsheet: Project_localpath ({}), Depth_min (object_corrected_min_depth_bin), Depth_max (object_corrected_max_depth_bin), Area (object_bru_area), Volume_analyzed (object_volume_bin), Sampling_lower_size (acq_smbase) '.format( str(path_to_extended_file).replace(str(Path.home()), '~')))
               index_columns_to_replace = [index for index, column in enumerate(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])) if str(standardizer.loc[project_id, column]) != 'nan']
               standardizer.loc[project_id, list(pd.Series(['Project_localpath', 'Flag_path', 'Depth_min_field', 'Depth_max_field', 'Area_field','Minor_axis_field', 'Minor_axis_unit', 'Volume_analyzed_field', 'Sampling_lower_size_field','Sampling_lower_size_unit'])[index_columns_to_replace])] = list(pd.Series([str(path_to_extended_file).replace(str(Path.home()), '~'), pd.NA,'object_corrected_min_depth_bin', 'object_corrected_max_depth_bin', 'object_bru_area', pd.NA,pd.NA, 'object_volume_bin', 'acq_smbase', 'pixel'])[index_columns_to_replace])
+
+              sheets = [sheet for sheet in pd.ExcelFile(path_to_standardizer).sheet_names]
+              df_standardizer_before_consolidation=pd.read_excel(path_to_standardizer,sheet_name='ecotaxa_before_consolidation') if 'ecotaxa_before_consolidation' in sheets else pd.DataFrame({})
               with pd.ExcelWriter(str(path_to_standardizer), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                   (standardizer.rename_axis('Project_ID').reset_index())[standardizer_headers].to_excel(writer, sheet_name=sheetname, index=False)
+                  pd.concat([df_standardizer_before_consolidation,(pd.DataFrame(df_standardizer_ecotaxa.loc[[project_id]],index=[project_id]).rename_axis('Project_ID').reset_index())[standardizer_headers]],axis=0,ignore_index=True).to_excel(writer, sheet_name='ecotaxa_before_consolidation', index=False)
+
               print('Consolidation done')
 
            else:
