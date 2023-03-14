@@ -349,18 +349,8 @@ def reshape_date_func(df, group_by ='yyyymm'):
     if group_by == 'yyyy':
         df['year'] = date_df[0]
     elif group_by == 'yyyymm':
-        df['year_week'] = date_df[0] + '_' + date_df[2]
-        df['month'] = date_df[1]
-        week_dict = {key: None for key in df['year_week'].unique()}
-        for i in df['year_week'].unique():
-            week_dict[i] = list(df['month'].where(df['year_week'] == i).dropna().unique())  # .astype(int)
-            if len(week_dict[i]) == 1:
-                week_dict[i] = week_dict[i][0]
-            else:
-                week_dict[i] = list(map(int, week_dict[i]))
-                week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
         df['year'] = date_df[0]
-        df['month'] = df['year_week'].map(week_dict)
+        df['month'] = date_df[1]
     return df
 
 
