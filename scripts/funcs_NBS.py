@@ -143,13 +143,13 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
                 {sample_id:'first', size_range:'first', size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
                  biovolume:['sum', 'count' , 'mean']}).reset_index()
         # cumulative volume for 1x1 degree bin. For UVP: volume imaged is the volume of a picture. Consider sample ID and depths, to be abble to get the cumulative volume imaged for a grid
-            df_vol = df_binned.groupby([dates, station, light]).apply(lambda x: pd.Series({ 'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index() # don't understand why sampl
+            df_vol = df_binned.groupby([dates, station, light]).apply(lambda x: pd.Series({ 'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True) # don't understand why sampl
         else:
             NBS_biovol_df = df_binned.groupby([dates, station, sizeClasses]).agg(
                 {sample_id: 'first', size_range: 'first',size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first',min_depth: 'first', max_depth: 'first',
                  biovolume: ['sum', 'count', 'mean']}).reset_index()
             # cumulative volume for 1x1 degree bin. For UVP: volume imaged is the volume of a picture. Consider sample ID and depths, to be abble to get the cumulative volume imaged for a grid
-            df_vol = df_binned.groupby([dates, station]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()  # don't understand why sampl
+            df_vol = df_binned.groupby([dates, station]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)  # don't understand why sampl
 
 
     NBS_biovol_df['cumulative_vol'] = df_vol.loc[0, 'cumulative_volume']
