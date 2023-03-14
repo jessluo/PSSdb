@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import yaml
 from pathlib import Path
+from glob import glob
 
 def proj_id_list_func(instrument, data_status, big_grid = False):
     """
@@ -20,30 +21,33 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
     # prepare access based on path stored in the yaml config file and instrument type
-    path_to_ecotaxa = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['Ecotaxa_subdir']
-    path_to_consolidated_UVP= Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['UVP_consolidation_subdir']/ cfg['UVP_consolidation_subdir'] #tiny glitch here (repeated subdirectories)
-    path_to_IFCBdashboard = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['IFCB_dir']
+    path_standardized = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']
+    #path_to_ecotaxa = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['Ecotaxa_subdir']
+    #path_to_consolidated_UVP= Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['UVP_consolidation_subdir']/ cfg['UVP_consolidation_subdir'] #tiny glitch here (repeated subdirectories)
+    #path_to_IFCBdashboard = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['IFCB_dir']
     if data_status == 'standardized':
-        if instrument  == 'Zooscan':
-            path_to_data =  path_to_ecotaxa / instrument
-            file_list = os.listdir(path_to_data)
-            files_data = [(str(path_to_data / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
-        elif instrument == 'UVP':
-            file_list = os.listdir(path_to_consolidated_UVP)
-            files_data = [(str(path_to_consolidated_UVP / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
-        elif instrument  == 'IFCB':
+        file_list = glob(str(path_standardized) + '/**/*' + instrument +'*/**/*.csv', recursive=True)
+        files_data = [x for x in file_list if not 'metadata' in x]
+        #if instrument  == 'Zooscan':
+            #path_to_data =  path_to_ecotaxa / instrument
+            #file_list = os.listdir(path_to_data)
+            #files_data = [(str(path_to_data / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
+        #elif instrument == 'UVP':
+            #file_list = os.listdir(path_to_consolidated_UVP)
+            #files_data = [(str(path_to_consolidated_UVP / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
+        #elif instrument  == 'IFCB':
             #get data from ecotaxa
-            path_to_ecotaxa_data = path_to_ecotaxa / instrument / instrument # little glitch here
-            ecotaxa_list = os.listdir(path_to_ecotaxa_data)
-            ecotaxa_data = [(str(path_to_ecotaxa_data / x)) for x in ecotaxa_list  if not 'metadata' in x and '.csv' in x]
+            #path_to_ecotaxa_data = path_to_ecotaxa / instrument / instrument # little glitch here
+            #ecotaxa_list = os.listdir(path_to_ecotaxa_data)
+            #ecotaxa_data = [(str(path_to_ecotaxa_data / x)) for x in ecotaxa_list  if not 'metadata' in x and '.csv' in x]
             #get data from dashboards
-            dashboard_list = [f for f in os.listdir(path_to_IFCBdashboard) if not f.startswith('.')]
-            dashboard_data = []
-            for i in dashboard_list:
-                proj_list = os.listdir(path_to_IFCBdashboard / i)
-                proj_data = [(str(path_to_IFCBdashboard / i / x )) for x in proj_list if not 'metadata' in x and '.csv' in x]
-                dashboard_data = dashboard_data + proj_data
-            files_data = ecotaxa_data + dashboard_data
+            #dashboard_list = [f for f in os.listdir(path_to_IFCBdashboard) if not f.startswith('.')]
+            #dashboard_data = []
+            #for i in dashboard_list:
+                #proj_list = os.listdir(path_to_IFCBdashboard / i)
+                #proj_data = [(str(path_to_IFCBdashboard / i / x )) for x in proj_list if not 'metadata' in x and '.csv' in x]
+                #dashboard_data = dashboard_data + proj_data
+            #files_data = ecotaxa_data + dashboard_data
     elif data_status == 'gridded':
         path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir'] / instrument
         file_list = os.listdir(path_to_gridded)
