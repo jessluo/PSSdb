@@ -57,6 +57,10 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             print('grouping data and calculating NBSS for cell number ' + i)
             file_subset = [file for file in file_list if i in file]
             df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+            df = df.dropna(subset=['Biovolume']).reset_index(drop=True) # project 5785 from Zooscan is completely empty
+            if len(df) == 0:
+                print('no data left after removing empty biovolumes in grid cell' + i)
+                continue
             df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
             if depth_binning == 'Y':
                 NBSS_1a, lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
@@ -91,6 +95,10 @@ elif not os.path.exists(dirpath):
         print('grouping data and calculating NBSS for cell number ' + i)
         file_subset = [file for file in file_list if i in file]
         df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+        df = df.dropna(subset=['Biovolume']).reset_index(drop=True)  # project 5785 from Zooscan is completely empty
+        if len(df) == 0:
+            print('no data left after removing empty biovolumes in grid cell ' + i)
+            continue
         df = df.filter(
             ['Sample', 'date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth',
              'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
