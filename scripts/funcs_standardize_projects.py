@@ -847,8 +847,9 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         # Load export tsv file
         columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))
         columns_dict['object_number'] = 'object_number'  # Adding this column for UVP consolidated projects
-        dtypes_dict=dict(zip(['Cruise','Station','Profile','Sample','Latitude','Longitude','Depth_min','Depth_max','Sampling_date','Sampling_time','Volume_analyzed','ROI','Area','Pixel','Minor','Biovolume','ESD','Category','Annotation','Sampling_type','Sampling_lower_size','Sampling_upper_size','object_number','Sampling_description'],[str,str,str,str,float,float,float,float,str,str,float,str,int,float,float,float,float,str,str,str,float,float,int,str]))
-        dtypes_dict ={fields_of_interest_series.loc[key]:value for key,value in  dtypes_dict.items() if key in fields_of_interest_series.index}
+        dtypes_dict_all=dict(zip(['Cruise', 'Station', 'Profile', 'Sample', 'Latitude', 'Longitude', 'Depth_min', 'Depth_max', 'Sampling_date', 'Sampling_time', 'Volume_analyzed', 'ROI', 'Area', 'Pixel', 'Minor', 'Biovolume', 'ESD', 'Category', 'Annotation', 'Sampling_type', 'Sampling_lower_size', 'Sampling_upper_size', 'object_number', 'Sampling_description'],[str, str, str, str, float, float, float, float, str, str, float, str, int, float, float, float, float, str, str, str, float, float, int, str]))
+        dtypes_dict_all ={fields_of_interest_series.loc[key]: value for key, value in dtypes_dict_all.items() if key in fields_of_interest_series.index}
+
         df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()],dtype=dtypes_dict).rename(columns=columns_dict).assign(File_path=path))[-1],natsorted(path_files_list))).reset_index(drop=True)
         old_columns = df.columns
         # Standardize column names
