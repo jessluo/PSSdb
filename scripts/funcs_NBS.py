@@ -263,8 +263,8 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     lin_fit.loc[0, 'Station_location'] = str(df1.loc[0, 'Station_location'])
     lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
 
-    lin_fit.loc[0, 'year'] = str(df1.loc[0, 'year'])
-    lin_fit.loc[0, 'month'] = str(df1.loc[0, 'month'])
+    #lin_fit.loc[0, 'year'] = str(df1.loc[0, 'year'])
+    #lin_fit.loc[0, 'month'] = str(df1.loc[0, 'month'])
 
     lin_fit.loc[0, 'latitude'] = df1.loc[0, 'midLatBin']
     lin_fit.loc[0, 'longitude'] = df1.loc[0, 'midLonBin']
@@ -312,7 +312,7 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
                             df_st_t_l_d_subset = df_st_t_l_subset[df_st_t_l_subset[parse_by[3]] == d].reset_index(drop=True)
                             df_binned, df_bins = size_binning_func(df_st_t_l_d_subset)  # create size bins
                             NBS_biovol_df = NB_SS_func(df_binned, df_bins, light_parsing = True, depth_parsing = True)  # calculate NBSS
-                            NBS_biovol_df = reshape_date_func(NBS_biovol_df, group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                            #NBS_biovol_df = reshape_date_func(NBS_biovol_df, group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
                             lin_fit = linear_fit_func(NBS_biovol_df, light_parsing = True, depth_parsing = True)
                             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
@@ -320,28 +320,31 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
                         # print ('getting NBS for station ' + st + 'and date' + t)
                         df_binned, df_bins = size_binning_func(df_st_t_l_subset)  # create size bins
                         NBS_biovol_df = NB_SS_func(df_binned, df_bins, light_parsing = True)  # calculate NBSS
-                        NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                        #NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
                         lin_fit = linear_fit_func(NBS_biovol_df, light_parsing = True)
                         NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                         lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             else:
                 df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
                 NBS_biovol_df = NB_SS_func(df_binned, df_bins)  # calculate NBSS
-                NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                #NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
                 lin_fit = linear_fit_func(NBS_biovol_df)
                 NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
 
-    NBSS_binned_all['Station_location'], NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'] = gridding_func(bin_loc, NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'])
-    NBSS_1a = NBSS_binned_all.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'NB', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
-    NBSS_1a = NBSS_1a.rename(columns={'midLatBin': 'latitude', 'midLonBin': 'longitude', 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
+    #NBSS_binned_all['Station_location'], NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'] = gridding_func(bin_loc, NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'])
+    NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'NB', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
+    NBSS_1a_raw = NBSS_raw.rename(columns={'date_bin': 'date_year_month_week', 'midLatBin': 'latitude', 'midLonBin': 'longitude', 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
                                       'NB': 'normalized_biovolume', 'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
     if light_parsing==True:
+        NBSS_1a = NBSS_stats_func(NBSS_raw, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
         lin_fit_1b = stats_linfit_func(lin_fit_data, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
     else:
+        NBSS_1a = NBSS_stats_func(NBSS_raw,  bin_loc=bin_loc, group_by=group_by)
         lin_fit_1b = stats_linfit_func(lin_fit_data, bin_loc = bin_loc, group_by = group_by)
 
-    return NBSS_1a, lin_fit_1b
+
+    return NBSS_1a_raw, NBSS_1a,  lin_fit_1b
 
 
 def reshape_date_func(df, group_by ='yyyymm'):
@@ -356,52 +359,40 @@ def reshape_date_func(df, group_by ='yyyymm'):
 
 
 
-def NBSS_stats_func(df):
+def NBSS_stats_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm'):
     """
 
     """
     from funcs_gridding import gridding_func
     import numpy as np
-    bin_loc = input('Average NBSS by location? \n Enter Y/N ')
-    if bin_loc == 'Y':
-        st_increment = float(
-            input('select the size of the spatial grid by which the NBSS will be averaged i.e for a 1x1 degree bin type 1 \n'))
-        df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['midLatBin'], df['midLonBin'])
-    bin_date = input('Average NBSS by date? \n Enter Y/N ')
-    if bin_date == 'Y':
-        group_by = input(
-            'input how will the NBSS will be averaged by date \n  yyyymm for month and year \n yyyy for year \n ')
-        date_df = df['date_bin'].str.split("_", expand=True)
-        if group_by == 'yyyy':
-            df['date_bin'] = date_df[0]
-        elif group_by == 'yyyymm':
-            df['year_week'] = date_df[0] + '_' + date_df[2]
-            df['month'] = date_df[1]
-            week_dict = {key: None for key in df['year_week'].unique()}
-            for i in df['year_week'].unique():
-                week_dict[i] = list(df['month'].where(df['year_week'] == i).dropna().unique())  # .astype(int)
-                if len(week_dict[i]) == 1:
-                    week_dict[i] = week_dict[i][0]
-                else:
-                    week_dict[i] = list(map(int, week_dict[i]))
-                    week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
-            df['year'] = date_df[0]
-            df['month'] = df['year_week'].map(week_dict)
-            df['date_bin'] = date_df[0] + '_' + df['month']
-    NBSS = df.filter(['size_class_mid', 'date_bin', 'month', 'year', 'Station_location', 'midLatBin', 'midLonBin','light_cond', 'Min_obs_depth', 'Max_obs_depth', 'NBSS'], axis=1)
+    df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(bin_loc, df['midLatBin'], df['midLonBin'])
+    date_df = df['date_bin'].str.split("_", expand=True)
+    if group_by == 'yyyy':
+        df['year'] = date_df[0]
+        df['date_bin'] = df['year']
+    elif group_by == 'yyyymm':
+        df['year'] = date_df[0]
+        df['month'] = date_df[1]
+        df['date_bin'] = df['year'] + '_' + df['month']
 
-    NBSS_avg = NBSS.groupby(['date_bin', 'Station_location', 'light_cond', 'size_class_mid']).agg(
-            {'midLatBin':'first', 'midLonBin': 'first', 'year': 'first', 'month': 'first', 'Min_obs_depth':'first', 'Max_obs_depth':'first',
-             'NBSS':[ 'count' , 'mean', 'std']}).reset_index()
+    if light_parsing == True:
+        NBSS_avg = df.groupby(['date_bin', 'Station_location', 'light_cond', 'size_class_mid']).agg(
+            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
+    else:
+        NBSS_avg = df.groupby(['date_bin', 'Station_location', 'size_class_mid']).agg(
+            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
+
+
 
     # generate a cleaner dataset (without grouping variables) to finally present 1a
-    NBSS_1a=NBSS_avg
-    NBSS_1a.columns = NBSS_1a.columns.map('_'.join).str.removesuffix("first")
-    NBSS_1a.columns = NBSS_1a.columns.str.removesuffix("_")
-    NBSS_1a= NBSS_1a.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NBSS_mean', 'NBSS_std', 'NBSS_count'], axis=1)
-    NBSS_1a= NBSS_1a.rename(columns={'midLatBin':'latitude', 'midLonBin': 'longitude', 'light_cond':'light_condition', 'Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth', 'size_class_mid': 'size_biovolume', 'NBSS_count':'bin_sample_size' })
-
-    return NBSS_avg, NBSS_1a
+    NBSS_avg.columns = NBSS_avg.columns.map('_'.join).str.removesuffix("first")
+    NBSS_avg.columns = NBSS_avg.columns.str.removesuffix("_")
+    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NB_mean', 'NB_std', 'NB_count'], axis=1)
+    NBSS_avg= NBSS_avg.rename(columns={'midLatBin':'latitude', 'midLonBin': 'longitude', 'light_cond':'light_condition',
+                                       'Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth', 'size_class_mid': 'biovolume_size_class',
+                                       'NB_count':'N', 'NB_mean':'normalized_biovolume_mean', 'NB_std': 'normalized_biovolume_std' })
+    NBSS_avg= NBSS_avg[NBSS_avg.N !=0].reset_index(drop = True)
+    return NBSS_avg
 
 def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm'):
     """
@@ -419,22 +410,29 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
         #group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
     date_df= df['Date'].str.split("_", expand=True)
     if group_by == 'yyyy':
-        df['date_bin'] = date_df[0]
-    elif group_by == 'yyyymm':
-        df['year_week'] = date_df[0] + '_' + date_df[2]
-        df['month'] = date_df[1]
-        week_dict = {key:None for key in df['year_week'].unique()}
-        for i in df['year_week'].unique():
-            week_dict[i] =list(df['month'].where(df['year_week'] == i).dropna().unique()) #.astype(int)
-            if len(week_dict[i]) == 1:
-                week_dict[i] = week_dict[i][0]
-            else:
-                week_dict[i] = list(map(int, week_dict[i]))
-                week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
         df['year'] = date_df[0]
-        df['month'] = df['year_week'].map(week_dict)
-        df['date_bin'] = date_df[0] + '_' + df['month']
-        df = df.drop(columns=['Date', 'year_week'])
+        df['date_bin'] = df['year']
+    elif group_by == 'yyyymm':
+        df['year'] = date_df[0]
+        df['month'] = date_df[1]
+        df['date_bin'] = df['year'] + '_' + df['month']
+    #if group_by == 'yyyy':
+        #df['date_bin'] = date_df[0]
+    #elif group_by == 'yyyymm':
+        #df['year_week'] = date_df[0] + '_' + date_df[2]
+        #df['month'] = date_df[1]
+        #week_dict = {key:None for key in df['year_week'].unique()}
+        #for i in df['year_week'].unique():
+            #week_dict[i] =list(df['month'].where(df['year_week'] == i).dropna().unique()) #.astype(int)
+            #if len(week_dict[i]) == 1:
+                #week_dict[i] = week_dict[i][0]
+            #else:
+                #week_dict[i] = list(map(int, week_dict[i]))
+                #week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
+        #df['year'] = date_df[0]
+        #df['month'] = df['year_week'].map(week_dict)
+        #df['date_bin'] = date_df[0] + '_' + df['month']
+        #df = df.drop(columns=['Date', 'year_week'])
 
     if light_parsing ==True:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin', 'light_condition']).agg(
@@ -447,7 +445,7 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
-    lin_fit_stats= lin_fit_stats.rename(columns={'slope_count': 'sample_size', 'midLatBin': 'latitude', 'midLonBin': 'longitude'})
+    lin_fit_stats= lin_fit_stats.rename(columns={'slope_count': 'N', 'midLatBin': 'latitude', 'midLonBin': 'longitude'})
     lin_fit_stats= lin_fit_stats[lin_fit_stats.columns.drop(list(lin_fit_stats.filter(regex='count')))]
     del lin_fit_stats['Station_location']
     del lin_fit_stats['date_bin']
