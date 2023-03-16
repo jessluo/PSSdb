@@ -716,34 +716,26 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                  fig.add_trace(go.Scatter(name='Low ROI counts<br>(Flag_count)',x=subset_summary_df[subset_summary_df.Flag_count==1].Sample,
                              y=subset_summary_df[subset_summary_df.Flag_count==1].ROI_count,
                              error_y=dict(type="data",array=subset_summary_df[subset_summary_df.Flag_count==1].Count_error,width=0,thickness=0.1,color=subset_summary_df[subset_summary_df.Flag_count==1].colors.values[0]),
-                             hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==1].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==1].ROI_count.astype(int).astype(str), hoverinfo="text",
+                             hoverinfo="none",
                              marker=dict(size=3.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==1].colors, width=2)), mode='markers',
                              showlegend=True, visible=True), row=1, col=2)
-             if len(subset_summary_df[subset_summary_df.Flag_count==0]) > 0:
-                 fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_count==0].Sample,
-                                 y=subset_summary_df[subset_summary_df.Flag_count==0].ROI_count,
-                                 error_y=dict(type="data", array=subset_summary_df[subset_summary_df.Flag_count==0].Count_error,width=0,thickness=0.1,color=subset_summary_df[subset_summary_df.Flag_count==0].colors.values[0]),
-                                 hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_count==0].Sample.astype(str)+'<br>ROI imaged: '+subset_summary_df[subset_summary_df.Flag_count==0].ROI_count.astype(int).astype(str), hoverinfo="text",
-                                 marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_count==0].colors,width=2)), mode='markers',showlegend=False, visible=True), row=1, col=2)
              # Scatterplot 2, middle-right panel: Percentage of artefacts
              subset_summary_df['colors'] = np.where(subset_summary_df.Flag_artefacts == 1, 'rgba(212,85,0,0.6)','black')  # High percentage of artefacts
+             fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
+                                      y=subset_summary_df.Artefacts_percentage,
+                                      hovertext="Sample ID: " + subset_summary_df.Sample.astype(str) + '<br>% of artefacts: ' + np.round(100 * subset_summary_df.Artefacts_percentage, 1).astype(str) + '%',
+                                      hoverinfo="text",
+                                      marker=dict(size=4.5, color='black'), mode='markers', showlegend=False, visible=True), row=2, col=2)
+
              if len(subset_summary_df[subset_summary_df.Flag_artefacts == 1]) > 0:
                  fig.add_trace(go.Scatter(name='High percentage of artefacts<br>(Flag_artefacts)',
                              x=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample,
                              y=subset_summary_df[subset_summary_df.Flag_artefacts == 1].Artefacts_percentage,
-                             hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 1].Sample.astype(str)+'<br>% of artefacts: '+np.round(100*subset_summary_df[subset_summary_df.Flag_artefacts == 1].Artefacts_percentage,1).astype(str)+'%',
-                             hoverinfo="text",
+                             hoverinfo="none",
                              marker=dict(size=3.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_artefacts == 1].colors, width=2)),
                              mode='markers',
                              showlegend=True, visible=True), row=2, col=2)
 
-             if len(subset_summary_df[subset_summary_df.Flag_artefacts == 0]) > 0:
-                fig.add_trace(go.Scatter(x=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample,
-                                     y=subset_summary_df[subset_summary_df.Flag_artefacts == 0].Artefacts_percentage,
-                                     hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_artefacts == 0].Sample.astype(str)+'<br>% of artefacts: '+np.round(100*subset_summary_df[subset_summary_df.Flag_artefacts == 0].Artefacts_percentage,1).astype(str)+'%',
-                                     hoverinfo="text",
-                                     marker=dict(size=4.5,color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_artefacts == 0].colors, width=2)),
-                                     mode='markers', showlegend=False, visible=True), row=2, col=2)
 
              subset_summary_df['colors'] = np.where(subset_summary_df.Flag_validation == 1, 'rgba(95,211,188,0.6)', 'black')
              fig.add_trace(go.Scatter(x=subset_summary_df.Sample,
@@ -756,8 +748,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              if len(subset_summary_df[subset_summary_df.Flag_validation == 1]) > 0:
                  fig.add_trace(go.Scatter(name='Low percentage of validation<br>(Flag_validation)',x=subset_summary_df[subset_summary_df.Flag_validation == 1].Sample,
                                           y=subset_summary_df[subset_summary_df.Flag_validation == 1].Validation_percentage,
-                                          hovertext="Sample ID: " + subset_summary_df[subset_summary_df.Flag_validation == 1].Sample.astype(str) + '<br>% of validation: ' + np.round(100 * subset_summary_df[subset_summary_df.Flag_validation == 1].Validation_percentage, 1).astype( str) + '%',
-                                          hoverinfo="text",marker=dict(size=4.5, color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_validation == 1].colors,width=2)), mode='markers', showlegend=True, visible=True), row=2, col=2)
+                                          hoverinfo="none",marker=dict(size=4.5, color='black', line=dict(color=subset_summary_df[subset_summary_df.Flag_validation == 1].colors,width=2)), mode='markers', showlegend=True, visible=True), row=2, col=2)
 
 
              # Table
