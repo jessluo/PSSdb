@@ -1083,16 +1083,17 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df_standardized_all = pd.DataFrame({})
             summary_df_standardized = pd.DataFrame({})
             # First, create summary for existing profiles for interactive report
-            for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
-                subset_df_standardized=df_standardized_existing[df_standardized_existing.Sample==profile]
-                summary_subset_df = subset_df_standardized[(subset_df_standardized.Longitude <= 180) & (subset_df_standardized.Longitude >= -180) & ( subset_df_standardized.Latitude <= 90) & (subset_df_standardized.Latitude >= -90)].groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min','Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI.count(), 'Abundance': x.ROI.count() / (x.Volume_analyzed.unique()[0]),# individuals per liter
+            if len(df_standardized_existing):
+                for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
+                    subset_df_standardized=df_standardized_existing[df_standardized_existing.Sample==profile]
+                    summary_subset_df = subset_df_standardized[(subset_df_standardized.Longitude <= 180) & (subset_df_standardized.Longitude >= -180) & ( subset_df_standardized.Latitude <= 90) & (subset_df_standardized.Latitude >= -90)].groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min','Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI.count(), 'Abundance': x.ROI.count() / (x.Volume_analyzed.unique()[0]),# individuals per liter
                      'Average_diameter': np.nanmean( 2 * np.power(x.Area / np.pi, 0.5)) if 'Area' in df_standardized.columns else np.nanmean(x.ESD), # micrometer
                      'Std_diameter': np.nanstd( 2 * np.power(x.Area / np.pi, 0.5)) if 'Area' in df_standardized.columns else np.nanstd(x.ESD)})).reset_index()
-                summary_subset_df = summary_subset_df.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'], dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
+                    summary_subset_df = summary_subset_df.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'], dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
                                      'Average_diameter': np.nanmean(x.Average_diameter),  # micrometer
                                      'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
 
-                summary_df_standardized = pd.concat([summary_df_standardized, summary_subset_df], axis=0, ignore_index=True).reset_index(drop=True)
+                    summary_df_standardized = pd.concat([summary_df_standardized, summary_subset_df], axis=0, ignore_index=True).reset_index(drop=True)
             # Second, create summary and save standardized files for non-existing profiles
             df_standardized_all = pd.DataFrame({})
             with tqdm(desc='Saving standardized profile:', total=len(df_standardized.Sample.unique()), bar_format='{desc}{bar}', position=0, leave=True) as bar:
