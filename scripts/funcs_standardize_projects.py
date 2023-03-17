@@ -479,7 +479,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
             # Extract pixel size per sample/profile
             summary=dataframe.groupby(['Cruise','Sample','Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
             summary=summary.sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False]).reset_index()
-            summary_subset =summary.groupby(by=['Cruise','Sample']).apply(lambda x: pd.Series({'Flag_size':1 if (len(summary[(summary.Cruise==x.Cruise.unique()[0])].Pixel.unique())>1) and (x.Pixel.astype('str').isin((summary[(summary.Cruise==x.Cruise.unique()[0])].groupby(['Cruise','Pixel']).agg({'Profile_percentage':'sum'}).reset_index().sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False])).loc[1:,'Pixel'].astype('str').to_list()).values[0]) else 0})).reset_index()
+            summary_subset =summary.groupby(by=['Cruise','Sample']).apply(lambda x: pd.Series({'Flag_size':1 if (len(summary[(summary.Cruise==x.Cruise.unique()[0])].Pixel.unique())>1) and (x.Pixel.astype('str').isin((summary[(summary.Cruise==x.Cruise.unique()[0])].groupby(['Cruise','Pixel']).agg({'Profile_percentage':'sum'}).reset_index().sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False])).reset_index(drop=True).loc[1:,'Pixel'].astype('str').to_list()).values[0]) else 0})).reset_index()
             #pixel_list=summary.loc[1:,'Pixel'].astype('str').to_list() if len(summary.Pixel.values)>1 else ['inf']
             dataframe['Flag_size'] = np.where(dataframe['Sample'].astype('str').isin(list(summary_subset[summary_subset.Flag_size==1].Sample.unique())),1, dataframe['Flag_size']) #np.where(dataframe['Pixel'].astype('str').isin(pixel_list),1, dataframe['Flag_size'])
             # dataframe['0' in dataframe['Flag_size'].astype('str')].Sample.unique()
@@ -558,7 +558,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          if 'Category' not in df.columns:
              df['Category'] = ''
              df['Annotation'] = 'unclassified'
-         df.Category = np.where(df.Category.isna(), '', df.Category) # Avoid flagging of small particles without annotations for UVP projects
+         df.Category = np.where((df.Category.isna()) | (df.Category.astype(str)=='nan'),'',df.Category) # Avoid flagging of small particles without annotations for UVP projects
+         df.Annotation = np.where((df.Annotation.isna()) | (df.Annotation.astype(str) == 'nan'), 'unclassified',df.Annotation)
          df = df.astype({key:value for key,value in dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])).items() if key in df.columns})
          df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
          columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
@@ -872,11 +873,11 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         if len(path_to_standard_file):
             dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
             df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
-            remaining_standard_samples = df[(df.Sample.isin(list(df_standardized_existing.Sample.unique()))==False) & (df.Sample.isin(flagged_samples)==False)].Sample.unique()
+            remaining_standard_samples = df[(df.Sample.isin(list(df_standardized_existing.Sample.unique()))==False) & (df.Sample.isin(flagged_samples)==False)].Sample.astype(str).unique()
             if len(remaining_standard_samples):
                 print('Existing standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))
-                df=df[df.Sample.isin(list(remaining_standard_samples))].reset_index(drop=True)
-                df_method = df_method[df_method.Sample.isin(list(remaining_standard_samples))].reset_index(drop=True)
+                df=df[df.Sample.astype(str).isin(list(remaining_standard_samples))].reset_index(drop=True)
+                df_method = df_method[df_method.Sample.astype(str).isin(list(remaining_standard_samples))].reset_index(drop=True)
             else:
                 print( 'Existing standardized file(s) found at {}, but no additional samples.\nSkipping project after saving report (if missing)'.format(path_to_standard_dir))
                 if path_to_standard_plot.is_file() == False:
@@ -903,8 +904,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df_standardized_existing = pd.DataFrame()
 
         # Remove flagged samples/profiles
-        df=df[df['Sample'].isin(flagged_samples)==False].reset_index(drop=True)
-        df_method=df_method[df_method['Sample'].isin(flagged_samples)==False].reset_index(drop=True)
+        df=df[df['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
+        df_method=df_method[df_method['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
         if len(df)==0:
             print('No samples left after flagging. Skipping project ', project_id, sep='')
             return
@@ -1092,7 +1093,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                     p = str(profile) + " ({}/{})".format(str(1 + np.argwhere(df_standardized.Sample.unique() == profile)[0][0]),len(df_standardized.Sample.unique()))
                     bar.set_description("Saving standardized profile {}".format(p), refresh=True)
                     subset_df_standardized = df_standardized[df_standardized.Sample == profile]
-                    df_small_particles = subset_df_standardized[subset_df_standardized.ROI.isna()].drop(columns=['Biovolume','ESD','Minor_axis']).groupby(by=list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','Minor_axis','ESD']) == False]),observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','ESD','Minor_axis']) == False])))],axis=1)
+                    df_small_particles = subset_df_standardized[subset_df_standardized.ROI.isna()].drop(columns=['Biovolume','ESD','Minor_axis']).astype({key:str for  key in list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','Minor_axis','ESD']) == False])}).groupby(by=list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','Minor_axis','ESD']) == False]),observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','ESD','Minor_axis']) == False])))],axis=1)
+                    df_small_particles =df_small_particles.astype({key:subset_df_standardized.dtypes[key] for  key in df_small_particles.columns})
                     df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index(drop=True)
                     # summary_small_particles=df_small_particles.groupby(by=list(df_small_particles.columns[df_small_particles.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df_small_particles.columns[df_small_particles.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
                     df_small_particles['ROI'] = ['{}_particle_{}'.format(str(profile),str(index)) for index in df_small_particles.index]
