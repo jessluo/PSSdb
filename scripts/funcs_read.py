@@ -49,8 +49,8 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
                 #dashboard_data = dashboard_data + proj_data
             #files_data = ecotaxa_data + dashboard_data
     elif data_status == 'gridded':
-        path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir'] / instrument
-        file_list = os.listdir(path_to_gridded)
+        path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']
+        file_list = glob(str(path_to_gridded) + '/**/*' + instrument +'*/**/*.csv', recursive=True)
         if big_grid == False:
             files_data = [(str(path_to_gridded / x)) for x in file_list if not 'metadata' in x and not 'grid_N_' in x and  '.csv' in x]
         elif big_grid == True:
