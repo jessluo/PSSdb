@@ -131,9 +131,13 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         # group data by bins
         #test = df_binned.groupby([sizeClasses])
 
+
         NBS_biovol_df = df_binned.groupby([dates, station, light, depths, sizeClasses]).agg(
             {sample_id:'first', depths:'first', size_range:'first', size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
-             biovolume:['sum', 'count', 'mean'] }).reset_index()
+             biovolume:['sum', 'count', 'mean']}).reset_index() #roi_n:['sum']
+
+        #average_biovol = df_binned.groupby([dates, station, light, depths]).apply(lambda x: pd.Series().reset_index(drop=True))
+
         df_vol = df_binned.groupby([dates, station, light, depths]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)
 
         # remove bins that have zero values
@@ -280,7 +284,7 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
 
     return (lin_fit)
 
-def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_parsing=False, depth_parsing=False, bin_loc = 1, group_by = 'yyyymm'):
+def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=False, depth_parsing=False, bin_loc = 1, group_by = 'yyyymm'):
     """
     Objective: parse out any df that come from files that include multiple stations, dates and depths.
     dataframe needs to be already binned. Steps are: 1) parse the data 2) bin ROIs by size  3) calculate the NBS
@@ -312,7 +316,8 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
                             df_st_t_l_d_subset = df_st_t_l_subset[df_st_t_l_subset[parse_by[3]] == d].reset_index(drop=True)
                             df_binned, df_bins = size_binning_func(df_st_t_l_d_subset)  # create size bins
                             NBS_biovol_df = NB_SS_func(df_binned, df_bins, light_parsing = True, depth_parsing = True)  # calculate NBSS
-                            #NBS_biovol_df = reshape_date_func(NBS_biovol_df, group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                            if instrument == 'IFCB':
+                                NBS_biovol_df= NBS_biovol_df[NBS_biovol_df['logSize'] !=17.778833578677386].reset_index(drop=True) # this and previous line are temporary, to remove faulty dataset from san francisco without having to go over all the pipeline
                             lin_fit = linear_fit_func(NBS_biovol_df, light_parsing = True, depth_parsing = True)
                             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
@@ -320,14 +325,16 @@ def parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], light_p
                         # print ('getting NBS for station ' + st + 'and date' + t)
                         df_binned, df_bins = size_binning_func(df_st_t_l_subset)  # create size bins
                         NBS_biovol_df = NB_SS_func(df_binned, df_bins, light_parsing = True)  # calculate NBSS
-                        #NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                        if instrument == 'IFCB':
+                            NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['logSize'] != 17.778833578677386].reset_index(drop=True)
                         lin_fit = linear_fit_func(NBS_biovol_df, light_parsing = True)
                         NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                         lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             else:
                 df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
                 NBS_biovol_df = NB_SS_func(df_binned, df_bins)  # calculate NBSS
-                #NBS_biovol_df = reshape_date_func(NBS_biovol_df,group_by='yyyymm')  ##NOTE we are fixing the group_by parameter here, the pipeline does not have the capacity of modifying this
+                if instrument == 'IFCB':
+                    NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['logSize'] != 17.778833578677386].reset_index(drop=True)
                 lin_fit = linear_fit_func(NBS_biovol_df)
                 NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
