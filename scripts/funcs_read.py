@@ -25,9 +25,15 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
     #path_to_ecotaxa = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['Ecotaxa_subdir']
     #path_to_consolidated_UVP= Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['UVP_consolidation_subdir']/ cfg['UVP_consolidation_subdir'] #tiny glitch here (repeated subdirectories)
     #path_to_IFCBdashboard = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'] / cfg['IFCB_dir']
+    if instrument == 'UVP':
+        id = 'ecopart'
+    else:
+        id = instrument
     if data_status == 'standardized':
-        file_list = glob(str(path_standardized) + '/**/*' + instrument +'*/**/*.csv', recursive=True)
+        file_list = glob(str(path_standardized) + '*/**/*' + id +'*/**/*.csv', recursive=True)
         files_data = [x for x in file_list if not 'metadata' in x]
+        files_data_clean = []
+        [files_data_clean.append(x) for x in files_data if x not in files_data_clean]
         #if instrument  == 'Zooscan':
             #path_to_data =  path_to_ecotaxa / instrument
             #file_list = os.listdir(path_to_data)
@@ -53,9 +59,13 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
         file_list = glob(str(path_to_gridded) + '/**/*' + instrument +'*/**/*.csv', recursive=True)
         if big_grid == False:
             files_data = [(str(path_to_gridded / x)) for x in file_list if not 'metadata' in x and not 'grid_N_' in x and  '.csv' in x]
+            files_data_clean = []
+            [files_data_clean.append(x) for x in files_data if x not in files_data_clean]
         elif big_grid == True:
             files_data = [(str(path_to_gridded / x)) for x in file_list if 'grid_N_' in x]
-    return files_data
+            files_data_clean = []
+            [files_data_clean.append(x) for x in files_data if x not in files_data_clean]
+    return files_data_clean
 
 
 def depth_parsing_func(df, instrument):
