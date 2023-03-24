@@ -24,6 +24,13 @@ try:
 except:
     from scripts.funcs_standardize_projects import *
 
+## Updating annotations functions
+try:
+    from funcs_export_projects import *
+except:
+    from scripts.funcs_export_projects import *
+
+
 path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
@@ -34,7 +41,20 @@ path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
 standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
 
-#1) Consolidate UVP projects before control quality check and standardization, see README file for a description of consolidation steps and objectives
+#1) Update taxonomic annotations for Ecotaxa projects to ensure good validation control quality check
+print('Updating taxonomic annotations of Ecotaxa projects before control quality check, please wait')
+for standardizer in natsorted(standardizer_files)[::-1]:
+    df_standardizer = pd.read_excel(standardizer, index_col=0)
+    project_ecotaxa=[project for project in list(df_standardizer.index) if str(Path(df_standardizer.at[project,'Project_localpath']).stem).lower()=='ecotaxa']
+    for project in project_ecotaxa:
+        # Updating annotations of project
+        try:
+            Ecotaxa_update_annotations(project_id=project, localpath=Path(df_standardizer.at[project,'Project_localpath']) / df_standardizer.at[project,'Instrument'])
+        except Exception as e:
+            print('Skipping update of project ',str(project),'\n',e,sep='')
+
+
+#2) Consolidate UVP projects before control quality check and standardization, see README file for a description of consolidation steps and objectives
 # There are 4 options to consolidate a UVP project:
 #a- The data owner runs the ImageJ macro on their computer and upload the metadata on Ecotaxa following the instructions of the README file and macro dialog window
 #b- Metadata are missing and the script is run outside the Complex server Marie (home/plankton/uvp5/6_missions): for testing purposes, the consolidation will be performed using vignettes object_area
@@ -59,7 +79,7 @@ for project in list(df_standardizer.index):
         except Exception as e:
             print('Skipping consolidation of project ', str(project), '\n', e, sep='')
 
-#2) Flag samples and generate a report using the filling_standardizer_flag_func function in funcs_standardize_projects.py
+#3) Flag samples and generate a report using the filling_standardizer_flag_func function in funcs_standardize_projects.py
 print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPScoordinatesonland: GPS coordinates on land\nFlag_dubiousGPScoordinates: Dubious GPS coordinates\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_validation: Low percentage of taxonomic annotations validation (<95%). Only for Zooscan and UVP\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(1:flagged, 0:no flag)')
 for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
@@ -73,7 +93,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
         except Exception as e:
             print('Skipping flagging of project ',str(project),'\n',e,sep='')
 
-#3) Standardize project export files using the standardization_func function in funcs_standardize_projects.py
+#4) Standardize project export files using the standardization_func function in funcs_standardize_projects.py
 print('Performing project standardization')
 for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)

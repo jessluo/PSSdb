@@ -24,42 +24,6 @@ import yaml # requires installation of PyYAML package
 
 # Prompt for export confirmation
 import sys
-
-# Panda and numpy modules (used for dataframes and arays)
-import pandas as pd
-import numpy as np
-from natsort import natsorted
-from itertools import compress
-# Globe data modules
-import geopandas as gpd
-path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent / 'ne_10m_admin_0_countries.zip'
-
-# Download high resolution countries shapefile
-import requests
-import shutil
-if path_to_zip.with_suffix('').is_dir()==False:
-  with requests.Session() as sess:
-    url = 'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
-    rsp = sess.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',}, stream=True)
-    with open(path_to_zip, "wb") as fd:
-        for a_chunk in rsp.iter_content():  # Loop over content, i.e. eventual HTTP chunks
-            # rsp.raise_for_status()
-            fd.write(a_chunk)
-    shutil.unpack_archive(path_to_zip, path_to_zip.with_suffix(''))  # Unzip export file
-    path_to_zip.unlink(missing_ok=True)
-
-
-from shapely.geometry import Polygon, mapping, Point, MultiPolygon
-from shapely import wkt
-from shapely.ops import unary_union
-
-# Plot module
-import plotly.express as px # Use pip install plotly==5.8.0
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-from plotnine import * # Python equivalent to ggplot2. Use pip install plotnine. Do not execute in Pycharm (bug- no fix yet): https://youtrack.jetbrains.com/issue/PY-42390
-from colorspace import sequential_hcl # Use: pip install git+https://github.com/retostauffer/python-colorspace
-
 # Ecotaxa API modules. Install module via git first: pip install git+https://github.com/ecotaxa/ecotaxa_py_client.git
 import ecotaxa_py_client
 from ecotaxa_py_client.api import projects_api
@@ -86,6 +50,46 @@ with ecotaxa_py_client.ApiClient() as client:
     token = api.login(LoginReq(username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']))
 configuration = ecotaxa_py_client.Configuration(host = "https://ecotaxa.obs-vlfr.fr/api",access_token=token, discard_unknown_keys=True)
 configuration.verify_ssl=False
+
+# Panda and numpy modules (used for dataframes and arays)
+import pandas as pd
+import numpy as np
+from natsort import natsorted
+from itertools import compress
+
+# Globe data modules
+import geopandas as gpd
+# This dataset includes EEZ, using GOAS shapefile instead
+#path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent / 'ne_10m_admin_0_countries.zip'
+path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent /'GOaS_v1_20211214.zip'# 'ne_10m_land.zip'
+# Download high resolution countries/oceans shapefile
+import requests
+import shutil
+if path_to_zip.with_suffix('').is_dir()==False:
+  with requests.Session() as sess:
+    url = 'https://www.marineregions.org/download_file.php?name=GOaS_v1_20211214.zip'#'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
+    #rsp = sess.get(url, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36',}, stream=True)
+    params={'name':'NOAA','organisation':'NOAA','email':cfg_pw['ecotaxa_user'],'country':'United States','user_category':'academia','purpose_category':'Research','agree':"1",'submit':'Download'}
+    rsp=sess.post(url,data=params, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'})
+    with open(path_to_zip, "wb") as fd:
+        for a_chunk in rsp.iter_content():  # Loop over content, i.e. eventual HTTP chunks
+            # rsp.raise_for_status()
+            fd.write(a_chunk)
+    shutil.unpack_archive(path_to_zip, path_to_zip.with_suffix(''))  # Unzip export file
+    path_to_zip.unlink(missing_ok=True)
+
+
+from shapely.geometry import Polygon, mapping, Point, MultiPolygon
+from shapely import wkt
+from shapely.ops import unary_union
+
+# Plot module
+import plotly.express as px # Use pip install plotly==5.8.0
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+from plotnine import * # Python equivalent to ggplot2. Use pip install plotnine. Do not execute in Pycharm (bug- no fix yet): https://youtrack.jetbrains.com/issue/PY-42390
+from colorspace import sequential_hcl # Use: pip install git+https://github.com/retostauffer/python-colorspace
+
 
 import warnings
 warnings.filterwarnings('ignore', module='urllib3')
@@ -437,12 +441,13 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
 
         # Flag #2/3: anomalous GPS location
         dataframe['Flag_GPScoordinatesonland'] = 0
-        world = gpd.read_file(path_to_zip.with_suffix('') / 'ne_10m_admin_0_countries.shp') #gpd.datasets.get_path("naturalearth_lowres")
-        world_polygon = unary_union(world.geometry.tolist())
+        #world = gpd.read_file(path_to_zip.with_suffix('') / 'ne_10m_admin_0_countries.shp') #gpd.datasets.get_path("naturalearth_lowres")
+        #world_polygon = unary_union(world.geometry.tolist())
+        oceans=gpd.read_file(path_to_zip.with_suffix('') / 'goas_v01.shp')
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
-        point_in_polygons = gpd.tools.sjoin(gdf, world, predicate="within", how='left')
+        point_in_polygons = gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')
         if any(point_in_polygons.index_right.isna() == False):
-            gdf['Flag_GPScoordinatesonland'] = point_in_polygons.index_right.astype(str) != 'nan'
+            gdf['Flag_GPScoordinatesonland'] =point_in_polygons.index_right.astype(str) == 'nan'# point_in_polygons.index_right.astype(str) != 'nan'
         else:
             gdf['Flag_GPScoordinatesonland'] = False
         # gdf=unary_union(gdf.geometry.tolist())
@@ -532,7 +537,22 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              if len(df):
                  print('Existing flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
              else:
-                 print('Existing flags found at {}, but no additional samples. Skipping project'.format(flag_overrule_path))
+                 print('Existing flags found at {}, but no additional samples. Saving flags summary to {} (if missing) and skipping project'.format(flag_overrule_path))
+                 sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
+                 columns_project_list=dict(map(lambda sheet: (sheet,pd.read_excel(path_to_project_list,sheet_name=sheet).columns.tolist()),sheets_project_list))
+                 df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
+                 df_projects=pd.concat(map(lambda sheet:pd.read_excel(path_to_project_list,sheet_name=sheet).assign(Portal=sheet),sheets_project_list)).reset_index(drop=True)
+                 df_project=df_projects[(df_projects.Project_ID.astype(str)==str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa','ifcb']))]
+                 idx_project=df_project.index
+                 if (len(df_project)==1) and len(df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].astype(str).tolist()):
+                     df_flags_summary=df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)').assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x:pd.Series({'Number_samples':int(len(df_flags)),'Number_flagged_samples':int(len(x)),'Percentage_flagged_missing':len(x[x['Flag_missing']==1])/len(df_flags),'Percentage_flagged_GPScoordinatesonland':len(x[x['Flag_GPScoordinatesonland']==1])/len(df_flags),'Percentage_flagged_dubiousGPScoordinates':len(x[x['Flag_dubiousGPScoordinates']==1])/len(df_flags),'Percentage_flagged_count':len(x[x['Flag_count']==1])/len(df_flags),'Percentage_flagged_artefact':len(x[x['Flag_artefacts']==1])/len(df_flags),'Percentage_flagged_validation':len(x[x['Flag_validation']==1])/len(df_flags),'Percentage_flagged_size':len(x[x['Flag_size']==1])/len(df_flags)}))
+                     df_project=pd.merge(df_project,df_flags_summary,how='left',on='Project_ID').set_index(idx_project)
+                     df_projects=pd.concat([df_projects[df_projects.Portal==df_project['Portal'].values[0]].drop(index=df_project.index),df_project],axis=0).sort_values(['PSSdb_access','Instrument','Project_ID'],ascending=[False,False,True])
+                     print('Adding flag summary to project list')
+                     with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                         df_projects[columns_project_list.get(df_project['Portal'].values[0]) + df_flags_summary.columns.tolist()].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
+                         if any(df_flags_summary.columns.isin(df_projects_metadata.Variables)==False):
+                             pd.concat([df_projects_metadata,pd.DataFrame({'Variables':df_flags_summary.columns,'Variable_types':df_flags_summary.dtypes,'Units/Values':['#','#']+['[0-1]']*7,'Description':['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts','Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
                  return
          else:
              df_flags = pd.DataFrame()
@@ -617,6 +637,23 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          with pd.ExcelWriter(str(standardizer_path), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                 df_standardizer.to_excel(writer, sheet_name=sheetname, index=False)
                 #df_standardizer_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+
+         # Add flag summary to project list and save
+         sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
+         columns_project_list = dict( map(lambda sheet: (sheet, pd.read_excel(path_to_project_list, sheet_name=sheet).columns.tolist()), sheets_project_list))
+         df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
+         df_projects = pd.concat( map(lambda sheet: pd.read_excel(path_to_project_list, sheet_name=sheet).assign(Portal=sheet), sheets_project_list)).reset_index(drop=True)
+         df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
+         idx_project = df_project.index
+         if (len(df_project) == 1) and len(df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].astype( str).tolist()):
+             df_flags_summary = df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)').assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(df_flags)), 'Number_flagged_samples': int(len(x)), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(df_flags), 'Percentage_flagged_GPScoordinatesonland': len(x[x['Flag_GPScoordinatesonland'] == 1]) / len( df_flags),'Percentage_flagged_dubiousGPScoordinates': len(x[x['Flag_dubiousGPScoordinates'] == 1]) / len(df_flags), 'Percentage_flagged_count': len(x[x['Flag_count'] == 1]) / len(df_flags),'Percentage_flagged_artefact': len(x[x['Flag_artefacts'] == 1]) / len(df_flags),'Percentage_flagged_validation': len(x[x['Flag_validation'] == 1]) / len(df_flags), 'Percentage_flagged_size': len(x[x['Flag_size'] == 1]) / len(df_flags)}))
+             df_project = pd.merge(df_project, df_flags_summary, how='left', on='Project_ID').set_index(idx_project)
+             df_projects = pd.concat([df_projects[df_projects.Portal == df_project['Portal'].values[0]].drop(index=df_project.index),df_project], axis=0).sort_values(['PSSdb_access', 'Instrument', 'Project_ID'], ascending=[False, False, True])
+             print('Adding flag summary to project list')
+             with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                 df_projects[columns_project_list.get(df_project['Portal'].values[0]) + df_flags_summary.columns.tolist()].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
+                 if any(df_flags_summary.columns.isin(df_projects_metadata.Variables) == False):
+                     pd.concat([df_projects_metadata, pd.DataFrame({'Variables': df_flags_summary.columns, 'Variable_types': df_flags_summary.dtypes,'Units/Values': ['#', '#'] + ['[0-1]'] * 7,'Description': ['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts', 'Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
 
          # Generating interactive project report
          flagged_df = pd.concat([df_flagged_existing.reset_index(drop=True), flagged_df.reset_index(drop=True)], axis=0)
@@ -881,17 +918,17 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             else:
                 print( 'Existing standardized file(s) found at {}, but no additional samples.\nSkipping project after saving report (if missing)'.format(path_to_standard_dir))
                 if path_to_standard_plot.is_file() == False:
-                    summary_df_standardized = pd.DataFrame({})
-                    for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
-                        subset_df_standardized = df_standardized_existing[df_standardized_existing.Sample == profile]
-                        summary_subset_df = subset_df_standardized[(subset_df_standardized.Longitude <= 180) & (subset_df_standardized.Longitude >= -180) & ( subset_df_standardized.Latitude <= 90) & ( subset_df_standardized.Latitude >= -90)].groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI.count(), 'Abundance': x.ROI.count() / (x.Volume_analyzed.unique()[0]),# individuals per liter
-                             'Average_diameter': np.nanmean(2 * np.power(x.Area / np.pi, 0.5)) if 'Area' in subset_df_standardized.columns else np.nanmean( x.ESD),  # micrometer
-                             'Std_diameter': np.nanstd( 2 * np.power(x.Area / np.pi, 0.5)) if 'Area' in subset_df_standardized.columns else np.nanstd( x.ESD)})).reset_index()
-                        summary_subset_df = summary_subset_df.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
+                    #summary_df_standardized = pd.DataFrame({})
+                    #for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
+                        #subset_df_standardized = df_standardized_existing[df_standardized_existing.Sample == profile]
+                    summary_subset_df = df_standardized_existing[(df_standardized_existing.Longitude <= 180) & (df_standardized_existing.Longitude >= -180) & ( df_standardized_existing.Latitude <= 90) & ( df_standardized_existing.Latitude >= -90)].groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI_number.sum(), 'Abundance': x.ROI_number.sum() / (x.Volume_imaged.unique()[0]),# individuals per liter
+                             'Average_diameter': np.nanmean(2 * np.power(np.repeat(x.Area ,x.ROI_number)/ np.pi, 0.5)) if 'Area' in df_standardized_existing.columns else np.nanmean( np.repeat(x.ESD,x.ROI_number())),  # micrometer
+                             'Std_diameter': np.nanstd( 2 * np.power(np.repeat(x.Area ,x.ROI_number) / np.pi, 0.5)) if 'Area' in df_standardized_existing.columns else np.nanstd(np.repeat(x.ESD,x.ROI_number()))})).reset_index()
+                    summary_subset_df = summary_df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
                                                  'Average_diameter': np.nanmean(x.Average_diameter),  # micrometer
                                                  'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
 
-                        summary_df_standardized = pd.concat([summary_df_standardized, summary_subset_df], axis=0, ignore_index=True).reset_index(drop=True)
+                        #summary_df_standardized = pd.concat([summary_df_standardized, summary_subset_df], axis=0, ignore_index=True).reset_index(drop=True)
                     if ( (plot == 'diversity') and len(summary_df_standardized) > 0):
                         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
                         # Using report function defined below
@@ -1015,7 +1052,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         if 'Category' in df.columns:
             new_categories =df.dropna(subset='Category').Category[df.dropna(subset='Category').Category.isin(list(df_taxonomy.Category))==False].unique()
             if len(new_categories):
-                df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace("_", " ")).assign(Category=hierarchy), new_categories))
+                df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace(" ",'>').replace("_"," ")).assign(Category=hierarchy), new_categories))
                 df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
                 df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
                 df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
@@ -1070,6 +1107,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
         df_standardized =df_standardized.astype({key:value for key,value in dict(zip(['Sample','Profile','Cruise','Station','Sampling_date','Sampling_time', 'Category', 'Annotation'],8*[str])).items() if key in df_standardized.columns})
+        """
         if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
             profile_dict = dict({value[0]: key for key, value in path_dict.items()})
             df_standardized_all = pd.DataFrame({})
@@ -1117,7 +1155,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
                     ok = bar.update(n=1)
             df_standardized = df_standardized_all.reset_index(drop=True)
-            """
+            
             df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
             df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index( drop=True)
             # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
@@ -1125,34 +1163,36 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             df_small_particles['Annotation'] = 'unclassified'
             df_small_particles['Category'] = ''
             df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['datetime', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
-            """
+            
         else:
-            df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
-                                    'ROI', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
-            print('Saving standardized datafile to', path_to_standard_dir, sep=' ')
-            df.groupby(['File_path']).apply( lambda x: df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[ 0].stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( x.File_path.unique()[ 0].stem))].replace( '_features', '')), sep=",", index=False))
-            # with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
-            # df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
-            # df_standardized_metadata.to_csv(path_to_metadata_standard, sep="\t",index=False)  # to_excel(writer, sheet_name='Metadata',index=False)
-            df_standardized = pd.concat([df_standardized_existing.reset_index(drop=True), df_standardized.reset_index(drop=True)], axis=0,ignore_index=True)
+        """
+        df_standardized['object_number']=df_standardized['object_number'] if 'object_number' in df_standardized.columns else np.repeat(1,len(df_standardized))
+        df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
+        df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
+                                    'ROI','ROI_number', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
+        print('Saving standardized datafile to', path_to_standard_dir, sep=' ')
+        df.groupby(['File_path']).apply( lambda x: df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[ 0].stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( x.File_path.unique()[ 0].stem))].replace( '_features', '')), sep=",", index=False))
+        # with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
+        # df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
+        # df_standardized_metadata.to_csv(path_to_metadata_standard, sep="\t",index=False)  # to_excel(writer, sheet_name='Metadata',index=False)
+        df_standardized = pd.concat([df_standardized_existing.reset_index(drop=True), df_standardized.reset_index(drop=True)], axis=0,ignore_index=True)
 
-            df_standardized=df_standardized[(df_standardized.Longitude<=180) & (df_standardized.Longitude>=-180) & (df_standardized.Latitude<=90) & (df_standardized.Latitude>=-90)]
-            #df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
-            #df_standardized['Station'] = df_standardized['Station'].astype(str)  # Required to pass groupby if missing
-            #df_standardized['Sample'] = df_standardized['Sample'].astype(str)  # Required to pass groupby if missing
+        df_standardized=df_standardized[(df_standardized.Longitude<=180) & (df_standardized.Longitude>=-180) & (df_standardized.Latitude<=90) & (df_standardized.Latitude>=-90)]
+        #df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
+        #df_standardized['Station'] = df_standardized['Station'].astype(str)  # Required to pass groupby if missing
+         #df_standardized['Sample'] = df_standardized['Sample'].astype(str)  # Required to pass groupby if missing
 
-            summary_df_standardized=df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged','Depth_min','Depth_max'],dropna=True).apply(lambda x: pd.Series({'Count':x.ROI.count(),'Abundance': x.ROI.count() / ( x.Volume_analyzed.unique()[0]), # individuals per liter
-                                                                                                                                                                       'Average_diameter':np.nanmean(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean(x.ESD), # micrometer
-                                                                                                                                                                       'Std_diameter':np.nanstd(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(x.ESD)})).reset_index()
-            summary_df_standardized=summary_df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance), # individuals per liter
+        summary_df_standardized=df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged','Depth_min','Depth_max'],dropna=True).apply(lambda x: pd.Series({'Count':x.ROI_number.sum(),'Abundance': x.ROI_number.sum() / ( x.Volume_imaged.unique()[0]), # individuals per liter
+                                                                                                                                                                       'Average_diameter':np.nansum(2*np.power(np.repeat(x.Area,x.ROI_number)/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean(np.repeat(x.ESD,x.ROI_number)), # micrometer
+                                                                                                                                                                       'Std_diameter':np.nanstd(2*np.power(np.repeat(x.Area,x.ROI_number)/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(np.repeat(x.ESD,x.ROI_number))})).reset_index()
+        summary_df_standardized=summary_df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance), # individuals per liter
                                                                                                                                      'Average_diameter':np.nanmean(x.Average_diameter), # micrometer
                                                                                                                                      'Std_diameter':np.nanmean(x.Std_diameter)})).reset_index() # micrometer
 
-
         df_standardized_metadata=pd.DataFrame({'Variables':df_standardized.columns,'Variable_types':df_standardized.dtypes,
-        'Units/Values/Timezone':['','','','','','','','degree','degree','yyyymmdd (UTC)','hhmmss (UTC)','meter','meter','cubic_decimeter','cubic_decimeter','','','']+['micrometer' for ntimes in range(df_standardized[['Minor_axis']].shape[1])]+['micrometer' for ntimes in range(df_standardized[['ESD']].shape[1])]+['square_micrometer' for ntimes in range(df_standardized[['Area']].shape[1])]+['cubic_micrometer' for ntimes in range(df_standardized[['Biovolume']].shape[1])]+['pixel_per_millimeter','micrometer','micrometer',''],
-        'Description':['Project ID','Project cruise','Instrument','Sampling type (e.g. platform, gear, strategy)','Station ID (native format)','Profile ID (native format)','Sample ID (native format)','Latitude','Longitude','Sampling date','Sampling time','Minimum sampling depth','Maximum sampling depth','Volume analyzed (not accounting for sample dilution and/or fractionation)','Volume imaged (accounting for sample dilution and/or fractionation)','Region of interest ID (native format)','Status of ROI annotation (e.g. unclassified, predicted, validated)','ROI assigned taxonomy']+ ['Object minor ellipsoidal axis derived from '+ field if field!='' or len(fields['Minor_axis'])>1 else 'Object minor ellipsoidal axis' for field in fields['Minor_axis'] ]+ ['Object equivalent spherical diameter derived from '+ field if field!='' or len(fields['ESD'])>1 else 'Object equivalent spherical diameter' for field in fields['ESD'] ]+ ['Object surface area derived from '+ field if field!='' or len(fields['Area'])>1 else 'Object surface area' for field in fields['Area'] ]+['Object biovolume derived from '+ field if field!='' or len(fields['Biovolume'])>1 else 'Object biovolume' for field in fields['Biovolume']]+['Pixel size used for size conversion','Smallest sampled size','Largest sampled size','Additional description of the sampling method or protocol']})
-        # Create readme file:
+        'Units/Values/Timezone':['','','','','','','','degree','degree','yyyymmdd (UTC)','hhmmss (UTC)','meter','meter','cubic_decimeter','cubic_decimeter','','','','']+['micrometer' for ntimes in range(df_standardized[['Minor_axis']].shape[1])]+['micrometer' for ntimes in range(df_standardized[['ESD']].shape[1])]+['square_micrometer' for ntimes in range(df_standardized[['Area']].shape[1])]+['cubic_micrometer' for ntimes in range(df_standardized[['Biovolume']].shape[1])]+['pixel_per_millimeter','micrometer','micrometer',''],
+        'Description':['Project ID','Project cruise','Instrument','Sampling type (e.g. platform, gear, strategy)','Station ID (native format)','Profile ID (native format)','Sample ID (native format)','Latitude','Longitude','Sampling date','Sampling time','Minimum sampling depth','Maximum sampling depth','Volume analyzed (not accounting for sample dilution and/or fractionation)','Volume imaged (accounting for sample dilution and/or fractionation)','Region of interest ID (native format)','Number of ROI for a given area estimate (equals to 1 for all Zooscan, IFCB projects and UVP large particles)','Status of ROI annotation (e.g. unclassified, predicted, validated)','ROI assigned taxonomy']+ ['Object minor ellipsoidal axis derived from '+ field if field!='' or len(fields['Minor_axis'])>1 else 'Object minor ellipsoidal axis' for field in fields['Minor_axis'] ]+ ['Object equivalent spherical diameter derived from '+ field if field!='' or len(fields['ESD'])>1 else 'Object equivalent spherical diameter' for field in fields['ESD'] ]+ ['Object surface area derived from '+ field if field!='' or len(fields['Area'])>1 else 'Object surface area' for field in fields['Area'] ]+['Object biovolume derived from '+ field if field!='' or len(fields['Biovolume'])>1 else 'Object biovolume' for field in fields['Biovolume']]+['Pixel size used for size conversion','Smallest sampled size','Largest sampled size','Additional description of the sampling method or protocol']})
+       # Create readme file:
         if not Path(path_to_standard_dir.parent.parent / 'README.txt').is_file():
             with open(str(Path(path_to_standard_dir.parent.parent / 'README.txt')), 'w') as file:
                 file.write( "README file for project standardized files (First created on February 10, 2023):\n\nThis directory contains the standardized table(s) of accessible projects.\nEach table include the following variables:\n\n{}\n\nContact us: nmfs.pssdb@noaa.gov".format('\n'.join(list(df_standardized_metadata[['Variables', 'Units/Values/Timezone', 'Description']].apply(lambda x: str(x.Variables) + " (" + str(x['Units/Values/Timezone']).strip() + "): " + x.Description if len(x['Units/Values/Timezone']) else str(x.Variables) + ": " + x.Description, axis=1).values))))

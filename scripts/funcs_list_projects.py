@@ -51,14 +51,20 @@ from ecotaxa_py_client.model.project_filters import ProjectFilters
 
 #Web scraping for Ecopart interactions
 import requests
-from funcs_standardize_annotations import get_all_forms
+try:
+    from funcs_standardize_annotations import get_all_forms
+except:
+    from scripts.funcs_standardize_annotations import get_all_forms
 from concurrent.futures import as_completed
 from requests_futures import sessions # Use pip install requests-futures
 from bs4 import BeautifulSoup
 import re
 
 # IFCB dashboard functions:
-from funcs_IFCB_dashboard import *
+try:
+    from funcs_IFCB_dashboard import *
+except:
+    from scripts.funcs_IFCB_dashboard import *
 
 import warnings
 warnings.filterwarnings('ignore', module='urllib3')

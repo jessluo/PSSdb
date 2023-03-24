@@ -17,9 +17,11 @@
 ## Python modules:
 
 # Modules for data and path handling:
+import re
 from pathlib import Path  # Handling of path object
 import shutil # Delete uncompressed export zip folder
 import pandas as pd
+import numpy as np
 import yaml # requires installation of PyYAML package
 # read git-tracked config file (text file) with inputs:  project ID, output directory
 path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
@@ -48,6 +50,9 @@ from ecotaxa_py_client.model.body_export_object_set_object_set_export_post impor
 from ecotaxa_py_client.model.project_filters import ProjectFilters
 from ecotaxa_py_client.model.export_req import ExportReq
 from ecotaxa_py_client.api import jobs_api
+from ecotaxa_py_client.api import projects_api
+from ecotaxa_py_client.api import object_api
+from ecotaxa_py_client.api import taxonomy_tree_api
 
 # Progress bar modules
 #import progressbar # Attention: Use pip install progressbar2 to install
@@ -56,6 +61,48 @@ import datetime, time # Time module for break and current date
 from natsort import natsorted
 
 ## Functions start here:
+
+# Ecotaxa_update_annotations(project_id=3,localpath='~/GIT/PSSdb/raw/ecotaxa/UVP',username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass'])
+def Ecotaxa_update_annotations(project_id,localpath,username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']):
+    """
+    This function uses Ecotaxa API modules to update the annotations category and status in the exported file of a project hosted on Ecotaxa (https://ecotaxa.obs-vlfr.fr/).
+         :param project_id: ID of the Ecotaxa project to be updated.
+         :param localpath: Path locating the directory where project export is stored
+         :param username: Email for Ecotaxa account authentication
+         :param password: Password for Ecotaxa account authentication
+         :return: Updated ecotaxa export file in localpath/ecotaxa_export_projectID_yyyymmdd_hhmm.tsv.
+    """
+    path_to_export = Path(localpath).expanduser()
+    path_to_export.mkdir(parents=True, exist_ok=True)
+    path_to_datafile=list(path_to_export.rglob('ecotaxa_export_{}_*'.format(project_id)))
+    path_to_standardizer=path_to_data/"Project_{}_standardizer.xlsx".format(path_to_export.stem)
+    df_standardizer=pd.read_excel(path_to_standardizer,index_col=0)
+    if len(path_to_datafile) and (project_id in df_standardizer.index):
+        # Generate a token based on authentication infos to login on Ecotaxa
+        configuration = ecotaxa_py_client.Configuration(host="https://ecotaxa.obs-vlfr.fr/api")
+        configuration.verify_ssl = False
+        with ecotaxa_py_client.ApiClient(configuration) as client:
+            api = authentification_api.AuthentificationApi(client)
+            token = api.login(LoginReq( username=username,password=password))
+        configuration = ecotaxa_py_client.Configuration(host="https://ecotaxa.obs-vlfr.fr/api", access_token=token,discard_unknown_keys=True)
+        configuration.verify_ssl = False
+        # Step 1: Create a request to project API to query specific project
+        with ecotaxa_py_client.ApiClient(configuration) as api_client:
+            # Create an instance of the API class
+            api_instance = objects_api.ObjectsApi(api_client)
+            api_response = api_instance.get_object_set(project_id=int(project_id),project_filters=ProjectFilters(statusfilter="PVD"),fields="obj.orig_id,obj.classif_id,obj.classif_qual")
+            df_objects=pd.DataFrame(api_response.details,columns=['object_origid','taxo_id','taxo_status']).assign(object_id=api_response.to_dict().get('object_ids'))
+
+            api_instance_taxo = taxonomy_tree_api.TaxonomyTreeApi(api_client)
+            df_objects=pd.merge(df_objects,pd.DataFrame({'taxo_id':df_objects.taxo_id.unique(),'taxo_name':list(map(lambda taxo_id: api_instance_taxo.query_taxa(taxon_id=int(taxo_id)).name,df_objects.taxo_id.astype(int).unique()))}),how='left',on="taxo_id")
+        df_objects['taxo_status']=pd.Categorical(df_objects['taxo_status'],categories=['P','V','D']).rename_categories({'P':'predicted','V':'validated','D':'dubious'}).astype(str)
+        df_objects['taxo_status'] =np.where(df_objects['taxo_status']=='dubious','predicted',df_objects['taxo_status'])
+        df=pd.read_table(path_to_datafile[0],sep='\t')
+        df=pd.merge(df,df_objects[['object_origid','taxo_name','taxo_status']],how='left',left_on='object_id',right_on='object_origid')
+        new_path_to_datafile=(path_to_datafile[0]).parent / (str(path_to_datafile[0].stem).replace(str(path_to_datafile[0].stem)[1+[idx.start() for idx in re.finditer("_",str(path_to_datafile[0].stem))][2]:],datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))+'.tsv')
+        (df.drop(columns=['object_origid']+df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist())).rename(columns=dict(zip(['taxo_name','taxo_status'],df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist()))).to_csv(new_path_to_datafile,sep='\t',index=False)
+        print("Updated annotations saved to {}".format(str(new_path_to_datafile)))
+
 
 def Ecopart_export(project,localpath,username,password):
     """

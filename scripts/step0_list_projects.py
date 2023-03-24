@@ -20,7 +20,12 @@ import time
 import pandas as pd
 
 # Portal-specifc functions to list available projects
-from funcs_list_projects import *
+try:
+    from funcs_list_projects import *
+except:
+    from scripts.funcs_list_projects import *
+
+columns_for_flag_summary=['Number_samples', 'Number_flagged_samples', 'Percentage_flagged_missing', 'Percentage_flagged_GPScoordinatesonland','Percentage_flagged_dubiousGPScoordinates', 'Percentage_flagged_count','Percentage_flagged_artefact','Percentage_flagged_validation', 'Percentage_flagged_size']
 
 # Workflow starts here
 
@@ -87,7 +92,7 @@ else:
         df_Ecotaxa_list['data'].to_excel(writer, sheet_name='ecotaxa', index=False)
         df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
-df_projects_list=pd.concat([df_projects_list,df_Ecotaxa_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
+df_projects_list=pd.concat([df_projects_list,df_Ecotaxa_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','Contact_name']+[column for column in columns_for_flag_summary if column in df_Ecotaxa_list['data'].columns.tolist()]]],axis=0)
 #2) List Ecopart projects using Scripts.funcs_list_projects.py function: Ecopart_list
 existing_project_path = list(path_to_data.glob('project_list_all.xlsx'))
 if len(existing_project_path) != 0:
@@ -130,7 +135,7 @@ else:
 
 #Appending Ecopart/Ecotaxa project ID to standardizer
 df_projects_list['External_project']=df_projects_list.Project_ID.astype(str).apply(lambda id: ';'.join(df_Ecopart_list['data'][df_Ecopart_list['data'].Ecotaxa_ID.astype(str)==str(id)].Project_ID.astype(str).values.tolist()))
-df_projects_list=pd.concat([df_projects_list,df_Ecopart_list['data'].rename(columns={'Ecotaxa_ID':'External_project'})[['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','External_project']]],axis=0).reset_index(drop=True)
+df_projects_list=pd.concat([df_projects_list,df_Ecopart_list['data'].rename(columns={'Ecotaxa_ID':'External_project'})[['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','External_project','Contact_name']+[column for column in columns_for_flag_summary if column in df_Ecopart_list['data'].columns.tolist()]]],axis=0).reset_index(drop=True)
 
 #3) List IFCB dashboard projects using Scripts.funcs_list_projects.py function: IFCB_dashboard_list
 existing_project_path = list(path_to_data.glob('project_list_all.xlsx'))
@@ -173,7 +178,7 @@ else:
         df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
         df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
-df_projects_list=pd.concat([df_projects_list,df_ifcb_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0).reset_index(drop=True)
+df_projects_list=pd.concat([df_projects_list,df_ifcb_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access','Contact_name']+[column for column in columns_for_flag_summary if column in df_ifcb_list['data'].columns.tolist()]]],axis=0).reset_index(drop=True)
 
 #df_projects_list=pd.concat([df_projects_list,df_IFCB_list['data'][['Project_source','Project_ID','Instrument','Project_localpath','PSSdb_access']]],axis=0)
 
@@ -309,6 +314,27 @@ for instrument in inst:
 
             subset_df_instrument_metadata=pd.read_excel(list(path_to_data.glob('project_{}_standardizer*'.format(str(instrument))))[0], sheet_name='Metadata')
             print("Updating project_", instrument, "_standardizer file, please wait", sep="")
+            # Check for project we lost access to and remove from standardizer, export/standardized/flag files directories
+            for portal in subset_df_instrument.Project_localpath.unique():
+                df_projects_list_sub=df_projects_list[df_projects_list.Project_localpath==portal]
+                if any(df_projects_list_sub[(df_projects_list_sub.PSSdb_access==False)  & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].Project_ID.isin(subset_df_instrument[subset_df_instrument.Project_localpath==portal].Project_ID.to_list())):
+                    project_revoked=df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].loc[df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].Project_ID.isin(subset_df_instrument[subset_df_instrument.Project_localpath==portal].Project_ID.to_list()),'Project_ID']
+                    contact_revoked=df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].loc[df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].Project_ID.isin(subset_df_instrument[subset_df_instrument.Project_localpath==portal].Project_ID.to_list()),'Contact_name']
+                    print("Project with revoked access rights found in standardizer spreadsheets. Removing project from standardizer, export/standardized/flag files directories before continuing:\n{}".format('\n'.join(list(map(lambda proj:'Project:{}, Contact: {}'.format(proj[0],proj[1]),dict(zip(project_revoked.values,contact_revoked.values)).items())))))
+                    subset_df_instrument=subset_df_instrument.drop(index=np.argwhere(((subset_df_instrument.Project_localpath==portal) & (subset_df_instrument.Project_ID.isin(project_revoked.values.tolist()).values)).values)[0]).reset_index(drop=True)
+
+                    for id in df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].loc[df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].Project_ID.isin(subset_df_instrument[subset_df_instrument.Project_localpath==portal].Project_ID.to_list())].index:
+                        exportfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser() /[ind for ind in dict_instruments.keys() if df_projects_list_sub.at[id,'Project_localpath'].at[id, 'Instrument'] in dict_instruments.get(ind)][0] ).glob('ecotaxa_export_{}_*.tsv'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser() ).rglob('ecopart_export_raw_{}_*.tsv'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID'])))
+                        if len(exportfiles_path):
+                            [file.unlink(missing_ok=True) for file in exportfiles_path]
+                        flagfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'flags'/'ecotaxa' ).glob('project_{}_flags.csv'.format(df_projects_list.at[id,'Project_ID'])))+list((Path(df_projects_list.at[id,'Project_localpath']).expanduser().parent /'flags'/'ecotaxa_ecopart_consolidation' ).glob('project_{}_flags.csv'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else []
+                        if len(flagfiles_path ):
+                            [file.unlink(missing_ok=True) for file in flagfiles_path]
+                        standardizedfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'raw_standardized'/'ecotaxa' /[ind for ind in dict_instruments.keys() if df_projects_list.at[id, 'Instrument'] in dict_instruments.get(ind)][0] ).rglob('standardized_project_{}_*'.format(df_projects_list.at[id,'Project_ID'])))+list((Path(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_localpath']).expanduser().parent /'raw_standardized'/'ecotaxa_ecopart_consolidation' ).rglob('standardized_project_{}_*'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else []
+                        if len(standardizedfiles_path ):
+                            [file.unlink(missing_ok=True) for file in standardizedfiles_path]
+
+            # Check for additional projects
             if any((subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin(subset_df_instrument.Project_ID.to_list())==False)):
                df=pd.DataFrame({'Project_ID': subset_df[(subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin(subset_df_instrument.Project_ID.to_list())==False)]['Project_ID'],
                               'Project_source':subset_df[(subset_df['Instrument'].isin(dict_instruments[instrument])) & (subset_df['Project_ID'].isin(subset_df_instrument.Project_ID.to_list())==False)]['Project_source'],
