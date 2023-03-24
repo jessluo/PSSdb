@@ -75,7 +75,7 @@ for project in list(df_standardizer.index):
     else:
         try:
             print('Consolidating project: {}'.format(str(project)))
-            consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa', run_macro=False, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
+            consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa',run_matchup=False, run_macro=False, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
         except Exception as e:
             print('Skipping consolidation of project ', str(project), '\n', e, sep='')
 

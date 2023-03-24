@@ -645,8 +645,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          df_projects = pd.concat( map(lambda sheet: pd.read_excel(path_to_project_list, sheet_name=sheet).assign(Portal=sheet), sheets_project_list)).reset_index(drop=True)
          df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
          idx_project = df_project.index
-         if (len(df_project) == 1) and len(df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].astype( str).tolist()):
-             df_flags_summary = df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)').assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(df_flags)), 'Number_flagged_samples': int(len(x)), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(df_flags), 'Percentage_flagged_GPScoordinatesonland': len(x[x['Flag_GPScoordinatesonland'] == 1]) / len( df_flags),'Percentage_flagged_dubiousGPScoordinates': len(x[x['Flag_dubiousGPScoordinates'] == 1]) / len(df_flags), 'Percentage_flagged_count': len(x[x['Flag_count'] == 1]) / len(df_flags),'Percentage_flagged_artefact': len(x[x['Flag_artefacts'] == 1]) / len(df_flags),'Percentage_flagged_validation': len(x[x['Flag_validation'] == 1]) / len(df_flags), 'Percentage_flagged_size': len(x[x['Flag_size'] == 1]) / len(df_flags)}))
+         if (len(df_project) == 1) and len(overruled_df.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].astype( str).tolist()):
+             df_flags_summary = overruled_df.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)').assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(overruled_df)), 'Number_flagged_samples': int(len(x)), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(overruled_df), 'Percentage_flagged_GPScoordinatesonland': len(x[x['Flag_GPScoordinatesonland'] == 1]) / len( overruled_df),'Percentage_flagged_dubiousGPScoordinates': len(x[x['Flag_dubiousGPScoordinates'] == 1]) / len(overruled_df), 'Percentage_flagged_count': len(x[x['Flag_count'] == 1]) / len(overruled_df),'Percentage_flagged_artefact': len(x[x['Flag_artefacts'] == 1]) / len(overruled_df),'Percentage_flagged_validation': len(x[x['Flag_validation'] == 1]) / len(overruled_df), 'Percentage_flagged_size': len(x[x['Flag_size'] == 1]) / len(overruled_df)}))
              df_project = pd.merge(df_project, df_flags_summary, how='left', on='Project_ID').set_index(idx_project)
              df_projects = pd.concat([df_projects[df_projects.Portal == df_project['Portal'].values[0]].drop(index=df_project.index),df_project], axis=0).sort_values(['PSSdb_access', 'Instrument', 'Project_ID'], ascending=[False, False, True])
              print('Adding flag summary to project list')
@@ -666,10 +666,11 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
 
          if len(subset_summary_df):
-             fig = make_subplots(subplot_titles=['', '', '', 'Flag: 0 (bad flag), 1 (no flag)'], rows=3, cols=2,
+             fig = make_subplots(subplot_titles=['', '', 'Flag: 0 (no flag), 1 (flagged)', 'Percentage flagged samples/profiles: {}%'.format(str(np.round( 100 * len(subset_summary_df[subset_summary_df.Flag == 1]) / len(subset_summary_df), 2)))], rows=3, cols=2,
                                  specs=[[{"type": "scattergeo", "rowspan": 2}, {"type": "scatter", 't': 0.05}],
                                         [None, {"type": "scatter", 'b': 0.05}],
-                                        [{"type": 'table', "colspan": 2}, None]], row_heights=[0.3, 0.3, 0.4], vertical_spacing=0.02)
+                                        [{"type": 'table', "colspan": 2}, None]], row_heights=[0.3, 0.3, 0.4],vertical_spacing=0.02)
+
              fig.layout.annotations[0].update(xanchor='left', yanchor='top', x=0.0, y=1.0, font={'size': 13})
              fig.layout.annotations[1].update(xanchor='left', yanchor='top', x=0.0, y=0.98, font={'size': 13})
 

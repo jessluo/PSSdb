@@ -94,17 +94,18 @@ def Ecotaxa_update_annotations(project_id,localpath,username=cfg_pw['ecotaxa_use
             df_objects=pd.DataFrame(api_response.details,columns=['object_origid','taxo_id','taxo_status']).assign(object_id=api_response.to_dict().get('object_ids'))
 
             api_instance_taxo = taxonomy_tree_api.TaxonomyTreeApi(api_client)
-            df_objects=pd.merge(df_objects,pd.DataFrame({'taxo_id':df_objects.taxo_id.unique(),'taxo_name':list(map(lambda taxo_id: api_instance_taxo.query_taxa(taxon_id=int(taxo_id)).name,df_objects.taxo_id.astype(int).unique()))}),how='left',on="taxo_id")
+            df_objects=pd.merge(df_objects,pd.DataFrame({'taxo_id':df_objects.taxo_id.unique(),'taxo_hierarchy':list(map(lambda taxo_id: '>'.join(api_instance_taxo.query_taxa(taxon_id=int(taxo_id)).lineage[::-1]),df_objects.taxo_id.astype(int).unique())),'taxo_name':list(map(lambda taxo_id: api_instance_taxo.query_taxa(taxon_id=int(taxo_id)).name,df_objects.taxo_id.astype(int).unique()))}),how='left',on="taxo_id")
         df_objects['taxo_status']=pd.Categorical(df_objects['taxo_status'],categories=['P','V','D']).rename_categories({'P':'predicted','V':'validated','D':'dubious'}).astype(str)
         df_objects['taxo_status'] =np.where(df_objects['taxo_status']=='dubious','predicted',df_objects['taxo_status'])
         df=pd.read_table(path_to_datafile[0],sep='\t')
-        df=pd.merge(df,df_objects[['object_origid','taxo_name','taxo_status']],how='left',left_on='object_id',right_on='object_origid')
+        df=pd.merge(df,df_objects[['object_origid','taxo_hierarchy','taxo_name','taxo_status']],how='left',left_on='object_id',right_on='object_origid')
         new_path_to_datafile=(path_to_datafile[0]).parent / (str(path_to_datafile[0].stem).replace(str(path_to_datafile[0].stem)[1+[idx.start() for idx in re.finditer("_",str(path_to_datafile[0].stem))][2]:],datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))+'.tsv')
-        (df.drop(columns=['object_origid']+df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist())).rename(columns=dict(zip(['taxo_name','taxo_status'],df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist()))).to_csv(new_path_to_datafile,sep='\t',index=False)
+        (df.drop(columns=['object_origid','object_annotation_hierarchy']+df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist())).rename(columns=dict(zip(['taxo_name','taxo_status','taxo_hierarchy'],df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist()+['object_annotation_hierarchy']))).to_csv(new_path_to_datafile,sep='\t',index=False)
         print("Updated annotations saved to {}".format(str(new_path_to_datafile)))
+        path_to_datafile[0].unlink(missing_ok=True)
 
 
-def Ecopart_export(project,localpath,username,password):
+def Ecopart_export(project,localpath,username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']):
     """
     This function uses basic web scraping python modules to export data hosted on Ecopart (https://ecopart.obs-vlfr.fr/). Exported files include:\n
       -metadata: profile ID, cruise ID, station ID, data owner, raw profile folder, instrument, CTD name, datetime (yyyy-mm-dd hh:mm:ss), latitude (decimal degree), longitude (decimal degree), size calibration coefficients (aa,exp), pixel size (millimeter_per_pixel), particle filename, plankton filename, project name\n
@@ -244,7 +245,7 @@ def Ecopart_export(project,localpath,username,password):
     path_to_zip.unlink(missing_ok=True)
 
 
-def Ecotaxa_export(project,localpath,username,password):
+def Ecotaxa_export(project,localpath,username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']):
     """
     This function uses Ecotaxa API module (https://github.com/ecotaxa/ecotaxa_py_client.git) to export data hosted on Ecotaxa (https://ecotaxa.obs-vlfr.fr/). \n
     Exported file includes:\n
@@ -668,3 +669,23 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
     elapsed_time_fl = (time.time() - start)
     print(Project_ID + ' download took ' + str((elapsed_time_fl/3600)) + ' hours')
     print (Project_ID + ' download done')
+
+if __name__ == '__main__':
+    print('Export file assistant. \nPlease enter the following information (attention: method sensitive to empty space and lower/upper case. Do not use quotation)')
+    funcs_args=input('Press:\n 1 for exporting a project on Ecotaxa (https://ecotaxa.obs-vlfr.fr)\n 2 for exporting a project on Ecopart (https://ecopart.obs-vlfr.fr)\n')
+
+    if funcs_args == '1':
+        project_id_args=input('Ecotaxa project ID:')
+        path_args = input('Local path for exported file:')
+        if len(project_id_args) and len(path_args):
+            Ecotaxa_export(project=int(project_id_args),localpath=Path(path_args).expanduser())
+        quit()
+
+    if funcs_args == '2':
+        project_id_args = input('Ecopart project ID:')
+        df_list=pd.read_excel(path_to_project_list,sheet_name='ecopart',index_col='Project_ID')
+        project_title_args=df_list.loc[int(project_id_args ),'Project_title']
+        path_args = input('Local path for exported file:')
+        if len(project_id_args) and len(path_args):
+            Ecopart_export(project={str(project_id_args):str(project_title_args)}, localpath=Path(path_args).expanduser())
+        quit()
