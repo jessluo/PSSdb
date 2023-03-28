@@ -75,7 +75,7 @@ def Ecotaxa_update_annotations(project_id,localpath,username=cfg_pw['ecotaxa_use
     path_to_export = Path(localpath).expanduser()
     path_to_export.mkdir(parents=True, exist_ok=True)
     path_to_datafile=list(path_to_export.rglob('ecotaxa_export_{}_*'.format(project_id)))
-    path_to_standardizer=path_to_data/"Project_{}_standardizer.xlsx".format(path_to_export.stem)
+    path_to_standardizer=path_to_data/"project_{}_standardizer.xlsx".format(path_to_export.stem)
     df_standardizer=pd.read_excel(path_to_standardizer,index_col=0)
     if len(path_to_datafile) and (project_id in df_standardizer.index):
         # Generate a token based on authentication infos to login on Ecotaxa
