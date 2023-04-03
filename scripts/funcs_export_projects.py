@@ -95,14 +95,17 @@ def Ecotaxa_update_annotations(project_id,localpath,username=cfg_pw['ecotaxa_use
 
             api_instance_taxo = taxonomy_tree_api.TaxonomyTreeApi(api_client)
             df_objects=pd.merge(df_objects,pd.DataFrame({'taxo_id':df_objects.taxo_id.unique(),'taxo_hierarchy':list(map(lambda taxo_id: '>'.join(api_instance_taxo.query_taxa(taxon_id=int(taxo_id)).lineage[::-1]),df_objects.taxo_id.astype(int).unique())),'taxo_name':list(map(lambda taxo_id: api_instance_taxo.query_taxa(taxon_id=int(taxo_id)).name,df_objects.taxo_id.astype(int).unique()))}),how='left',on="taxo_id")
-        df_objects['taxo_status']=pd.Categorical(df_objects['taxo_status'],categories=['P','V','D']).rename_categories({'P':'predicted','V':'validated','D':'dubious'}).astype(str)
-        df_objects['taxo_status'] =np.where(df_objects['taxo_status']=='dubious','predicted',df_objects['taxo_status'])
-        df=pd.read_table(path_to_datafile[0],sep='\t')
-        df=pd.merge(df,df_objects[['object_origid','taxo_hierarchy','taxo_name','taxo_status']],how='left',left_on='object_id',right_on='object_origid')
-        new_path_to_datafile=(path_to_datafile[0]).parent / (str(path_to_datafile[0].stem).replace(str(path_to_datafile[0].stem)[1+[idx.start() for idx in re.finditer("_",str(path_to_datafile[0].stem))][2]:],datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))+'.tsv')
-        (df.drop(columns=['object_origid','object_annotation_hierarchy']+df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist())).rename(columns=dict(zip(['taxo_name','taxo_status','taxo_hierarchy'],df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist()+['object_annotation_hierarchy']))).to_csv(new_path_to_datafile,sep='\t',index=False)
-        print("Updated annotations saved to {}".format(str(new_path_to_datafile)))
-        path_to_datafile[0].unlink(missing_ok=True)
+        if len(df_objects):
+            df_objects['taxo_status']=pd.Categorical(df_objects['taxo_status'],categories=['P','V','D']).rename_categories({'P':'predicted','V':'validated','D':'dubious'}).astype(str)
+            df_objects['taxo_status'] =np.where(df_objects['taxo_status']=='dubious','predicted',df_objects['taxo_status'])
+            df=pd.read_table(path_to_datafile[0],sep='\t')
+            df=pd.merge(df,df_objects[['object_origid','taxo_hierarchy','taxo_name','taxo_status']],how='left',left_on='object_id',right_on='object_origid')
+            new_path_to_datafile=(path_to_datafile[0]).parent / (str(path_to_datafile[0].stem).replace(str(path_to_datafile[0].stem)[1+[idx.start() for idx in re.finditer("_",str(path_to_datafile[0].stem))][2]:],datetime.datetime.utcnow().strftime("%Y%m%d_%H%M"))+'.tsv')
+            (df.drop(columns=['object_origid','object_annotation_hierarchy']+df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist())).rename(columns=dict(zip(['taxo_name','taxo_status','taxo_hierarchy'],df_standardizer.loc[project_id,['Category_field','Annotation_field']].values.tolist()+['object_annotation_hierarchy']))).to_csv(new_path_to_datafile,sep='\t',index=False)
+            print("Updated annotations saved to {}".format(str(new_path_to_datafile)))
+            path_to_datafile[0].unlink(missing_ok=True)
+        else:
+            print('Project contains only unclassified objects. Skipping')
 
 
 def Ecopart_export(project,localpath,username=cfg_pw['ecotaxa_user'],password=cfg_pw['ecotaxa_pass']):

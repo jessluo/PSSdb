@@ -8,6 +8,8 @@
 from pathlib import Path
 import os
 import yaml
+import sys
+
 ## Data handling
 import pandas as pd
 from natsort import natsorted
@@ -42,17 +44,20 @@ standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx')
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
 
 #1) Update taxonomic annotations for Ecotaxa projects to ensure good validation control quality check
-print('Updating taxonomic annotations of Ecotaxa projects before control quality check, please wait')
-for standardizer in natsorted(standardizer_files)[::-1]:
-    df_standardizer = pd.read_excel(standardizer, index_col=0)
-    project_ecotaxa=[project for project in list(df_standardizer.index) if str(Path(df_standardizer.at[project,'Project_localpath']).stem).lower()=='ecotaxa']
-    for project in project_ecotaxa:
-        # Updating annotations of project
-        try:
-            Ecotaxa_update_annotations(project_id=project, localpath=Path(df_standardizer.at[project,'Project_localpath']) / df_standardizer.at[project,'Instrument'])
-        except Exception as e:
-            print('Skipping update of project ',str(project),'\n',e,sep='')
-
+confirmation=input("Do you wish to update the taxonomic annotations of Ecotaxa projects before proceeding to project control quality check? Enter Y or N\n")
+if confirmation=='Y':
+    print('Updating taxonomic annotations of Ecotaxa projects before control quality check, please wait')
+    for standardizer in natsorted(standardizer_files)[::-1]:
+        df_standardizer = pd.read_excel(standardizer, index_col=0)
+        project_ecotaxa=[project for project in list(df_standardizer.index) if str(Path(df_standardizer.at[project,'Project_localpath']).stem).lower()=='ecotaxa']
+        for project in project_ecotaxa:
+            # Updating annotations of project
+            try:
+                Ecotaxa_update_annotations(project_id=project, localpath=Path(df_standardizer.at[project,'Project_localpath']) / df_standardizer.at[project,'Instrument'])
+            except Exception as e:
+                print('Skipping update of project ',str(project),'\n',e,sep='')
+else:
+    print('Skipping Ecotaxa projects update')
 
 #2) Consolidate UVP projects before control quality check and standardization, see README file for a description of consolidation steps and objectives
 # There are 4 options to consolidate a UVP project:
@@ -89,7 +94,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
         report_path=path_to_standardizer.parent / 'reports'
         try:
             print('Flagging project: {}'.format(str(project)))
-            filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path)
+            filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path,validation_threshold=0.95)
         except Exception as e:
             print('Skipping flagging of project ',str(project),'\n',e,sep='')
 
