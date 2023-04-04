@@ -90,12 +90,12 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                 n_del_files += 1
                 continue
             df = df[df['Area'] != 0].reset_index(drop=True)
-            if instrument == 'UVP':
-                df = remove_UVP_noVal(df)
-                if len(df) == 0:
-                    print ('no data left after assessing validation status for ' + filename)
-                    n_del_files += 1
-                    continue
+            #if instrument == 'UVP':
+                #df = remove_UVP_noVal(df)
+                #if len(df) == 0:
+                    #print ('no data left after assessing validation status for ' + filename)
+                    #n_del_files += 1
+                    #continue
             if (instrument == 'Zooscan') or (instrument == 'UVP'):
                 df = depth_parsing_func(df, instrument)
                 if len(df) == 0:
@@ -166,12 +166,12 @@ elif not os.path.exists(dirpath):
         filename = i.split('/')[-1]
         print('gridding and binning ' + i)
         df = pd.read_csv(i, header=0)
-        if instrument == 'UVP':
-            df = remove_UVP_noVal(df)
-            if len(df) == 0:
-                print('no data left after assessing validation status for ' + filename)
-                n_del_files += 1
-                continue
+        #if instrument == 'UVP':
+            #df = remove_UVP_noVal(df)
+            #if len(df) == 0:
+                #print('no data left after assessing validation status for ' + filename)
+                #n_del_files += 1
+                #continue
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
         if (instrument == 'Zooscan') or (instrument == 'UVP'):
