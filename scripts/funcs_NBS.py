@@ -104,24 +104,8 @@ def size_binning_func(df_subset):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False, sample_id='Sample', dates='date_bin', station= 'Station_location', depths = 'midDepthBin',\
-               min_depth = 'Min_obs_depth', max_depth= 'Max_obs_depth', light= 'light_cond', size_range= 'range_size_bin', size_class_mid = 'size_class_mid', sizeClasses= 'sizeClasses', biovolume='Biovolume',\
-               lat='midLatBin', lon='midLonBin', vol_filtered='Volume_imaged'):
+def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False):
     """
-    
-    :param df_binned:
-    :param df_bins:
-    :param ignore_depth:
-    :param dates:
-    :param station:
-    :param depths:
-    :param size_range:
-    :param sizeClasses:
-    :param biovolume:
-    :param lat:
-    :param lon:
-    :param vol_filtered:
-    :return:
     """
     import numpy as np
     import pandas as pd
@@ -132,29 +116,31 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         #test = df_binned.groupby([sizeClasses])
 
 
-        NBS_biovol_df = df_binned.groupby([dates, station, light, depths, sizeClasses]).agg(
-            {sample_id:'first', depths:'first', size_range:'first', size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
-             biovolume:['sum', 'count', 'mean']}).reset_index() #roi_n:['sum']
+        NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'sizeClasses']).agg(
+            {'Sample':'first', 'midDepthBin':'first', 'range_size_bin':'first', 'size_class_mid':'first', 'midLatBin': 'first', 'midLonBin': 'first', 'Volume_imaged': 'first', 'Min_obs_depth': 'first', 'Max_obs_depth':'first',
+             'Biovolume':['sum'], 'ROI_number':['sum']}).reset_index() #roi_n:['sum']
 
         #average_biovol = df_binned.groupby([dates, station, light, depths]).apply(lambda x: pd.Series().reset_index(drop=True))
 
-        df_vol = df_binned.groupby([dates, station, light, depths]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)
+        df_vol = df_binned.groupby(['date_bin', 'Station_location', 'light_cond', 'midDepthBin']).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)
 
         # remove bins that have zero values
         # standardize by volume sample
     else:
         if light_parsing == True:
-            NBS_biovol_df = df_binned.groupby([dates, station, light, sizeClasses]).agg(
-                {sample_id:'first', size_range:'first', size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first', min_depth: 'first', max_depth:'first',
-                 biovolume:['sum', 'count' , 'mean']}).reset_index()
+            NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location', 'light_cond', 'sizeClasses']).agg(
+                {'Sample':'first', 'range_size_bin':'first', 'size_class_mid':'first', 'midLatBin': 'first', 'midLonBin': 'first', 'Volume_imaged': 'first', min_depth: 'first', max_depth:'first',
+                 'Biovolume':['sum'], 'ROI_number':['sum']}).reset_index()
         # cumulative volume for 1x1 degree bin. For UVP: volume imaged is the volume of a picture. Consider sample ID and depths, to be abble to get the cumulative volume imaged for a grid
-            df_vol = df_binned.groupby([dates, station, light]).apply(lambda x: pd.Series({ 'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True) # don't understand why sampl
+            df_vol = df_binned.groupby(['date_bin', 'Station_location', 'light_cond']).apply(lambda x: pd.Series({ 'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth', 'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True) # don't understand why sampl
         else:
-            NBS_biovol_df = df_binned.groupby([dates, station, sizeClasses]).agg(
-                {sample_id: 'first', size_range: 'first',size_class_mid:'first', lat: 'first', lon: 'first', vol_filtered: 'first',min_depth: 'first', max_depth: 'first',
-                 biovolume: ['sum', 'count', 'mean']}).reset_index()
+            df_binned['Biovolume'] = df_binned['Biovolume'] * df_binned['ROI_number']
+            NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location', 'sizeClasses']).agg(
+                {'Sample': 'first', 'range_size_bin': 'first', 'size_class_mid':'first', 'midLatBin': 'first', 'midLonBin': 'first', 'Volume_imaged': 'first', 'Min_obs_depth': 'first', 'Max_obs_depth': 'first',
+                 'Biovolume': ['sum'], 'ROI_number': ['sum']}).reset_index()
+
             # cumulative volume for 1x1 degree bin. For UVP: volume imaged is the volume of a picture. Consider sample ID and depths, to be abble to get the cumulative volume imaged for a grid
-            df_vol = df_binned.groupby([dates, station]).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)  # don't understand why sampl
+            df_vol = df_binned.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)  # don't understand why sampl
 
 
     NBS_biovol_df['cumulative_vol'] = df_vol.loc[0, 'cumulative_volume']
@@ -162,8 +148,9 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
 
     NBS_biovol_df.columns = NBS_biovol_df.columns.map('_'.join).str.removesuffix("first")
     NBS_biovol_df.columns = NBS_biovol_df.columns.str.removesuffix("_")
-    NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['Biovolume_count'] != 0]
-    NBS_biovol_df['NB'] = (NBS_biovol_df['Biovolume_sum']) / (NBS_biovol_df['cumulative_vol']) / (NBS_biovol_df[size_range])
+    NBS_biovol_df['Biovolume_mean'] = NBS_biovol_df['Biovolume_sum']/ NBS_biovol_df['ROI_number_sum']
+    #NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['Biovolume_count'] != 0]
+    NBS_biovol_df['NB'] = (NBS_biovol_df['Biovolume_sum']) / (NBS_biovol_df['cumulative_vol']) / (NBS_biovol_df['range_size_bin'])
 
     #two lines below deprecated as of 1/31/2023, use new biovolume:
     #NBS_biovol_df['NBSS'] = (NBS_biovol_df['Biovolume_sum']) / (np.nansum(list(set(NBS_biovol_df[vol_filtered])))) / (NBS_biovol_df[size_range])
@@ -171,15 +158,20 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
 
     # create two more columns with the parameters of normalized size spectra,:
     NBS_biovol_df['logNB'] = np.log(NBS_biovol_df['NB'])
-    NBS_biovol_df['logSize'] = np.log(NBS_biovol_df[size_class_mid])
+    NBS_biovol_df['logSize'] = np.log(NBS_biovol_df['size_class_mid'])
 
     # now calculate the log biovolume for the df_bins dataframe. NOTE updated on 2/23/2023. middle point of the size class
-    df_bins['logSize'] = np.log(df_bins[size_class_mid])
+    df_bins['logSize'] = np.log(df_bins['size_class_mid'])
     # merge the two dataframes
-    binned_NBS= pd.merge(df_bins, NBS_biovol_df, how='left', on=[sizeClasses, size_class_mid, 'logSize'])
+    binned_NBS= pd.merge(df_bins, NBS_biovol_df, how='left', on=['sizeClasses', 'size_class_mid', 'logSize'])
     # now fill the columns of date, station, lat/lon, project ID and volume
-    for i in [dates, station, lat, lon, vol_filtered]:
-        binned_NBS[i] = binned_NBS[i].fillna(NBS_biovol_df[i].unique()[0])
+    for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Volume_imaged']:
+        try:
+            if (np.isnan(NBS_biovol_df[i].unique()).any()) == True:
+                val =np.unique(NBS_biovol_df[i][~np.isnan(NBS_biovol_df[i])])[0]
+        except TypeError:
+            val = NBS_biovol_df[i].unique()[0]
+        binned_NBS[i] = binned_NBS[i].fillna(val)
     # let's do the thresholding here:
     NBS_binned_thres = threshold_func(binned_NBS)
 
@@ -334,7 +326,7 @@ def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bi
                 df_binned, df_bins = size_binning_func(df_st_t_subset)  # create size bins
                 NBS_biovol_df = NB_SS_func(df_binned, df_bins)  # calculate NBSS
                 if instrument == 'IFCB':
-                    NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['logSize'] != 17.778833578677386].reset_index(drop=True)
+                    NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['logSize'] <= 17.5].reset_index(drop=True)
                 lin_fit = linear_fit_func(NBS_biovol_df)
                 NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
