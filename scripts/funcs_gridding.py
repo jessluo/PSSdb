@@ -135,7 +135,7 @@ def biovol_func(df, instrument, keep_cat='none'):
                 df = df.reset_index(drop=True)
             except:
                 pass
-    elif (instrument == 'Zooscan' or instrument == 'UVP'):
+    elif (instrument == 'Zooscan'):
         cat_remove = ['artefacts','detritus']
         if keep_cat == 'none':
             cat_remove = cat_remove
@@ -143,7 +143,19 @@ def biovol_func(df, instrument, keep_cat='none'):
             cat_remove = [x for x in cat_remove if x not in keep_cat]
         for i in cat_remove:
             try:
-                df = df[df['Category'].str.contains(i) == False]
+                df = df[df['Category'].str.contains(i) == False]#df[~df.Category.str.contains('|'.join(i))]
+                df = df.reset_index(drop=True)
+            except:
+                pass
+    elif (instrument == 'UVP'):
+        cat_remove = ['artefacts','detritus']
+        if keep_cat == 'none':
+            cat_remove = cat_remove
+        else:
+            cat_remove = [x for x in cat_remove if x not in keep_cat]
+        for i in cat_remove:
+            try:
+                df = df[~df.Category.str.contains('|'.join(i))]
                 df = df.reset_index(drop=True)
             except:
                 pass
