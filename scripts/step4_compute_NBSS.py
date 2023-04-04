@@ -62,7 +62,7 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
             if len(df) == 0:
                 print('no data left after removing empty biovolumes in grid cell' + i)
                 continue
-            df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
+            df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number','Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
             if depth_binning == 'Y':
                 NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
             if day_night == 'Y':
@@ -105,16 +105,16 @@ elif not os.path.exists(dirpath):
             print('no data left after removing empty biovolumes in grid cell ' + i)
             continue
         df = df.filter(
-            ['Sample', 'date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth',
+            ['Sample', 'date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number',
              'Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
         if depth_binning == 'Y':
-            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'],
                                                         light_parsing=True, depth_parsing=True, bin_loc = bin_loc, group_by = group_by)
         if day_night == 'Y':
-            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'],
+            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'],
                                                         light_parsing=True, bin_loc = bin_loc, group_by = group_by)
         else:
-            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
+            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
 
         NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
         NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
