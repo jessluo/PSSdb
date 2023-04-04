@@ -418,6 +418,22 @@ def diagnostic_plots_func(standardizer_path,project_id):
    """
 
 # Function (3): Flag project samples based on 5 criteria, update standardizer spreadsheet flagged sample ID, and generate automatic report
+# converter function: Reformat the na values to match the type of individual columns
+def is_float(na) -> bool:
+    try:
+        float(na)
+        return True if na != 'nan' else False
+    except ValueError:
+        return False
+
+
+def convert(na, type):
+    try:
+        return str(pd.DataFrame({'NA': na}, index=[0]).NA.astype(type)[0])
+    except ValueError:
+        str(na)
+
+
 def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2,validation_threshold=0.95):
     """
         Objective: This function assign flags to image samples contained in a dataframe based on multiple criteria.
@@ -446,7 +462,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         oceans=gpd.read_file(path_to_zip.with_suffix('') / 'goas_v01.shp')
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
         point_in_polygons = gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')
-        if any(point_in_polygons.index_right.isna() == False):
+        if any(point_in_polygons.index_right.astype(str) == 'nan'):
             gdf['Flag_GPScoordinatesonland'] =point_in_polygons.index_right.astype(str) == 'nan'# point_in_polygons.index_right.astype(str) != 'nan'
         else:
             gdf['Flag_GPScoordinatesonland'] = False
@@ -532,25 +548,25 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          # Skip existing samples if flag file exists
          if Path(flag_overrule_path).expanduser().is_file():
              df_flags = pd.read_csv(flag_overrule_path, sep=',')
-             df = df[df.Sample.isin(list(df_flags.Sample)) == False]
              df_flagged_existing = pd.merge(df[df.Sample.isin(list(df_flags.Sample))], df_flags, how='left',on='Sample')
+             df = df[df.Sample.isin(list(df_flags.Sample)) == False]
              if len(df):
                  print('Existing flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
              else:
-                 print('Existing flags found at {}, but no additional samples. Saving flags summary to {} (if missing) and skipping project'.format(flag_overrule_path))
+                 print('Existing flags found at {}, but no additional samples.\nSaving flags summary to {} and skipping project'.format(flag_overrule_path,path_to_project_list))
                  sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
                  columns_project_list=dict(map(lambda sheet: (sheet,pd.read_excel(path_to_project_list,sheet_name=sheet).columns.tolist()),sheets_project_list))
                  df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
                  df_projects=pd.concat(map(lambda sheet:pd.read_excel(path_to_project_list,sheet_name=sheet).assign(Portal=sheet),sheets_project_list)).reset_index(drop=True)
                  df_project=df_projects[(df_projects.Project_ID.astype(str)==str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa','ifcb']))]
                  idx_project=df_project.index
-                 if (len(df_project)==1) and len(df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].astype(str).tolist()):
-                     df_flags_summary=df_flags.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)').assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x:pd.Series({'Number_samples':int(len(df_flags)),'Number_flagged_samples':int(len(x)),'Percentage_flagged_missing':len(x[x['Flag_missing']==1])/len(df_flags),'Percentage_flagged_GPScoordinatesonland':len(x[x['Flag_GPScoordinatesonland']==1])/len(df_flags),'Percentage_flagged_dubiousGPScoordinates':len(x[x['Flag_dubiousGPScoordinates']==1])/len(df_flags),'Percentage_flagged_count':len(x[x['Flag_count']==1])/len(df_flags),'Percentage_flagged_artefact':len(x[x['Flag_artefacts']==1])/len(df_flags),'Percentage_flagged_validation':len(x[x['Flag_validation']==1])/len(df_flags),'Percentage_flagged_size':len(x[x['Flag_size']==1])/len(df_flags)})).reset_index()
+                 if (len(df_project)==1):
+                     df_flags_summary=df_flags.assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x:pd.Series({'Number_samples':int(len(df_flags)),'Number_flagged_samples':int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))),'Percentage_flagged_missing':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_missing']==1])/len(df_flags),'Percentage_flagged_GPScoordinatesonland':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland']==1])/len(df_flags),'Percentage_flagged_dubiousGPScoordinates':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates']==1])/len(df_flags),'Percentage_flagged_count':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count']==1])/len(df_flags),'Percentage_flagged_artefact':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts']==1])/len(df_flags),'Percentage_flagged_validation':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation']==1])/len(df_flags),'Percentage_flagged_size':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size']==1])/len(df_flags)})).reset_index()
                      df_project=pd.merge(df_project[['Project_ID']+[column for column in df_project.columns if column not in df_flags_summary.columns]],df_flags_summary,how='left',on='Project_ID').set_index(idx_project)
                      df_projects=pd.concat([df_projects[df_projects.Portal==df_project['Portal'].values[0]].drop(index=df_project.index),df_project],axis=0).sort_values(['PSSdb_access','Instrument','Project_ID'],ascending=[False,False,True])
                      print('Adding flag summary to project list')
                      with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                         df_projects[columns_project_list.get(df_project['Portal'].values[0]) + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
+                         df_projects[[column for column in columns_project_list.get(df_project['Portal'].values[0]) if column not in df_flags_summary.columns.tolist()[1:]] + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
                          if any(df_flags_summary.columns.isin(df_projects_metadata.Variables)==False):
                              pd.concat([df_projects_metadata,pd.DataFrame({'Variables':df_flags_summary.columns[1:],'Variable_types':df_flags_summary.dtypes[1:],'Units/Values':['#','#']+['[0-1]']*7,'Description':['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts','Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
                  return
@@ -560,19 +576,6 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
 
          # Set missing values to NA
          na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
-         # converter function: Reformat the na values to match the type of individual columns
-         def is_float(na) -> bool:
-             try:
-                 float(na)
-                 return True if na != 'nan' else False
-             except ValueError:
-                 return False
-
-         def convert(na, type):
-             try:
-                 return str(pd.DataFrame({'NA': na}, index=[0]).NA.astype(type)[0])
-             except ValueError:
-                 str(na)
          # Replace NA ROI or annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
          df.ROI = np.where(df.ROI.isna(), '', df.ROI)
          if 'Category' not in df.columns:
@@ -645,13 +648,13 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          df_projects = pd.concat( map(lambda sheet: pd.read_excel(path_to_project_list, sheet_name=sheet).assign(Portal=sheet), sheets_project_list)).reset_index(drop=True)
          df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
          idx_project = df_project.index
-         if (len(df_project) == 1) and len(overruled_df.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].astype( str).tolist()):
-             df_flags_summary = overruled_df.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)').assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(overruled_df)), 'Number_flagged_samples': int(len(x)), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(overruled_df), 'Percentage_flagged_GPScoordinatesonland': len(x[x['Flag_GPScoordinatesonland'] == 1]) / len( overruled_df),'Percentage_flagged_dubiousGPScoordinates': len(x[x['Flag_dubiousGPScoordinates'] == 1]) / len(overruled_df), 'Percentage_flagged_count': len(x[x['Flag_count'] == 1]) / len(overruled_df),'Percentage_flagged_artefact': len(x[x['Flag_artefacts'] == 1]) / len(overruled_df),'Percentage_flagged_validation': len(x[x['Flag_validation'] == 1]) / len(overruled_df), 'Percentage_flagged_size': len(x[x['Flag_size'] == 1]) / len(overruled_df)})).reset_index()
+         if (len(df_project) == 1):
+             df_flags_summary = overruled_df.assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(overruled_df)), 'Number_flagged_samples': int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(overruled_df), 'Percentage_flagged_GPScoordinatesonland': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland'] == 1]) / len( overruled_df),'Percentage_flagged_dubiousGPScoordinates': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates'] == 1]) / len(overruled_df), 'Percentage_flagged_count': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count'] == 1]) / len(overruled_df),'Percentage_flagged_artefact': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts'] == 1]) / len(overruled_df),'Percentage_flagged_validation': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation'] == 1]) / len(overruled_df), 'Percentage_flagged_size': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size'] == 1]) / len(overruled_df)})).reset_index()
              df_project = pd.merge(df_project[['Project_ID']+[column for column in df_project.columns if column not in df_flags_summary.columns]], df_flags_summary, how='left', on='Project_ID').set_index(idx_project)
              df_projects = pd.concat([df_projects[df_projects.Portal == df_project['Portal'].values[0]].drop(index=df_project.index),df_project], axis=0).sort_values(['PSSdb_access', 'Instrument', 'Project_ID'], ascending=[False, False, True])
              print('Adding flag summary to project list')
              with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                 df_projects[columns_project_list.get(df_project['Portal'].values[0]) + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
+                 df_projects[[column for column in columns_project_list.get(df_project['Portal'].values[0]) if column not in df_flags_summary.columns.tolist()[1:]] + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
                  if any(df_flags_summary.columns.isin(df_projects_metadata.Variables) == False):
                      pd.concat([df_projects_metadata, pd.DataFrame({'Variables': df_flags_summary.columns[1:], 'Variable_types': df_flags_summary.dtypes[1:],'Units/Values': ['#', '#'] + ['[0-1]'] * 7,'Description': ['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts', 'Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
 
@@ -957,23 +960,8 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Set missing values to NA
         na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
-        # converter function: Reformat the na values to match the type of individual columns
-        def is_float(na) -> bool:
-            try:
-                float(na)
-                return True if na != 'nan' else False
-            except ValueError:
-                return False
-
-        def convert(na, type):
-            try:
-                return str(pd.DataFrame({'NA': na}, index=[0]).NA.astype(type)[0])
-            except ValueError:
-                str(na)
-
         # Convert known data types to ensure masking of missing values is correct
         df=df.astype({key:value for key,value in dict(zip(['Sample','Latitude','Longitude','Volume_analyzed','Pixel'],[str,float,float,float,float])).items() if key in df.columns})
-
         # Convert NAs
         df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
