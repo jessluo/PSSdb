@@ -498,7 +498,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         if 'Pixel' in dataframe.columns:
             dataframe['Flag_size']=0
             # Extract pixel size per sample/profile
-            summary=dataframe.groupby(['Cruise','Sample','Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
+            summary=dataframe.astype({'Cruise':str,'Sample':str,'Pixel':float})[['Cruise','Sample','Pixel']].drop_duplicates().groupby(['Cruise','Sample','Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
             summary=summary.sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False]).reset_index()
             summary_subset =summary.groupby(by=['Cruise','Sample']).apply(lambda x: pd.Series({'Flag_size':1 if (len(summary[(summary.Cruise==x.Cruise.unique()[0])].Pixel.unique())>1) and (x.Pixel.astype('str').isin((summary[(summary.Cruise==x.Cruise.unique()[0])].groupby(['Cruise','Pixel']).agg({'Profile_percentage':'sum'}).reset_index().sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False])).reset_index(drop=True).loc[1:,'Pixel'].astype('str').to_list()).values[0]) else 0})).reset_index()
             #pixel_list=summary.loc[1:,'Pixel'].astype('str').to_list() if len(summary.Pixel.values)>1 else ['inf']
@@ -590,6 +590,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
          df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
          df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
+         if 'Cruise' not in df.columns:
+             df['Cruise']='nan'
 
          # Append flags, Avoid flagging on low validation for IFCB projects by setting validation threshold to 0
          validation_threshold = validation_threshold if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
@@ -668,7 +670,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          flagged_df_subset = flagged_df.dropna(subset=['Category']) if len(flagged_df.dropna(subset=['Category'])) else flagged_df
          summary_df = flagged_df_subset.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.astype(str).str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
          summary_df['Sample_URL'] =  summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
-         subset_summary_df=summary_df.dropna(subset=['Latitude', 'Longitude', 'Sample','Sample_URL'])
+         subset_summary_df=summary_df.dropna(subset=[ 'Sample','Sample_URL'])
 
          if len(subset_summary_df):
              fig = make_subplots(subplot_titles=['', '', 'Flag: 0 (no flag), 1 (flagged)', 'Percentage flagged samples/profiles: {}%'.format(str(np.round( 100 * len(subset_summary_df[subset_summary_df.Flag == 1]) / len(subset_summary_df), 2)))], rows=3, cols=2,
@@ -810,7 +812,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                  fig.update_yaxes(domain=[ 0.05 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])], row=2, col=2)  # Update scatter 3
                  fig.update_traces(domain={'y': [0, 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])]}, row=3, col=1)  # Update table
 
-             title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df.dropna(subset=['Cruise'])["Cruise"].astype(str).unique())) if all(df["Cruise"].isna()) == False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
+             title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df.dropna(subset=['Cruise'])["Cruise"].astype(str).unique())) if all(df["Cruise"].astype(str)=='nan') == False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
              fig.update_layout(legend=dict(y=0.95,xanchor="left",yanchor='top',x=-0.02,bgcolor='rgba(255,255,255,0)'),
                 margin=dict(l=0, r=30, t=30, b=30),
                 title={'text': title,'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
