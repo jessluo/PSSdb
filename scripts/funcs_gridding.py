@@ -136,7 +136,7 @@ def biovol_func(df, instrument, keep_cat='none'):
             except:
                 pass
     elif (instrument == 'Zooscan'):
-        cat_remove = ['artefacts','detritus']
+        cat_remove = ['artefact','detritus']
         if keep_cat == 'none':
             cat_remove = cat_remove
         else:
@@ -148,7 +148,7 @@ def biovol_func(df, instrument, keep_cat='none'):
             except:
                 pass
     elif (instrument == 'UVP'):
-        cat_remove = ['artefacts','detritus']
+        cat_remove = ['artefact','detritus']
         if keep_cat == 'none':
             cat_remove = cat_remove
         else:
