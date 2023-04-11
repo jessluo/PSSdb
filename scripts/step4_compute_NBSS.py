@@ -10,8 +10,13 @@ from glob import glob
 import shutil
 # Config modules
 import yaml  # requires installation of PyYAML package
-from funcs_read import *
-from funcs_NBS import *
+try:
+    from funcs_read import *
+    from funcs_NBS import *
+except:
+    from scripts.funcs_read import *
+    from scripts.funcs_NBS import *
+
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 #look for coastline layer and add it to that map, UNABLE to import cartopy, see issue

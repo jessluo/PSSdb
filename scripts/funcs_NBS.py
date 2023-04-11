@@ -4,8 +4,13 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 import yaml
-from funcs_read import *
-from funcs_gridding import *
+try:
+    from funcs_read import *
+    from funcs_gridding import *
+except:
+    from scripts.funcs_read import *
+    from scripts.funcs_gridding import *
+
 import os
 from tqdm import tqdm
 
