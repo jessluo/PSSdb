@@ -35,6 +35,9 @@ standardized_subdir : 'raw/raw_standardized'
 #binned datasets storage sub-subdirectory
 gridded_subdir : 'gridded_data'
 
+#Summary datasets storage subdirectory
+summary_subdir : 'summary'
+
 # Path to project_list_all.xlsx
 proj_list : 'raw/project_list_all.xlsx'
 

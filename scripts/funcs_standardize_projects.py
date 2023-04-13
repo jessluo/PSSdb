@@ -619,6 +619,9 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          report_path.mkdir(parents=True, exist_ok=True)
          report_filename = 'Report_project_' + str(project_id) + '.html'
          path_to_report = Path(report_path).expanduser() / report_filename
+         path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['Summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
+         path_to_summary.mkdir(parents=True, exist_ok=True)
+
          # Create readme file for the report and flag folders:
          if not Path(path_to_datafile.parent / 'README.txt').is_file():
              with open(str(Path(path_to_datafile.parent / 'README.txt')), 'w') as file:
@@ -626,6 +629,9 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          if not Path(report_path.parent / 'README.txt').is_file():
              with open(str(Path(report_path.parent / 'README.txt')), 'w') as file:
                  file.write("README file for project control quality check report (First created on February 10, 2023):\n\nThis directory contains interactive reports of project control quality flags.\nThe bottom table include flagged samples that can be checked by clicking on the URL of the first column.\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nFlagged samples will be discarded during standardization.\nThe flag report will be updated if a project have been updated with additional samples.\nTables of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(path_to_datafile.parent))
+         if not Path(path_to_summary.parent/'README.txt').is_file():
+             with open(str(Path(path_to_summary.parent/'README.txt')), 'w') as file:
+                 file.write("README file for project summary files (First created on February 10, 2023):\n\nThis directory contains a summary of project samples following the control quality check.\nEach table includes individual sample info, such as:\n\n-Project_ID (native format): Unique ID of the project/cruise/program\n\n-Instrument (Zooscan, IFCB, UVP, Epson scanner): Project imaging device\n\n-Sample (native format): Unique sample ID\n\n-Sample_url: Link to the images/project files online repository (e.g. Ecotaxa, IFCB dashboard)\n\n-Sample_localfile: Local path of project datafile storage (identical for Ecotaxa Zooscan/IFCB projects, different for UVP consolidated and IFCB dashboard projects)\n\n-Sample_flag: 0 for no-flag, 1 for flagged samples\n\n-Longitude (decimal degree): Longitudinal coordinate [-180:180]\n\n-Latitude (decimal degree): Latitudinal coordinate [-90:90]\n\n-Study_area: Study area according to the Global Oceans and Seas of the standard georeferenced marine regions website (https://www.marineregions.org/)\n\n-Longhurst_province: Longhurst province of the sample location according to the standard georeferenced marine regions website (https://www.marineregions.org/)\n\n-Sampling datetime (yyyy-mm-ddThh:mm:ssZ, UTC): Sampling time\n\n-Sampling_min_depth_range (meters): Minimum/Shallowest sampling depth\n\n-Sampling_max_depth_range (meters): Maximum/Deepest sampling depth\n\n-ROI_number (#): Number of Region Of Interest imaged in the sample\n\n-Sample_flag (0/1): Overall flag for each sample. 0: not flagged, 1: flagged\n\n-Flag_path: Local path of flag details for individual control quality check criteria.\nFlagged samples will be discarded during standardization\n\nContact us: nmfs.pssdb@noaa.gov")
 
          #if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
          overrule_name ='project_{}_flags.csv'.format(str(project_id))
@@ -634,6 +640,27 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          overruled_df['Overrule'] = False
          overruled_df = overruled_df.sort_values(by=['Flag'], ascending=False)
          pd.concat([df_flags.reset_index(drop=True), overruled_df.reset_index(drop=True)], axis=0).sort_values( by=['Flag', 'Sample'], ascending=[False, True]).to_csv(str(path_to_datafile / overrule_name), sep=',',index=False)
+
+         #  Generate project summary:
+
+         df_all=pd.concat([flagged_df.reset_index(drop=True),df_flagged_existing.reset_index(drop=True)],axis=0)
+         oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
+         Longhurst = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('Longhurst_world_v4_2010.shp'))[0])
+         gdf = gpd.GeoDataFrame(df_all[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna(),geometry=gpd.points_from_xy(df_all[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Longitude,df_all[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
+         df_all['Study_area'] = pd.merge(df_all, gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')[['Sample', 'name']], how='left', on='Sample')['name'].astype(str)
+         df_all['Longhurst_province'] = pd.merge(df_all, gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']],how='left', on='Sample')['ProvDescr'].astype(str)
+         if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
+             with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                 api_instance = projects_api.ProjectsApi(api_client)
+                 api_response = api_instance.project_query(int(project_id))
+             instrument = api_response['instrument']
+         else:
+             instrument = df_standardizer['Instrument'][project_id]
+         df_all=df_all.assign(Project_ID=project_id,Instrument=instrument)
+         df_summary=df_all.rename(columns={'Flag':'Sample_flag','Sample_URL':'Sample_url','datetime':'Sample_datetime'}).astype({'Project_ID':str,'Instrument':str,'Sample':str,'Sample_url':str,'Sample_localpath':str,'Sample_flag':str,'Longitude':str,'Latitude':str,'Study_area':str,'Longhurst_province':str,'Sample_datetime':str}).groupby(['Project_ID','Instrument','Sample','Sample_url','Sample_localpath','Sample_flag','Longitude','Latitude','Study_area','Longhurst_province','Sample_datetime']).apply(lambda x:pd.Series({'Sampling_depth_min_range':x.Depth_min.min(),'Sampling_depth_max_range':x.Depth_max.max(),'object_number':len(x) if 'ROI_number' not in df_all.columns else x.object_number.sum()})).reset_index()
+         path_to_summary_file=str(path_to_summary / instrument / 'Summary_project_{}.csv'.format(project_id)) if path_to_summary.stem.lower()=='ecotaxa' else str(path_to_summary / 'Summary_project_{}.csv'.format(project_id))
+         Path(path_to_summary_file).parent.mkdir(parents=True, exist_ok=True)
+         df_summary.to_csv(path_to_summary_file,sep=',',index=False)
 
          # Update standardizer spreadsheet with flagged samples path and save
          df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
