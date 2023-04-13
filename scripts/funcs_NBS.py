@@ -109,7 +109,7 @@ def size_binning_func(df_subset):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False):
+def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,thresholding=True):
     """
     """
     import numpy as np
@@ -146,10 +146,10 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False)
                  'Biovolume': ['sum'], 'ROI_number': ['sum']}).reset_index()
 
             # cumulative volume for 1x1 degree bin. For UVP: volume imaged is the volume of a picture. Consider sample ID and depths, to be abble to get the cumulative volume imaged for a grid
-            df_vol = df_binned.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)  # don't understand why sampl
+            df_vol = df_binned.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(drop=True)  # don't understand why sample:
 
 
-    NBS_biovol_df['cumulative_vol'] = df_vol.loc[0, 'cumulative_volume']
+    NBS_biovol_df['cumulative_vol'] =pd.merge(NBS_biovol_df, df_vol,how='left',on=['date_bin', 'Station_location'])['cumulative_vol']# df_vol.loc[0, 'cumulative_volume']
 
 
     NBS_biovol_df.columns = NBS_biovol_df.columns.map('_'.join).str.removesuffix("first")
@@ -179,8 +179,10 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False)
             val = NBS_biovol_df[i].unique()[0]
         binned_NBS[i] = binned_NBS[i].fillna(val)
     # let's do the thresholding here:
-    NBS_binned_thres = threshold_func(binned_NBS)
-
+    if thresholding:
+        NBS_binned_thres = threshold_func(binned_NBS)
+    else:
+        NBS_binned_thres = binned_NBS
     return NBS_binned_thres
 
 # 7)  create a function to remove data based on JO's comments and Haentjens THIS IS WORK IN PROGRESS:
