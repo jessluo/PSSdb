@@ -88,7 +88,7 @@ for project in list(df_standardizer.index):
 print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPScoordinatesonland: GPS coordinates on land\nFlag_dubiousGPScoordinates: Dubious GPS coordinates\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_validation: Low percentage of taxonomic annotations validation (<95%). Only for Zooscan and UVP\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(1:flagged, 0:no flag)')
 for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
-    for project in list(df_standardizer.index):
+    for project in list(df_standardizer.index)[47:-1]:
         # Flagging project
         report_file='report_project_'+str(project)+'.html'
         report_path=path_to_standardizer.parent / 'reports'

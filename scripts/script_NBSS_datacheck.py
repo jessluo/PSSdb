@@ -74,45 +74,55 @@ dtypes_dict_all = dict(
              'Sampling_description'],
             [str, str, str, str, float, float, float, float, str, str, float,float, str,float, float, float, float, float, str,
              str, str, float, float, int, str]))
+
+def process_nbss_standardized_files(path):
+    columns=pd.read_table(path,sep=",", nrows=0).columns
+    df=pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all)
+    if (instrument in ['IFCB', 'Zooscan']) and ('ROI_number' not in df.columns):
+        df = df.assign(ROI_number=1)
+    # Assign biovolume, latitudinal/longitudinal/time bins as sample-specific values (so that NBSS computation is sample-specific)
+    df = df.assign(Biovolume=(1 / 6) * np.pi * ((2 * ((df.Area / np.pi) ** 0.5)) ** 3),
+                   Station_location=df.Project_ID.astype(str) + '_' + df.Sample.astype(str),
+                   date_bin=pd.to_datetime(df.Sampling_date + df.Sampling_time, format="%Y%m%d%H%M%S").astype(str),
+                   midLatBin=df.Latitude.astype(str), midLonBin=df.Longitude.astype(str))
+    # Apply depth and artefacts filter
+    df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[
+        ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(
+        ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 300)).values[0]})).reset_index()
+    df_subset = df[(df.Sample.astype(str).isin(list(df_depthselection[df_depthselection.Depth_selected == True].Sample.astype(str)))) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))]
+    # Assign sampling depth range
+    df_subset_summary = (df_subset.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[
+        ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(
+        ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Min_obs_depth': x.Depth_min.astype(float).min(), 'Max_obs_depth': x.Depth_max.astype(float).max()})).reset_index()
+    df_subset = pd.merge(df_subset.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))), df_subset_summary, how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])
+    # Assign size bins and grouping index for each sample
+    df_subset = df_subset.assign(sizeClasses=pd.cut(df_subset['Biovolume'], bins, include_lowest=True))
+    df_subset = pd.merge(df_subset, df_bins, how='left', on=['sizeClasses'])
+    group = ['Project_ID', 'Sample', 'Latitude', 'Longitude', 'Volume_imaged', 'Min_obs_depth', 'Max_obs_depth']
+    df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
+    # Compute cumulative volume per sample/profile
+    df_subset = pd.merge(df_subset.astype(dict(zip(group,[str]*len(group)))), df_subset.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.astype(float).sum()})).reset_index(),how='left', on=group)
+    # Compute NBSS without applying the thresholding
+    nbss = df_subset.groupby(group + list(df_bins.columns) + ['cumulative_volume', 'Group_index'], dropna=False).apply(
+        lambda x: pd.Series({'NBSS_count': x.ROI_number.sum(),'NBSS': (sum(x.Biovolume * x.ROI_number) / x.cumulative_volume.unique() / ((x.range_size_bin.unique())))[ 0]})).reset_index()
+    nbss = nbss.assign(Instrument=instrument)
+    return nbss
+
+
 nbss_all=pd.DataFrame()
 for instrument in ['UVP','Zooscan','IFCB']:
     print("Computing NBSS for all {} standardized datasets. Please wait".format(instrument))
     standardized_files={project:natsorted(list(Path(path_to_standard_files / Path(df_standardizer.loc[(df_standardizer.Project_ID==project) & (df_standardizer.Instrument==instrument),'Project_localpath'].values[0]).stem).rglob('standardized_project_{}_*'.format(project)))) for project in df_standardizer.loc[df_standardizer.Instrument==instrument,'Project_ID'] if len(list(Path(path_to_standard_files / Path(df_standardizer.loc[(df_standardizer.Project_ID==project) & (df_standardizer.Instrument==instrument),'Project_localpath'].values[0]).stem).rglob('standardized_project_{}_*'.format(project))))}
     standardized_files=natsorted(set(chain(*standardized_files.values())))
-    df=pd.concat(map(lambda path: (columns:=pd.read_table(path,dtype=dtypes_dict_all,sep=",").columns,pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files))
+    #df=pd.concat(map(lambda path: (columns:=pd.read_table(path,dtype=dtypes_dict_all,sep=",").columns,pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files))
     # Read all datafiles
-    """
     chunk = 1000
-    df = pd.DataFrame()
+    nbss= pd.DataFrame()
     with ThreadPool() as pool:
-        for result in pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
-            df = pd.concat([df, result], axis=0)
-    """
-    df = df.reset_index(drop=True)
-    if (instrument in ['IFCB','Zooscan']) and ('ROI_number' not in df.columns):
-        df=df.assign(ROI_number=1)
-    # Assign biovolume, latitudinal/longitudinal/time bins as sample-specific values (so that NBSS computation is sample-specific)
-    df=df.assign(Biovolume=(1 / 6) * np.pi * ((2 * ((df.Area / np.pi) ** 0.5))**3),Station_location=df.Project_ID.astype(str)+'_'+df.Sample.astype(str),date_bin=pd.to_datetime(df.Sampling_date+df.Sampling_time,format="%Y%m%d%H%M%S").astype(str),midLatBin=df.Latitude.astype(str), midLonBin=df.Longitude.astype(str))
-    # Apply depth and artefacts filter
-    df_depthselection=(df.drop_duplicates(['Project_ID','Sample','Depth_min','Depth_max'])[['Project_ID','Sample','Depth_min','Depth_max']]).groupby(['Project_ID','Sample','Depth_min','Depth_max']).apply(lambda x: pd.Series({'Depth_selected':((x.Depth_min<200) & (x.Depth_max<300)).values[0]})).reset_index()
-    df_subset=df[(df.Sample.astype(str).isin(list(df_depthselection[df_depthselection.Depth_selected==True].Sample.astype(str)))) & (df.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact|not-living',annotation))==0 if str(annotation)!='nan' else True))]
-    # Assign sampling depth range
-    df_subset_summary=(df_subset.drop_duplicates(['Project_ID','Sample','Depth_min','Depth_max'])[['Project_ID','Sample','Depth_min','Depth_max']]).groupby(['Project_ID','Sample','Depth_min','Depth_max']).apply(lambda x: pd.Series({'Min_obs_depth': x.Depth_min.min(), 'Max_obs_depth': x.Depth_max.max()})).reset_index()
-    df_subset =pd.merge(df_subset,df_subset_summary,how='left',on=['Project_ID','Sample','Depth_min','Depth_max'])
-    # Assign size bins and grouping index for each sample
-    df_subset=df_subset.assign(sizeClasses=pd.cut(df_subset['Biovolume'],bins,include_lowest=True))
-    df_subset =pd.merge(df_subset,df_bins,how='left',on=['sizeClasses'])
-    group=['Project_ID','Sample', 'Latitude', 'Longitude', 'Volume_imaged','Min_obs_depth','Max_obs_depth']
-    df_subset =pd.merge(df_subset , df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'),how='left', on=group)
-    # Compute cumulative volume per sample/profile
-    df_subset = pd.merge(df_subset ,df_subset.groupby(group).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index(),how='left', on=group)
-    # Compute NBSS without applying the thresholding
-    nbss=df_subset.groupby(group +list(df_bins.columns)+ ['cumulative_volume','Group_index'],dropna=False).apply(lambda x: pd.Series({
-            'NBSS_count':x.ROI_number.sum(),
-            'NBSS': (sum(x.Biovolume*x.ROI_number) / x.cumulative_volume.unique() / ( (x.range_size_bin.unique())))[0]})).reset_index()
-    nbss=nbss.assign(Instrument=instrument)
-    # Merge to other instrument
-    nbss_all=pd.concat([nbss_all,nbss])
+        for result in pool.map(lambda path:process_nbss_standardized_files(path),standardized_files, chunksize=chunk):#pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+            nbss = pd.concat([nbss, result], axis=0)
+   # Merge to other instrument
+    nbss_all=pd.concat([nbss_all,nbss]).reset_index(drop=True)
 
 # Generate ggplot
 nbss_all['size_mid']=((nbss_all['size_class_mid']*6)/np.pi)**(1/3)

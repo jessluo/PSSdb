@@ -538,13 +538,26 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          project_path = natsorted([path for path in project_path_list if 'flag' not in str(path)])
          columns_dict=dict(zip(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().values),list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))))
          columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
-         df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
+         df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
          old_columns = df.columns
          #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
          index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
          if any(index_duplicated_fields):
              # Append duplicated fields
              df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict(zip(list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace("_field","")[index_duplicated_fields]), list( map(lambda item: df.loc[:, columns_dict[item]].values.tolist(),list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().values[index_duplicated_fields])))))).reset_index( drop=True)], axis=1)
+
+         # Convert datetime format
+         if 'Sampling_date' in df.columns:
+             if is_float(df.at[0, 'Sampling_date']):
+                 df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[ df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
+                 df = df.loc[df['Sampling_date'].astype(float).isna() == False]
+         if 'Sampling_time' in df.columns:
+             if is_float(df.at[0, 'Sampling_time']):
+                 df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
+
+         df['datetime'] = pd.to_datetime( df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime( df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime( df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[project_id, 'Sampling_time_format'], utc=True) if 'Sampling_time' in df.columns else pd.NaT
+         df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
+
          # Skip existing samples if flag file exists
          if Path(flag_overrule_path).expanduser().is_file():
              df_flags = pd.read_csv(flag_overrule_path, sep=',')
@@ -619,7 +632,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          report_path.mkdir(parents=True, exist_ok=True)
          report_filename = 'Report_project_' + str(project_id) + '.html'
          path_to_report = Path(report_path).expanduser() / report_filename
-         path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['Summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
+         path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
          path_to_summary.mkdir(parents=True, exist_ok=True)
 
          # Create readme file for the report and flag folders:
