@@ -76,6 +76,7 @@ dtypes_dict_all = dict(
              str, str, float, float, int, str]))
 
 def process_nbss_standardized_files(path):
+#for path in standardized_files:
     columns=pd.read_table(path,sep=",", nrows=0).columns
     df=pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all)
     if (instrument in ['IFCB', 'Zooscan']) and ('ROI_number' not in df.columns):
