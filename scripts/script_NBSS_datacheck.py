@@ -90,23 +90,27 @@ def process_nbss_standardized_files(path):
     df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 300)).values[0]})).reset_index()
-    df_subset = df[(df.Sample.astype(str).isin(list(df_depthselection[df_depthselection.Depth_selected == True].Sample.astype(str)))) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))]
-    # Assign sampling depth range
-    df_subset_summary = (df_subset.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[
+    df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])
+    df_subset = df[(df.Depth_selected == True) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))]
+    if len(df_subset):
+        # Assign sampling depth range
+        df_subset_summary = (df_subset.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Min_obs_depth': x.Depth_min.astype(float).min(), 'Max_obs_depth': x.Depth_max.astype(float).max()})).reset_index()
-    df_subset = pd.merge(df_subset.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))), df_subset_summary, how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])
-    # Assign size bins and grouping index for each sample
-    df_subset = df_subset.assign(sizeClasses=pd.cut(df_subset['Biovolume'], bins, include_lowest=True))
-    df_subset = pd.merge(df_subset, df_bins, how='left', on=['sizeClasses'])
-    group = ['Project_ID', 'Sample', 'Latitude', 'Longitude', 'Volume_imaged', 'Min_obs_depth', 'Max_obs_depth']
-    df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
-    # Compute cumulative volume per sample/profile
-    df_subset = pd.merge(df_subset.astype(dict(zip(group,[str]*len(group)))), df_subset.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.astype(float).sum()})).reset_index(),how='left', on=group)
-    # Compute NBSS without applying the thresholding
-    nbss = df_subset.groupby(group + list(df_bins.columns) + ['cumulative_volume', 'Group_index'], dropna=False).apply(
+        df_subset = pd.merge(df_subset.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))), df_subset_summary, how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])
+        # Assign size bins and grouping index for each sample
+        df_subset = df_subset.assign(sizeClasses=pd.cut(df_subset['Biovolume'], bins, include_lowest=True))
+        df_subset = pd.merge(df_subset, df_bins, how='left', on=['sizeClasses'])
+        group = ['Project_ID', 'Sample', 'Latitude', 'Longitude', 'Volume_imaged', 'Min_obs_depth', 'Max_obs_depth']
+        df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
+        # Compute cumulative volume per sample/profile
+        df_subset = pd.merge(df_subset.astype(dict(zip(group,[str]*len(group)))), df_subset.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.astype(float).sum()})).reset_index(),how='left', on=group)
+        # Compute NBSS without applying the thresholding
+        nbss = df_subset.groupby(group + list(df_bins.columns) + ['cumulative_volume', 'Group_index'], dropna=False).apply(
         lambda x: pd.Series({'NBSS_count': x.ROI_number.sum(),'NBSS': (sum(x.Biovolume * x.ROI_number) / x.cumulative_volume.unique() / ((x.range_size_bin.unique())))[ 0]})).reset_index()
-    nbss = nbss.assign(Instrument=instrument)
+        nbss = nbss.assign(Instrument=instrument)
+    else:
+        nbss=pd.DataFrame()
     return nbss
 
 
@@ -118,7 +122,7 @@ for instrument in ['UVP','Zooscan','IFCB']:
     #df=pd.concat(map(lambda path: (columns:=pd.read_table(path,dtype=dtypes_dict_all,sep=",").columns,pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files))
     # Read all datafiles
     chunk = 1000
-    nbss= pd.DataFrame()
+    nbss= pd.DataFrame() #nbss=pd.concat(map(lambda path:process_nbss_standardized_files(path),standardized_files))
     with ThreadPool() as pool:
         for result in pool.map(lambda path:process_nbss_standardized_files(path),standardized_files, chunksize=chunk):#pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
             nbss = pd.concat([nbss, result], axis=0)
