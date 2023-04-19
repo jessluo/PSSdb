@@ -139,12 +139,12 @@ plot = (ggplot(nbss_all) +
         facet_wrap('~Instrument', nrow=1) +
          geom_line(mapping=aes(x='size_mid', y='NBSS', group='Group_index'), size=0.15, alpha=0.1) +
          #geom_pointrange(data=stat_nbss_all,mapping=aes(x='size_mid', group='size_mid', ymin='ymin', ymax='ymax', y='y'),alpha=0.1,colour='#{:02x}{:02x}{:02x}'.format(183, 200 , 190)) +
-         stat_summary(mapping=aes(x='size_mid', y='NBSS', group='size_mid'),fun_data='median_hilow',geom='pointrange',alpha=0.7,colour='#{:02x}{:02x}{:02x}'.format(183, 200 , 190))+
+         stat_summary(mapping=aes(x='size_mid', y='NBSS', group='size_mid'),fun_data='median_hilow',geom='pointrange',alpha=0.1,size=0.05,colour='#{:02x}{:02x}{:02x}'.format(183, 200 , 190))+
          labs(x='Equivalent circular diameter (µm)',y='Normalized Biovolume Size Spectrum \n ($\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', title='',colour='') +
          scale_x_log10(limits=[1e+0, 1e+05], breaks=[10 ** np.arange(0, 5, step=1, dtype=np.float)][0],
                               labels=['10$^{%s}$' % int(n) for n in np.arange(0, 5, step=1)]) +
-        scale_y_log10(limits=[1e-5, 1e+5], breaks=[10 ** np.arange(-5, 5, step=2, dtype=np.float)][0],
-                              labels=['10$^{%s}$' % int(n) for n in np.arange(-5, 5, step=2)]) +
+        scale_y_log10(limits=[1e-5, 1e+7], breaks=[10 ** np.arange(-5, 7, step=2, dtype=np.float)][0],
+                              labels=['10$^{%s}$' % int(n) for n in np.arange(-5, 7, step=2)]) +
         theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
                       panel_grid=element_blank(),
                       panel_background=element_rect(fill='white'),
