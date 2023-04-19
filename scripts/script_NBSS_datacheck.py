@@ -128,14 +128,18 @@ for instrument in ['UVP','Zooscan','IFCB']:
             nbss = pd.concat([nbss, result], axis=0)
    # Merge to other instrument
     nbss_all=pd.concat([nbss_all,nbss]).reset_index(drop=True)
+#Reset nbss_all Group_index:
+group = ['Instrument','Project_ID', 'Sample', 'Latitude', 'Longitude', 'Volume_imaged', 'Min_obs_depth', 'Max_obs_depth']
+nbss_all = pd.merge(nbss_all.drop(columns=['Group_index']), nbss_all.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
 
 # Generate ggplot
 nbss_all['size_mid']=((nbss_all['size_class_mid']*6)/np.pi)**(1/3)
-stat_nbss_all=nbss_all.groupby('size_mid').apply(lambda x:pd.Series({"y":np.nanmedian(x.NBSS),"ymin":np.nanquantile(x.NBSS,0.05),"ymax":np.nanquantile(x.NBSS,0.95)})).reset_index()
+stat_nbss_all=nbss_all.groupby(['Instrument','size_mid']).apply(lambda x:pd.Series({"y":np.nanmedian(x.NBSS),"ymin":np.nanquantile(x.NBSS,0.05),"ymax":np.nanquantile(x.NBSS,0.95)})).reset_index()
 plot = (ggplot(nbss_all) +
         facet_wrap('~Instrument', nrow=1) +
-         geom_line(mapping=aes(x='size_mid', y='NBSS', group='Group_index'), size=0.15, alpha=0.01) +
-         geom_pointrange(data=stat_nbss_all,mapping=aes(x='size_mid', group='size_mid', ymin='ymin', ymax='ymax', y='y')) +
+         geom_line(mapping=aes(x='size_mid', y='NBSS', group='Group_index'), size=0.15, alpha=0.1) +
+         #geom_pointrange(data=stat_nbss_all,mapping=aes(x='size_mid', group='size_mid', ymin='ymin', ymax='ymax', y='y'),alpha=0.1,colour='#{:02x}{:02x}{:02x}'.format(183, 200 , 190)) +
+         stat_summary(mapping=aes(x='size_mid', y='NBSS', group='size_mid'),fun_data='median_hilow',geom='pointrange',alpha=0.7,colour='#{:02x}{:02x}{:02x}'.format(183, 200 , 190))+
          labs(x='Equivalent circular diameter (µm)',y='Normalized Biovolume Size Spectrum \n ($\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', title='',colour='') +
          scale_x_log10(limits=[1e+0, 1e+05], breaks=[10 ** np.arange(0, 5, step=1, dtype=np.float)][0],
                               labels=['10$^{%s}$' % int(n) for n in np.arange(0, 5, step=1)]) +
