@@ -545,7 +545,12 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 #features_clean=features_clean.replace({'longitude': {0: float('nan'), -9999999: float('nan')}})  # replace 0 lat values with Nan
                 features_clean['depth'] = met_dict['depth']
                 features_clean['vol_analyzed'] = met_dict['ml_analyzed']
-                features_clean['sample_type'] = met_dict['sample_type']
+
+                features_clean['sample_type'] = met_dict['sample_type'] # discard df that have incorrect sample types
+                sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
+                features_clean = features_clean[~features_clean.sample_type.str.contains('|'.join(sampling_type_to_remove))]
+                features_clean = features_clean.replace('', np.nan)
+
                 features_clean['sample_cruise'] = met_dict['cruise']
                 features_clean['number_of_rois'] = met_dict['number_of_rois']
                 features_clean['concentration'] = met_dict['concentration']
@@ -567,69 +572,71 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
 
                 # now generate dataframe for the class scores
                 class_filename = dashboard_url + Project_ID + '/' + pid_id + '_class_scores.csv'
-                class_df = df_from_url(class_filename)
-                features_clean['roi_id'] = class_df['pid']
-                class_df = class_df.set_index('pid')
-                class_df = class_df.astype(float)
-                # create lists for top five classes and their scores
-                class_1 = []
-                class_1_score = []
-                class_2 = []
-                class_2_score = []
-                class_3 = []
-                class_3_score = []
-                class_4 = []
-                class_4_score = []
-                class_5 = []
-                class_5_score = []
                 try:
-                    for roi in class_df.index:
-                        #print(roi)
-                        index_top5 = np.argsort(-class_df.loc[roi].values)[:5]
-                        #print(index_top5)
-                        class_1.append(class_df.columns[index_top5[0]])
-                        class_1_score.append(class_df.loc[roi, class_df.columns[index_top5[0]]])
+                    class_df = df_from_url(class_filename)
+                    features_clean['roi_id'] = class_df['pid']
+                    class_df = class_df.set_index('pid')
+                    class_df = class_df.astype(float)
+                    # create lists for top five classes and their scores
+                    class_1 = []
+                    class_1_score = []
+                    class_2 = []
+                    class_2_score = []
+                    class_3 = []
+                    class_3_score = []
+                    class_4 = []
+                    class_4_score = []
+                    class_5 = []
+                    class_5_score = []
+                    try:
+                        for roi in class_df.index:
+                            #print(roi)
+                            index_top5 = np.argsort(-class_df.loc[roi].values)[:5]
+                            #print(index_top5)
+                            class_1.append(class_df.columns[index_top5[0]])
+                            class_1_score.append(class_df.loc[roi, class_df.columns[index_top5[0]]])
 
-                        class_2.append(class_df.columns[index_top5[1]])
-                        class_2_score.append(class_df.loc[roi, class_df.columns[index_top5[1]]])
+                            class_2.append(class_df.columns[index_top5[1]])
+                            class_2_score.append(class_df.loc[roi, class_df.columns[index_top5[1]]])
 
-                        class_3.append(class_df.columns[index_top5[2]])
-                        class_3_score.append(class_df.loc[roi, class_df.columns[index_top5[2]]])
+                            class_3.append(class_df.columns[index_top5[2]])
+                            class_3_score.append(class_df.loc[roi, class_df.columns[index_top5[2]]])
 
-                        class_4.append(class_df.columns[index_top5[3]])
-                        class_4_score.append(class_df.loc[roi, class_df.columns[index_top5[3]]])
+                            class_4.append(class_df.columns[index_top5[3]])
+                            class_4_score.append(class_df.loc[roi, class_df.columns[index_top5[3]]])
 
-                        class_5.append(class_df.columns[index_top5[4]])
-                        class_5_score.append(class_df.loc[roi, class_df.columns[index_top5[4]]])
+                            class_5.append(class_df.columns[index_top5[4]])
+                            class_5_score.append(class_df.loc[roi, class_df.columns[index_top5[4]]])
+                    except:
+                        print(i + ' does not have a class score')
+                    features_clean['class_1'] = class_1
+                    features_clean['class_1_score'] = class_1_score
+
+                    features_clean['class_2'] = class_2
+                    features_clean['class_2_score'] = class_2_score
+
+                    features_clean['class_3'] = class_3
+                    features_clean['class_3_score'] = class_3_score
+
+                    features_clean['class_4'] = class_4
+                    features_clean['class_4_score'] = class_4_score
+
+                    features_clean['class_5'] = class_5
+                    features_clean['class_5_score'] = class_5_score
+
+                    #replace with nan the class and class scores below 0.0001
+                    cols = ["class_1", "class_2", "class_3", "class_4", "class_5"]
+                    cols_scores = ["class_1_score", "class_2_score", "class_3_score", "class_4_score", "class_5_score"]
+                    for no, c in enumerate(cols_scores):
+                        features_clean[c] = features_clean[c].mask(features_clean[c] < 0.0001, np.nan)
+                        features_clean[cols[no]] = features_clean[cols[no]].mask(features_clean[c] < 0.0001, np.nan)
                 except:
-                    print(i + ' does not have a class score')
-                features_clean['class_1'] = class_1
-                features_clean['class_1_score'] = class_1_score
-
-                features_clean['class_2'] = class_2
-                features_clean['class_2_score'] = class_2_score
-
-                features_clean['class_3'] = class_3
-                features_clean['class_3_score'] = class_3_score
-
-                features_clean['class_4'] = class_4
-                features_clean['class_4_score'] = class_4_score
-
-                features_clean['class_5'] = class_5
-                features_clean['class_5_score'] = class_5_score
-
-
-                #replace with nan the class and class scores below 0.0001
-                cols = ["class_1", "class_2", "class_3", "class_4", "class_5"]
-                cols_scores = ["class_1_score", "class_2_score", "class_3_score", "class_4_score", "class_5_score"]
-                for no, c in enumerate(cols_scores):
-                    features_clean[c] = features_clean[c].mask(features_clean[c] < 0.0001, np.nan)
-                    features_clean[cols[no]] = features_clean[cols[no]].mask(features_clean[c] < 0.0001, np.nan)
-
+                    pass
                 features_clean['datetime'] = pd.to_datetime(features_clean['datetime'])
                 year = features_clean.loc[1, 'datetime'].strftime('%Y')
-                dataset_id = features_clean.loc[1, 'roi_id'].split('_')
-                dataset_id = dataset_id[1]
+                #dataset_id = features_clean.loc[1, 'roi_id'].split('_')
+                dataset_id = features_clean.loc[1, 'sample_id'].split('_')[1]
+
                 if dashboard_url == 'https://ifcb.caloos.org/':
                     dashboard_id = 'CALOOS'
                 elif dashboard_url== 'https://ifcb-data.whoi.edu/':
