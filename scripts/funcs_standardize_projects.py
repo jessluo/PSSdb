@@ -1099,7 +1099,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
 
         df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
-                       Cruise==df.Cruise if 'Cruise' in df.columns else pd.NA,
+                       Cruise=df.Cruise if 'Cruise' in df.columns else pd.NA,
                        Station=df.Station if 'Station' in df.columns else pd.NA,
                        Profile=df.Profile if 'Profile' in df.columns else pd.NA,
                        Sample=df.Sample if 'Sample' in df.columns else pd.NA,
