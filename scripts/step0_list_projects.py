@@ -67,7 +67,7 @@ if len(existing_project_path) != 0:
             df_Ecotaxa_list = Ecotaxa_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecotaxa_projects).replace(str(Path.home()),'~'))
             df_metadata=df_Ecotaxa_list['metadata']
             with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                df_Ecotaxa_list['data'].to_excel(writer, sheet_name='ecotaxa', index=False)
+                pd.merge(df_Ecotaxa_list['data'],df_ecotaxa.drop(columns=[column for column in df_ecotaxa.columns if (column in df_Ecotaxa_list['data'].columns) and (column!='Project_ID')]),how='left',on='Project_ID').to_excel(writer, sheet_name='ecotaxa', index=False)
 
         elif confirmation=='N':
             df_Ecotaxa_list={'data':df_ecotaxa}
@@ -108,7 +108,7 @@ if len(existing_project_path) != 0:
             df_Ecopart_list = Ecopart_list(username=cfg_pw['ecotaxa_user'], password=cfg_pw['ecotaxa_pass'],localpath=str(path_to_ecopart_projects).replace(str(Path.home()),'~'))
             df_metadata=pd.concat([df_metadata,df_Ecopart_list['metadata'].reset_index(drop=True)],axis=0).drop_duplicates(['Variables'])
             with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                df_Ecopart_list['data'].to_excel(writer, sheet_name='ecopart', index=False)
+                pd.merge(df_Ecopart_list['data'],df_ecopart.drop(columns=[column for column in df_ecopart.columns if (column in df_Ecopart_list['data'].columns) and (column!='Project_ID')]),how='left',on='Project_ID').to_excel(writer, sheet_name='ecopart', index=False)
                 df_metadata.to_excel(writer, sheet_name='metadata', index=False)
         elif confirmation=='N':
             df_Ecopart_list={'data':df_ecopart}
@@ -152,7 +152,7 @@ if len(existing_project_path) != 0:
             df_ifcb_list = IFCB_dashboard_list(localpath=str(path_to_ifcb_projects).replace(str(Path.home()),'~'))
             df_metadata = pd.concat([df_metadata, df_ifcb_list['metadata'].reset_index(drop=True)], axis=0).drop_duplicates(['Variables'])
             with pd.ExcelWriter(str(path_to_data / 'project_list_all.xlsx'), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                df_ifcb_list['data'].to_excel(writer, sheet_name='ifcb', index=False)
+                pd.merge(df_ifcb_list['data'],df_ifcb.drop(columns=[column for column in df_ifcb.columns if (column in df_ifcb_list['data'].columns) and (column!='Project_ID')]),how='left',on='Project_ID').to_excel(writer, sheet_name='ifcb', index=False)
                 df_metadata.to_excel(writer, sheet_name='metadata', index=False)
 
         elif confirmation=='N':
@@ -324,13 +324,13 @@ for instrument in inst:
                     subset_df_instrument=subset_df_instrument.drop(index=np.argwhere(((subset_df_instrument.Project_localpath==portal) & (subset_df_instrument.Project_ID.isin(project_revoked.values.tolist()).values)).values)[0]).reset_index(drop=True)
 
                     for id in df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].loc[df_projects_list_sub[(df_projects_list_sub.PSSdb_access == False) & (df_projects_list_sub.Instrument.isin(dict_instruments[instrument]))].Project_ID.isin(subset_df_instrument[subset_df_instrument.Project_localpath==portal].Project_ID.to_list())].index:
-                        exportfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser() /[ind for ind in dict_instruments.keys() if df_projects_list_sub.at[id,'Project_localpath'].at[id, 'Instrument'] in dict_instruments.get(ind)][0] ).glob('ecotaxa_export_{}_*.tsv'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser() ).rglob('ecopart_export_raw_{}_*.tsv'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID'])))
+                        exportfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser() /[ind for ind in dict_instruments.keys() if df_projects_list_sub.at[id, 'Instrument'] in dict_instruments.get(ind)][0] ).glob('ecotaxa_export_{}_*.tsv'.format(df_projects_list_sub.at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser() ).rglob('ecopart_export_raw_{}_*.tsv'.format(df_projects_list_sub.at[id,'Project_ID'])))
                         if len(exportfiles_path):
                             [file.unlink(missing_ok=True) for file in exportfiles_path]
-                        flagfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'flags'/'ecotaxa' ).glob('project_{}_flags.csv'.format(df_projects_list.at[id,'Project_ID'])))+list((Path(df_projects_list.at[id,'Project_localpath']).expanduser().parent /'flags'/'ecotaxa_ecopart_consolidation' ).glob('project_{}_flags.csv'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else []
+                        flagfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'flags'/'ecotaxa' ).glob('project_{}_flags.csv'.format(df_projects_list.at[id,'Project_ID'])))+list((Path(df_projects_list.at[id,'Project_localpath']).expanduser().parent /'flags'/'ecotaxa_ecopart_consolidation' ).glob('project_{}_flags.csv'.format(df_projects_list_sub.at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else []
                         if len(flagfiles_path ):
                             [file.unlink(missing_ok=True) for file in flagfiles_path]
-                        standardizedfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'raw_standardized'/'ecotaxa' /[ind for ind in dict_instruments.keys() if df_projects_list.at[id, 'Instrument'] in dict_instruments.get(ind)][0] ).rglob('standardized_project_{}_*'.format(df_projects_list.at[id,'Project_ID'])))+list((Path(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_localpath']).expanduser().parent /'raw_standardized'/'ecotaxa_ecopart_consolidation' ).rglob('standardized_project_{}_*'.format(df_projects_list_sub.at[id,'Project_localpath'].at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else []
+                        standardizedfiles_path = list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'raw_standardized'/'ecotaxa' /[ind for ind in dict_instruments.keys() if df_projects_list.at[id, 'Instrument'] in dict_instruments.get(ind)][0] ).rglob('standardized_project_{}_*'.format(df_projects_list.at[id,'Project_ID'])))+list((Path(df_projects_list_sub.at[id,'Project_localpath']).expanduser().parent /'raw_standardized'/'ecotaxa_ecopart_consolidation' ).rglob('standardized_project_{}_*'.format(df_projects_list_sub.at[id,'Project_ID']))) if (Path(portal).stem.lower()=='ecotaxa') else []
                         if len(standardizedfiles_path ):
                             [file.unlink(missing_ok=True) for file in standardizedfiles_path]
 
