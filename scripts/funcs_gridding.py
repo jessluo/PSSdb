@@ -16,6 +16,7 @@ from astral.sun import sun #run pip install astral
 from astral import LocationInfo
 # an alternative to astral
 from suncalc import get_position, get_times # pip install suncalc
+from dtki import d_n_calc # R. Kiko's module, see PSSdb documentation to install
 
 
 # NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
@@ -355,50 +356,62 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False, ignore_high_lat=Tr
         dateTime = []
         for i in all_time_info:
             dateTime.append(pd.to_datetime(i, format='%Y%m%d%H%M%S'))
-        # dateTime= pd.to_datetime(all_time_info, format='%Y%m%d%H%M%S')
-        light_cond = []
-
-        #create a merged timestamp with date and time, useful for getting day and night info, which is done in lines 189-217
-        if ignore_high_lat==False:
-            for n, t in enumerate(dateTime):
-                try:
-                    utc = pytz.UTC #this and next two lines: set the time info to UTC format. Necessary to compare it with the sunrise/sunset information
-                    t=t.replace(tzinfo=utc)
-                    l = LocationInfo()
-                    l.name = 'station'
-                    l.region = 'region'
-                    l.timezone = obj.timezone_at(lng=lon[n], lat=lat[n])
-                    l.latitude = lat[n]
-                    l.longitude = lon[n]
-                    #use the created l object to get times of sunrise and sunset for that location
-                    try:
-                        s = sun(l.observer, date=t)
-                        sunrise = s['sunrise']
-                        sunset = s['sunset']
-                        if sunrise <= t <= sunset:
-                            light_cond.append('day')
-                        else:
-                            light_cond.append('night')
-                    except ValueError as e: # this is necessary because at high latitudes we might have issues defining day/night i.e Tara polar oceans: ValueError: Sun never reaches 6 degrees below the horizon, at this location.
-                        if e == 'Sun never reaches 6 degrees below the horizon, at this location':
-                            light_cond.append('high_lat')
-                except:
-                    print('error assigning day/night, check row' + str(n))
-                    light_cond.append(float('nan'))
-        # an alternative way to get this info without worrying about Astral's error for polar latitudes is to use suncalc
-        else:
-            for n, t in enumerate(dateTime):
-                try:
-                    daylight_dict = get_times(t, lon[n], lat[n])
-                    if daylight_dict['sunrise'] <= t <= daylight_dict['sunset']:
-                        light_cond.append('day')
-                    else:
-                        light_cond.append('night')
-                except:
-                    light_cond.append(float('nan'))
-
-        df['light_cond']= light_cond
+        df['dateTime'] = dateTime
+        #df['date_new'] = df['dateTime'].dt.strftime('%Y/%m/%d')
+        df['date_new'] = pd.to_datetime(df['dateTime']).dt.date
+        df['time_new'] = pd.to_datetime(df['dateTime']).dt.time
+        light_cond=[]
+        for i in range(0, len(df)):
+            light_cond.append(d_n_calc(df.loc[i, 'date_new'], df.loc[i, 'time_new'], df.loc[i, 'Latitude'], df.loc[i, 'Longitude']))
+        df['light_cond'] = light_cond
+        df = df.drop(columns=['date_new', 'time_new'])
 
     return df
+        # section below deprecated (5/9/2023)
+        # dateTime= pd.to_datetime(all_time_info, format='%Y%m%d%H%M%S')
+        #light_cond = []
+
+        #create a merged timestamp with date and time, useful for getting day and night info, which is done in lines 189-217
+       # if ignore_high_lat==False:
+            #for n, t in enumerate(dateTime):
+                #try:
+                    #utc = pytz.UTC #this and next two lines: set the time info to UTC format. Necessary to compare it with the sunrise/sunset information
+                    #t=t.replace(tzinfo=utc)
+                    #l = LocationInfo()
+                    #l.name = 'station'
+                    #l.region = 'region'
+                    #l.timezone = obj.timezone_at(lng=lon[n], lat=lat[n])
+                    #l.latitude = lat[n]
+                    #l.longitude = lon[n]
+                    #use the created l object to get times of sunrise and sunset for that location
+                    #try:
+                        #s = sun(l.observer, date=t)
+                        #sunrise = s['sunrise']
+                        #sunset = s['sunset']
+                        #if sunrise <= t <= sunset:
+                            #light_cond.append('day')
+                        #else:
+                            #light_cond.append('night')
+                    #except ValueError as e: # this is necessary because at high latitudes we might have issues defining day/night i.e Tara polar oceans: ValueError: Sun never reaches 6 degrees below the horizon, at this location.
+                        #if e == 'Sun never reaches 6 degrees below the horizon, at this location':
+                            #light_cond.append('high_lat')
+                #except:
+                    #print('error assigning day/night, check row' + str(n))
+                    #light_cond.append(float('nan'))
+        # an alternative way to get this info without worrying about Astral's error for polar latitudes is to use suncalc
+        #else:
+            #for n, t in enumerate(dateTime):
+                #try:
+                    #daylight_dict = get_times(t, lon[n], lat[n])
+                    #if daylight_dict['sunrise'] <= t <= daylight_dict['sunset']:
+                        #light_cond.append('day')
+                    #else:
+                        #light_cond.append('night')
+                #except:
+                    #light_cond.append(float('nan'))
+
+        #df['light_cond']= light_cond
+
+    #return df
 
 
