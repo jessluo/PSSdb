@@ -121,6 +121,10 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         #test = df_binned.groupby([sizeClasses])
 
         df_binned['Biovolume'] = df_binned['Biovolume'] * df_binned['ROI_number']
+        #line 124: experimental
+        Biovol_sum = df_binned.groupby(['date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'sizeClasses']).apply(lambda x: pd.Series({'Biovolume_sum': x[['Sample', 'midDepthBin', 'range_size_bin', 'size_class_mid', 'midLatBin', 'midLonBin', 'Volume_imaged', 'Min_obs_depth', 'Max_obs_depth',
+             'Biovolume', 'ROI_number']].drop_duplicates().Biovolume.sum()})).reset_index(drop=True)
+
         NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'sizeClasses']).agg(
             {'Sample':'first', 'midDepthBin':'first', 'range_size_bin':'first', 'size_class_mid':'first', 'midLatBin': 'first', 'midLonBin': 'first', 'Volume_imaged': 'first', 'Min_obs_depth': 'first', 'Max_obs_depth':'first',
              'Biovolume':['sum'], 'ROI_number':['sum']}).reset_index() #roi_n:['sum']
