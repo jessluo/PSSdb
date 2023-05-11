@@ -291,7 +291,7 @@ def gridding_func(st_increment, lat= 'Latitude', lon= 'Longitude'):
 
     #return date_bin, light_cond
 
-def date_binning_func(df, group_by= 'yyyymm',day_night=False, ignore_high_lat=True): # consider adding a day/night column, this will have to consider latitude and month
+def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year. Also create a column that assigns a 'day' or 'night' category to each ROI
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -307,10 +307,12 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False, ignore_high_lat=Tr
     # we also need to define timezone based on lat/lon. See https://www.geeksforgeeks.org/get-time-zone-of-a-given-location-using-python/
     from timezonefinder import TimezoneFinder # run pip install timezonefinder
     obj = TimezoneFinder()
+    df = df.dropna(subset=['Latitude', 'Longitude']).reset_index()
     df['Sampling_time']=df['Sampling_time'].astype(str)
-
-
+    df = df.loc[df['Sampling_time'].str.len() > 2].reset_index()  # the file '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/IFCB/standardized_project_3326_20221102_1615.csv'  has a vaule of 36 for rows starting on 828094 # so had to apply a filter to remove times that had less than 3 numbers
     date = df['Sampling_date'].astype(str)
+
+    #time = df['Sampling_time'].astype(str).apply(lambda x: ('0' + x) if len(x) < 6 else x)
     time = df['Sampling_time'].astype(str)
     lat = df['Latitude']
     lon = df['Longitude']
@@ -344,19 +346,14 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False, ignore_high_lat=Tr
     elif group_by == 'None':
         df['date_bin'] == str(date_bin)
     if day_night == True:
-        df = df.loc[df['Sampling_time'].str.len() > 2].reset_index()  # the file '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/IFCB/standardized_project_3326_20221102_1615.csv'  has a vaule of 36 for rows starting on 828094
-        # so had to apply a filter to remove times that had less than 3 numbers
         time_bin = pd.to_datetime(time, format='%H%M%S')
         day = np.char.array(pd.DatetimeIndex(date_bin).day.values).zfill(2)
         hour = np.char.array(pd.DatetimeIndex(time_bin).hour.values).zfill(2)  # zfill(2).
         minute = np.char.array(pd.DatetimeIndex(time_bin).minute.values).zfill(2)
         second = np.char.array(pd.DatetimeIndex(time_bin).second.values).zfill(2)
 
-        all_time_info = (year + month + day + hour + minute + second).astype(str)
-        dateTime = []
-        for i in all_time_info:
-            dateTime.append(pd.to_datetime(i, format='%Y%m%d%H%M%S'))
-        df['dateTime'] = dateTime
+        df['dateTime'] = (year + month + day + hour + minute + second).astype(str)
+        df['dateTime']= df['dateTime'].apply(lambda x: pd.to_datetime(x, format='%Y%m%d%H%M%S'))
         #df['date_new'] = df['dateTime'].dt.strftime('%Y/%m/%d')
         df['date_new'] = pd.to_datetime(df['dateTime']).dt.date
         df['time_new'] = pd.to_datetime(df['dateTime']).dt.time
