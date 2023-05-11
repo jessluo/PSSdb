@@ -114,9 +114,9 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                     continue
             df = biovol_func(df, instrument, keep_cat='none')
             if day_night == 'Y':
-                df = date_binning_func(df, group_by=date_group, day_night=True, ignore_high_lat=True)
+                df = date_binning_func(df, group_by=date_group, day_night=True)
             elif day_night == 'N':
-                df = date_binning_func(df, group_by=date_group, day_night=False, ignore_high_lat=True)
+                df = date_binning_func(df, group_by=date_group, day_night=False)
             if len(df)==0:
                 print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
                 n_del_files += 1
@@ -192,9 +192,9 @@ elif not os.path.exists(dirpath):
                 continue
         df = biovol_func(df, instrument, keep_cat='none')
         if day_night == 'Y':
-            df = date_binning_func(df, group_by=date_group, day_night=True, ignore_high_lat=True)
+            df = date_binning_func(df, group_by=date_group, day_night=True)
         elif day_night == 'N':
-            df = date_binning_func(df, group_by=date_group, day_night=False, ignore_high_lat=True)
+            df = date_binning_func(df, group_by=date_group, day_night=False)
         if len(df) == 0:
             print('no data left after removing data without proper time stamp in ' + filename)  # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
             n_del_files += 1
