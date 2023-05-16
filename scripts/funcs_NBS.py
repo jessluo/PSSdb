@@ -152,39 +152,51 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
 
         else:
             df_binned['Biovolume'] = df_binned['Biovolume'] * df_binned['ROI_number']
-            df_vol = df_binned.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
-            df_binned['cumulative_vol'] = pd.merge(df_binned, df_vol, how='left', on=['date_bin', 'Station_location'])['cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
-
-            NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location','sizeClasses']).apply(lambda x: pd.Series({'Sample': x.Sample.unique()[0],
-                                                                                                                     'size_class_mid': x.size_class_mid.unique()[0],
-                                                                                                                     'midLatBin': x.midLatBin.unique()[0],
-                                                                                                                     'midLonBin': x.midLonBin.unique()[0],
-                                                                                                                     'Min_obs_depth':x.Min_obs_depth.unique()[0],
-                                                                                                                     'Max_obs_depth':x.Max_obs_depth.unique()[0],
+            df_vol = df_binned.groupby(['date_bin', 'Station_location', 'Sample', 'Sampling_lower_size', 'Sampling_upper_size']).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
+            df_binned['cumulative_vol'] = pd.merge(df_binned, df_vol, how='left', on=['date_bin', 'Station_location', 'Sample', 'Sampling_lower_size', 'Sampling_upper_size'])['cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
+            #computing NBSS for individual size fractions in each samples. Required for zooscan projects, since a single net tow is fractionated by sieves
+            grouping = ['Sample','Sampling_lower_size', 'Sampling_upper_size','date_bin', 'Station_location','sizeClasses','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth'] if df_binned.Instrument.unique()[0] == 'Zooscan' else ['date_bin', 'Station_location','sizeClasses','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']
+            NBS_biovol_df = df_binned.groupby(grouping).apply(lambda x: pd.Series({ 'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0], # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
                                                                                                                      'Biovolume_mean': x.Biovolume.sum() / x.ROI_number.sum(),
-                                                                                                                     'NB': (x.Biovolume.sum() / x.cumulative_vol / x.range_size_bin).unique()[0]})).reset_index()#, 'ROI_number':x['ROI_number'].sum()}))
+                                                                                                                     'Biovolume_sum': x.Biovolume.sum(),
+                                                                                                                     'ROI_number_sum': x.ROI_number.sum(),
+                                                                                                                     'Total_volume': x.drop_duplicates(['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol'])[['Sample','Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol']].cumulative_vol.sum() if df_binned.Instrument.unique()[0] == 'Zooscan' else df_binned.drop_duplicates(['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol'])[['Sample','Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol']].cumulative_vol.sum(),
+                                                                                                                     'size_class_mid': x.size_class_mid.unique()[0],
+                                                                                                                     'NB': (x.Biovolume.sum() /x.drop_duplicates(['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol'])[['Sample','Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol']].cumulative_vol.sum() / x.range_size_bin).unique()[0] if df_binned.Instrument.unique()[0] == 'Zooscan' else (x.Biovolume.sum() /df_binned.drop_duplicates(['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol'])[['Sample','Sampling_lower_size', 'Sampling_upper_size', 'cumulative_vol']].cumulative_vol.sum() / x.range_size_bin).unique()[0]})).reset_index()#, 'ROI_number':x['ROI_number'].sum()}))
 
 
-    #two lines below deprecated as of 1/31/2023, use new biovolume:
-    #NBS_biovol_df['NBSS'] = (NBS_biovol_df['Biovolume_sum']) / (np.nansum(list(set(NBS_biovol_df[vol_filtered])))) / (NBS_biovol_df[size_range])
-    #NBS_biovol_df[vol_filtered] = np.nansum(list(set(NBS_biovol_df[vol_filtered]))) # this is in the case there are different volumes analyzed based on binning, they have to be summed
+            # summing the NB for each size class that come from separate size fractions(because of sieving) to obtain the overall NB for a size class in a net
+            NBS_biovol_df_2 = NBS_biovol_df.groupby(['Sample_id','date_bin', 'Station_location','sizeClasses','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).apply(lambda x: pd.Series({
+                                                                                                                     'Biovolume_mean': x.Biovolume_sum.sum() / x.ROI_number_sum.sum(),
+                                                                                                                     'Biovolume_sum': x.Biovolume_sum.sum(),
+                                                                                                                     'ROI_abundance': np.nansum(x.ROI_number_sum/ x.Total_volume),
+                                                                                                                     'size_class_mid': x.size_class_mid.unique()[0],
+                                                                                                                     'NB': x.NB.sum()})).reset_index()#, 'ROI_nu
+            #average NB for each date and station bin, from NB that come from different net tows.
+            NBS_biovol_df_3 = NBS_biovol_df_2.groupby(['date_bin', 'Station_location','sizeClasses','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).apply(lambda x: pd.Series({
+                                                                                                                     'Biovolume_mean': x.Biovolume_mean.mean(),
+                                                                                                                     'ROI_abundance_mean': x.ROI_abundance.mean(),
+                                                                                                                     'size_class_mid': x.size_class_mid.unique()[0],
+                                                                                                                     'NB': x.NB.mean()})).reset_index()#, 'ROI_nu
+
 
     # create two more columns with the parameters of normalized size spectra,:
-    NBS_biovol_df['logNB'] = np.log(NBS_biovol_df['NB'])
-    NBS_biovol_df['logSize'] = np.log(NBS_biovol_df['size_class_mid'])
+    NBS_biovol_df_3['logNB'] = np.log(NBS_biovol_df['NB'])
+    NBS_biovol_df_3['logSize'] = np.log(NBS_biovol_df['size_class_mid'])
 
     # now calculate the log biovolume for the df_bins dataframe. NOTE updated on 2/23/2023. middle point of the size class
     df_bins['logSize'] = np.log(df_bins['size_class_mid'])
     # merge the two dataframes
-    binned_NBS= pd.merge(df_bins, NBS_biovol_df, how='left', on=['sizeClasses', 'size_class_mid', 'logSize'])
+    binned_NBS= pd.merge(df_bins, NBS_biovol_df_3, how='left', on=['sizeClasses', 'size_class_mid', 'logSize'])
     # now fill the columns of date, station, lat/lon, project ID and volume
-    for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Sample', 'Min_obs_depth', 'Max_obs_depth']:
-        try:
-            if (np.isnan(NBS_biovol_df[i].unique()).any()) == True:
-                val =np.unique(NBS_biovol_df[i][~np.isnan(NBS_biovol_df[i])])[0]
-        except TypeError:
-            val = NBS_biovol_df[i].unique()[0]
-        binned_NBS[i] = binned_NBS[i].fillna(val)
+    for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']:
+        binned_NBS[i] = binned_NBS[i].unique()[1]
+        #try:
+            #if (np.isnan(NBS_biovol_df_3[i].unique()).any()) == True:
+                #val =np.unique(NBS_biovol_df_3[i][~np.isnan(NBS_biovol_df_3[i])])[0]
+        #except TypeError:
+            #val = NBS_biovol_df_3[i].unique()[0]
+        #binned_NBS[i] = binned_NBS[i].fillna(val)
     # let's do the thresholding here:
     if thresholding==True:
         NBS_binned_thres = threshold_func(binned_NBS)
