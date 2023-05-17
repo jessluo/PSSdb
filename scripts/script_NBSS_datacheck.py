@@ -91,8 +91,13 @@ def process_nbss_standardized_files(path):
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 300)).values[0]})).reset_index()
     df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])
-    df_subset = df[(df.Depth_selected == True) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))]
+    df_subset = df[(df.Depth_selected == True) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living|badfocus', annotation)) == 0 if str(annotation) != 'nan' else True))]
     if len(df_subset):
+        # Assign sampling depth range
+        if instrument in ['UVP']:
+            df_subset =pd.merge(df_subset.astype(dict(zip(['Project_ID', 'Sample'], [str] * 2))), df_subset.astype(dict(zip(['Project_ID', 'Sample'],[str]*2))).groupby( ['Project_ID', 'Sample']).apply(lambda x: pd.Series({'Sampling_depth_range_min': x.Depth_min.astype(float).min(), 'Sampling_depth_range_max': x.Depth_max.astype(float).max()})).reset_index() , how='left', on=['Project_ID', 'Sample'])
+            df_subset = df_subset.rename(columns={'Depth_min': 'Depth_min_bin', 'Depth_max': 'Depth_max_bin','Sampling_depth_range_min': 'Depth_min', 'Sampling_depth_range_max': 'Depth_max'})
+
         # Assign sampling depth range
         df_subset_summary = (df_subset.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[
         ['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(
@@ -101,14 +106,19 @@ def process_nbss_standardized_files(path):
         # Assign size bins and grouping index for each sample
         df_subset = df_subset.assign(sizeClasses=pd.cut(df_subset['Biovolume'], bins, include_lowest=True))
         df_subset = pd.merge(df_subset, df_bins, how='left', on=['sizeClasses'])
-        group = ['Project_ID', 'Sample', 'Latitude', 'Longitude', 'Volume_imaged', 'Min_obs_depth', 'Max_obs_depth']
-        df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
+        group = ['Instrument','Project_ID', 'Sample', 'Latitude', 'Longitude', 'Min_obs_depth', 'Max_obs_depth','Sampling_lower_size', 'Sampling_upper_size']
         # Compute cumulative volume per sample/profile
-        df_subset = pd.merge(df_subset.astype(dict(zip(group,[str]*len(group)))), df_subset.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.astype(float).sum()})).reset_index(),how='left', on=group)
-        # Compute NBSS without applying the thresholding
-        nbss = df_subset.groupby(group + list(df_bins.columns) + ['cumulative_volume', 'Group_index'], dropna=False).apply(
-        lambda x: pd.Series({'NBSS_count': x.ROI_number.sum(),'NBSS': (sum(x.Biovolume * x.ROI_number) / x.cumulative_volume.unique() / ((x.range_size_bin.unique())))[ 0]})).reset_index()
-        nbss = nbss.assign(Instrument=instrument)
+        df_subset_volume=df_subset.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'cumulative_volume': x[['Sample', 'Depth_min', 'Depth_max', 'Volume_imaged']].drop_duplicates().Volume_imaged.astype(float).sum()})).reset_index()
+        df_subset = pd.merge(df_subset.astype(dict(zip(group,[str]*len(group)))),df_subset_volume ,how='left', on=group)
+        # Assign a group index before groupby computation
+        group=list(np.delete(group,pd.Series(group).isin(['Sampling_lower_size', 'Sampling_upper_size'])))
+        df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
+        #  Compute NBSS without applying the thresholding
+        nbss_all = df_subset.groupby(group + list(df_bins.columns) + [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size'],
+            dropna=False).apply(lambda x: pd.Series({'NBSS_count': x.ROI_number.sum(), 'sum_biovolume': sum(x.Biovolume * x.ROI_number),'volume': x.cumulative_volume.unique()[0], 'NBSS': sum(x.groupby(['cumulative_volume']).apply( lambda y: (sum(y.Biovolume * y.ROI_number) / y.cumulative_volume.unique())[0])) /(x.range_size_bin.unique())[0]})).reset_index()
+        nbss=nbss_all.groupby(group + list(df_bins.columns) + [ 'Group_index'], dropna=False).apply(
+            lambda x: pd.DataFrame(x[['NBSS_count', 'sum_biovolume', 'NBSS']].sum(axis='rows').to_dict(),index=[0])).reset_index().sort_values(['Group_index','size_class_mid'])
+
     else:
         nbss=pd.DataFrame()
     return nbss
