@@ -321,7 +321,7 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
     obj = TimezoneFinder()
     df = df.dropna(subset=['Latitude', 'Longitude']).reset_index()
     df['Sampling_time']=df['Sampling_time'].astype(str)
-    df = df.loc[df['Sampling_time'].str.len() > 2].reset_index()  # the file '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/IFCB/standardized_project_3326_20221102_1615.csv'  has a vaule of 36 for rows starting on 828094 # so had to apply a filter to remove times that had less than 3 numbers
+    df['Sampling_time'] = df['Sampling_time'].apply(lambda x: x.ljust(6, '0'))
     date = df['Sampling_date'].astype(str)
 
     #time = df['Sampling_time'].astype(str).apply(lambda x: ('0' + x) if len(x) < 6 else x)
