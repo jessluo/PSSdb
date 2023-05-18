@@ -124,6 +124,13 @@ def biovol_func(df, instrument, keep_cat='none'):
     :return: the original dataframe Biovolume in cubic micrometers
     """
     import math as m
+
+    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    with open(path_to_config, 'r') as config_file:
+        cfg = yaml.safe_load(config_file)
+    path_to_taxonomy = str(Path(cfg['git_dir']).expanduser()) + '/ancillary/plankton_annotated_taxonomy.xlsx'
+    taxonomy_df = pd.read_excel(path_to_taxonomy)
+    df['Cat_remove'] = pd.merge(df, taxonomy_df, how='left', on=['Category'])['EcoTaxa_hierarchy']
     if instrument == 'IFCB':
         cat_remove = ['beads','detritus', 'artefact', 'bubble']
         if keep_cat == 'none':
@@ -132,39 +139,38 @@ def biovol_func(df, instrument, keep_cat='none'):
             cat_remove = [x for x in cat_remove if x not in keep_cat]
         for i in cat_remove:
             try:
-                df = df[df['Category'].str.contains(i) == False]
+                df = df[df['Cat_remove'].str.contains(i) == False]
                 df = df.reset_index(drop=True)
             except:
                 pass
     elif (instrument == 'Zooscan'):
-        cat_remove = ['artefact','detritus']
+        cat_remove = ['artefact','detritus', 'plastic']
         if keep_cat == 'none':
             cat_remove = cat_remove
         else:
             cat_remove = [x for x in cat_remove if x not in keep_cat]
         for i in cat_remove:
             try:
-                df = df[df['Category'].str.contains(i) == False]#df[~df.Category.str.contains('|'.join(i))]
+                df = df[df['Cat_remove'].str.contains(i) == False]#df[~df.Category.str.contains('|'.join(i))]
                 df = df.reset_index(drop=True)
             except:
                 pass
     elif (instrument == 'UVP'):
-        cat_remove = ['artefact','detritus']
+        cat_remove = ['artefact','detritus', 'plastic']
+        df['Category'] = df['Category'].fillna('')
+        df['Cat_remove'] = df['Cat_remove'].fillna('')
         if keep_cat == 'none':
             cat_remove = cat_remove
         else:
             cat_remove = [x for x in cat_remove if x not in keep_cat]
         for i in cat_remove:
             try:
-                df['Category'] = df['Category'].fillna('')
-                df = df[df['Category'].str.contains(i) == False]#df[~df.Category.str.contains('|'.join(i))]
+                df = df[df['Cat_remove'].str.contains(i) == False]#df[~df.Category.str.contains('|'.join(i))]
                 df = df.reset_index(drop=True)
             except:
                 pass
-    for i in range(0, len(df)):
-        r = m.sqrt((df.loc[i, ['Area']]/m.pi))
-        #df.loc[i, 'ESD'] = r*2
-        df.loc[i, 'Biovolume'] = (4/3) * m.pi * (r**3)
+    df['Biovolume'] = df['Area'].apply(lambda x: (4/3)* m.pi * (m.sqrt((x/m.pi)) **3) ) # convert area to ESD, then calculate biovolume
+    df = df.drop(columns=['Cat_remove'])
 
     return df
 
