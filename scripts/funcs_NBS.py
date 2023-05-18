@@ -153,7 +153,7 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         else:
             df_binned['Biovolume'] = df_binned['Biovolume'] * df_binned['ROI_number']
             grouping = ['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth'] if df_binned.Instrument.unique()[0] == 'Zooscan' else ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']
-            df_vol = df_binned.groupby(grouping).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
+            df_vol = df_binned.groupby(grouping).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Depth_min', 'Depth_max','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
             df_binned['cumulative_vol'] = pd.merge(df_binned, df_vol, how='left', on=grouping)['cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
             #computing NBSS for individual size fractions in each samples. Required for zooscan projects, since a single net tow is fractionated by sieves
             NBS_biovol_df = df_binned.groupby(grouping+['sizeClasses']).apply(lambda x: pd.Series({ 'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0], # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
