@@ -101,16 +101,16 @@ if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exi
                     #n_del_files += 1
                     #continue
             if (instrument == 'Zooscan') or (instrument == 'UVP'):
-                df = depth_parsing_func(df, instrument)
+                df = depth_parsing_func(df, instrument).reset_index(drop=True)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     n_del_files += 1
                     continue
             elif instrument == 'IFCB':
-                df = depth_parsing_func(df, instrument)
+                df = depth_parsing_func(df, instrument).reset_index(drop=True)
                 df = df.replace(np.nan, '')
                 sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
-                df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
+                df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))].reset_index(drop=True)
                 df = df.replace('', np.nan)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
