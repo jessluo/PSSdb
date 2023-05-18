@@ -16,7 +16,7 @@ from astral.sun import sun #run pip install astral
 from astral import LocationInfo
 # an alternative to astral
 from suncalc import get_position, get_times # pip install suncalc
-from dtki import d_n_calc # R. Kiko's module, see PSSdb documentation to install
+#from dtki import d_n_calc # R. Kiko's module, see PSSdb documentation to install
 
 
 # NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
