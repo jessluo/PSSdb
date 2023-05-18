@@ -179,17 +179,17 @@ elif not os.path.exists(dirpath):
         df = df.dropna(subset=['Latitude']).reset_index(drop=True)
         df = df[df['Area'] != 0].reset_index(drop=True)
         if (instrument == 'Zooscan') or (instrument == 'UVP'):
-            df = depth_parsing_func(df, instrument)
+            df = depth_parsing_func(df, instrument).reset_index(drop=True)
             if len(df) == 0:
                 print('no data left after restricting depths to less than 200 meters in ' + filename)
                 n_del_files += 1
                 continue
         elif instrument == 'IFCB':
-            df = depth_parsing_func(df, instrument)
+            df = depth_parsing_func(df, instrument).reset_index(drop=True)
             df = df.replace(np.nan, '')
             sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
             df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
-            df = df.replace('', np.nan)
+            df = df.replace('', np.nan).reset_index(drop=True)
             if len(df) == 0:
                 print('no data left after restricting depths to less than 200 meters in ' + filename)
                 n_del_files += 1
