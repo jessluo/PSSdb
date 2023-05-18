@@ -131,6 +131,14 @@ def biovol_func(df, instrument, keep_cat='none'):
     path_to_taxonomy = str(Path(cfg['git_dir']).expanduser()) + '/ancillary/plankton_annotated_taxonomy.xlsx'
     taxonomy_df = pd.read_excel(path_to_taxonomy)
     df['Cat_remove'] = pd.merge(df, taxonomy_df, how='left', on=['Category'])['EcoTaxa_hierarchy']
+    df['Category'] = df['Category'].fillna('')
+    df['Cat_remove'] = df['Cat_remove'].fillna('')
+    for n, i in enumerate(df['Cat_remove']):
+        if i == '':
+            df.loc[n, 'Cat_remove'] = df.loc[n, 'Category']
+        else:
+            pass
+
     if instrument == 'IFCB':
         cat_remove = ['beads','detritus', 'artefact', 'bubble']
         if keep_cat == 'none':
@@ -157,8 +165,6 @@ def biovol_func(df, instrument, keep_cat='none'):
                 pass
     elif (instrument == 'UVP'):
         cat_remove = ['artefact','detritus', 'plastic']
-        df['Category'] = df['Category'].fillna('')
-        df['Cat_remove'] = df['Cat_remove'].fillna('')
         if keep_cat == 'none':
             cat_remove = cat_remove
         else:
