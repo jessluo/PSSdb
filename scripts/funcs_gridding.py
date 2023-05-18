@@ -176,7 +176,7 @@ def biovol_func(df, instrument, keep_cat='none'):
             except:
                 pass
     df['Biovolume'] = df['Area'].apply(lambda x: (4/3)* m.pi * (m.sqrt((x/m.pi)) **3) ) # convert area to ESD, then calculate biovolume
-    df = df.drop(columns=['Cat_remove'])
+    df = df.drop(columns=['Cat_remove']).reset_index(drop=True)
 
     return df
 
@@ -319,7 +319,7 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
     # we also need to define timezone based on lat/lon. See https://www.geeksforgeeks.org/get-time-zone-of-a-given-location-using-python/
     from timezonefinder import TimezoneFinder # run pip install timezonefinder
     obj = TimezoneFinder()
-    df = df.dropna(subset=['Latitude', 'Longitude']).reset_index()
+    df = df.dropna(subset=['Latitude', 'Longitude']).reset_index(drop=True)
     df['Sampling_time']=df['Sampling_time'].astype(str)
     df['Sampling_time'] = df['Sampling_time'].apply(lambda x: x.ljust(6, '0'))
     date = df['Sampling_date'].astype(str)
@@ -353,7 +353,7 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
         df['month'] = df['year_week'].map(week_dict)
         mwk_df = df['year_week'].str.split("_", expand=True)
         df['date_bin'] = mwk_df[0] + '_' + df['month'] + '_wk'+ mwk_df[1]
-        df = df.drop(['year_week', 'month'], axis=1)
+        df = df.drop(['year_week', 'month'], axis=1).reset_index(drop=True)
 
     elif group_by == 'None':
         df['date_bin'] == str(date_bin)
@@ -373,7 +373,8 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
         for i in range(0, len(df)):
             light_cond.append(d_n_calc(df.loc[i, 'date_new'], df.loc[i, 'time_new'], df.loc[i, 'Latitude'], df.loc[i, 'Longitude']))
         df['light_cond'] = light_cond
-        df = df.drop(columns=['date_new', 'time_new'])
+        df = df.drop(columns=['date_new', 'time_new']).reset_index(drop=True)
+
 
     return df
         # section below deprecated (5/9/2023)
