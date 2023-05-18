@@ -86,6 +86,7 @@ def depth_parsing_func(df, instrument):
         df_d = df.drop(df[(df['Depth_min'] > 200)].index)
         df_d['Min_obs_depth'] = min(df_d['Depth_min'])
         df_d['Max_obs_depth'] = max(df_d['Depth_max'])
+    df_d = df_d.reset_index(drop=True)
     return df_d
 
 # 4) Create clean dataframes in python, input: a path and an ID. modify this to prevent removing rows
