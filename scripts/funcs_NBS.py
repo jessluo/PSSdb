@@ -190,7 +190,6 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
     binned_NBS= pd.merge(df_bins, NBS_biovol_df, how='left', on=['sizeClasses', 'size_class_mid', 'logSize'])
     # now fill the columns of date, station, lat/lon, project ID and volume
     for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']:
-        print(binned_NBS[i].unique())
         binned_NBS[i] = binned_NBS[i].unique()[1]
         #try:
             #if (np.isnan(NBS_biovol_df_3[i].unique()).any()) == True:
