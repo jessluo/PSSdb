@@ -21,6 +21,8 @@ import re
 from pathlib import Path  # Handling of path object
 import shutil # Delete uncompressed export zip folder
 import pandas as pd
+from glob import glob
+import os.path
 import numpy as np
 import yaml # requires installation of PyYAML package
 # read git-tracked config file (text file) with inputs:  project ID, output directory
@@ -381,6 +383,27 @@ def get_df_list_IFCB (base_url, Project_ID,  startdate=20000101, enddate=2100010
 
 # We adopted some code contributed by Joe Futrelle (WHOI): https://github.com/joefutrelle/pyifcb
 
+def update_df_list_IFCB(base_url, Project_ID):
+
+    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    # open the metadata of the standardized files
+    with open(path_to_config, 'r') as config_file:
+        cfg = yaml.safe_load(config_file)
+    IFCB_dashboard_data_path = str(Path(cfg['IFCB_dir']).expanduser())
+    path_IFCB_dashboard_data = Path(cfg['raw_dir']).expanduser() / cfg['IFCB_dir']
+    project_dir = str(path_IFCB_dashboard_data) + '/'+ Project_ID
+    file_list = glob(str(project_dir) + '/*.tsv', recursive=True)
+    latest_file = max(file_list, key=os.path.getctime)
+    # get file number
+    file_N= int(re.search('features_(.*)\.tsv', latest_file).group(1))
+    #subset dataaset list
+    latest_df = pd.read_csv(latest_file, sep='\t', index_col=0)
+    df_list = get_df_list_IFCB(base_url, Project_ID,  startdate=20000101, enddate=21000101)
+    row_num = df_list[df_list['pid']==latest_df.sample_id.iat[-1]].index.values[0]# get the last pid id from the last downloaded dataset
+    df_list = df_list[row_num:len(df_list)].reset_index(drop=True)
+    return df_list, file_N
+
+
 # make function to get datasets from urls
 def df_from_url(url):
     """
@@ -491,7 +514,7 @@ def roi_number(dashboard, pid_id):
     record = r.json()
     return record['num_images']
 
-def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date):
+def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download,  start_date, end_date, update_project):
 
     """
     objective: read the project_list dataframe and export the CALOOS and WHOI IFCB dashboard datasets
@@ -502,11 +525,15 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
     start = time.time()
     METRIC = 'temperature'  # needs to be defined based on Karina's script
     # use the file list to download data and store it locally
-    file_info = get_df_list_IFCB(dashboard_url, Project_ID,  startdate=start_date, enddate=end_date) # remember this fuction has the option to define an interval of dates
+    if update_project == 'FULL':
+        file_info = get_df_list_IFCB(dashboard_url, Project_ID,  startdate=start_date, enddate=end_date) # remember this fuction has the option to define an interval of dates
+        file_numbers = 0
+    elif update_project == 'UPDATE':
+        file_info, file_numbers = update_df_list_IFCB(dashboard_url, Project_ID)
+
     last_file = file_info.loc[len(file_info.index) - 1, 'pid']
     # the loop uses the file_info dataframe to get the 'pid' (file name) and download features and class scores files
     print ('extracting features files, metadata and top 5 class scores for timeseries ' + Project_ID +' stored in ' + Project_source)
-    file_numbers = 0
     df_concatenated = pd.DataFrame()
     for i in tqdm(file_info.loc[:, 'pid']): # timeit and progressbar can be used here
         try:
