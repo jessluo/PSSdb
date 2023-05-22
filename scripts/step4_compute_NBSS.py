@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import statistics as st
 import os
-
+from datetime import datetime
 from pathlib import Path
 from glob import glob
 import shutil
@@ -47,95 +47,47 @@ NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
 if not os.path.exists(NBSSpath):
     os.mkdir(NBSSpath)
 
-dirpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / instrument
+currentMonth = str(datetime.now().month)
+currentYear = str(datetime.now().year)
+
+NBSS_1a_raw_full = pd.DataFrame()
+NBSS_1a_full = pd.DataFrame()
+lin_fit_1b_full = pd.DataFrame()
+for i in tqdm(grid_list):
+    print('grouping data and calculating NBSS for cell number ' + i)
+    file_subset = [file for file in file_list if i in file]
+    df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+    df = df.dropna(subset=['Biovolume']).reset_index(drop=True) # project 5785 from Zooscan is completely empty
+    if len(df) == 0:
+        print('no data left after removing empty biovolumes in grid cell' + i)
+        continue
+     #df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Sampling_lower_size', 'Sampling_upper_size', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number','Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
+    if depth_binning == 'Y':
+        NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
+    if day_night == 'Y':
+        NBSS_1a_raw, NBSS_1a,  lin_fit_1b= parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, bin_loc = bin_loc, group_by = group_by)
+    else:
+        NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
+
+    NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
+    NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
+    lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
+# Save NBSS results and sorting
+NBSS_1a_raw_full.to_csv(str(NBSSpath) + '/' + instrument +'_Biovolume-by-Size_raw_v'+currentYear+'-'+currentMonth+'.csv', index=False)
+
+NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
+NBSS_1a_full['year_int'] = NBSS_1a_full['year'].astype(int)
+NBSS_1a_full = NBSS_1a_full.sort_values(by=['year_int', 'month_int'])
+NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
+NBSS_1a_full.to_csv(str(NBSSpath) + '/' + instrument +'_1a_Biovolume-by-Size_v' +currentYear+'-'+currentMonth+'.csv', index=False)
+
+lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
+lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
+lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
+lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
+lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_NBSS-fit_v' +currentYear+'-'+currentMonth+'.csv', index=False)
 
 
-if os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
-    replace = input('There is already NBS data in ' + str(dirpath) + ' do you want to replace the files? \n Y/N')
-    if replace == 'Y':
-        print('Overwriting normalized biomass data file(s), please wait')
-        shutil.rmtree(dirpath)
-        os.mkdir(dirpath)
-        NBSS_1a_raw_full = pd.DataFrame()
-        NBSS_1a_full = pd.DataFrame()
-        lin_fit_1b_full = pd.DataFrame()
-        for i in tqdm(grid_list):
-            print('grouping data and calculating NBSS for cell number ' + i)
-            file_subset = [file for file in file_list if i in file]
-            df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
-            df = df.dropna(subset=['Biovolume']).reset_index(drop=True) # project 5785 from Zooscan is completely empty
-            if len(df) == 0:
-                print('no data left after removing empty biovolumes in grid cell' + i)
-                continue
-            #df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Sampling_lower_size', 'Sampling_upper_size', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number','Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
-            if depth_binning == 'Y':
-                NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
-            if day_night == 'Y':
-                NBSS_1a_raw, NBSS_1a,  lin_fit_1b= parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, bin_loc = bin_loc, group_by = group_by)
-            else:
-                NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
-
-            NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
-            NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
-            lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
-        # Save NBSS results and sorting
-        NBSS_1a_raw_full.to_csv(str(dirpath) + '/' + instrument +'_NBSS_raw.csv', index=False)
-
-        NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
-        NBSS_1a_full['year_int'] = NBSS_1a_full['year'].astype(int)
-        NBSS_1a_full = NBSS_1a_full.sort_values(by=['year_int', 'month_int'])
-        NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
-        NBSS_1a_full.to_csv(str(dirpath) + '/' + instrument +'_NBSS_1a.csv', index=False)
-
-        lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
-        lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
-        lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
-        lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
-        lin_fit_1b_full.to_csv(str(dirpath) + '/' + instrument + '_lin_fit_1b.csv', index=False)
-
-    elif replace == 'N':
-        print('previous products 1a and 1b will be kept')
-
-elif not os.path.exists(dirpath):
-    os.mkdir(dirpath)
-    NBSS_1a_raw_full = pd.DataFrame()
-    NBSS_1a_full = pd.DataFrame()
-    lin_fit_1b_full = pd.DataFrame()
-    for i in tqdm(grid_list):
-        print('grouping data and calculating NBSS for cell number ' + i)
-        file_subset = [file for file in file_list if i in file]
-        df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
-        df = df.dropna(subset=['Biovolume']).reset_index(drop=True)  # project 5785 from Zooscan is completely empty
-        if len(df) == 0:
-            print('no data left after removing empty biovolumes in grid cell ' + i)
-            continue
-        #df = df.filter(['Sample', 'date_bin', 'Station_location', 'light_cond', 'midDepthBin', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number','Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
-        if depth_binning == 'Y':
-            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'],
-                                                        light_parsing=True, depth_parsing=True, bin_loc = bin_loc, group_by = group_by)
-        if day_night == 'Y':
-            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'],
-                                                        light_parsing=True, bin_loc = bin_loc, group_by = group_by)
-        else:
-            NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
-
-        NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
-        NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
-        lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
-    # Save NBSS results
-    NBSS_1a_raw_full.to_csv(str(dirpath) + '/' + instrument + '_NBSS_raw.csv', index=False)
-
-    NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
-    NBSS_1a_full['year_int'] = NBSS_1a_full['year'].astype(int)
-    NBSS_1a_full = NBSS_1a_full.sort_values(by=['year_int', 'month_int'])
-    NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
-    NBSS_1a_full.to_csv(str(dirpath) + '/' + instrument + '_NBSS_1a.csv', index=False)
-
-    lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
-    lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
-    lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
-    lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
-    lin_fit_1b_full.to_csv(str(dirpath) + '/' + instrument + '_lin_fit_1b.csv', index=False)
 
 #lat = lin_fit_1b['latitude']
 #lon = lin_fit_1b['longitude']
