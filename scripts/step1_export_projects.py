@@ -157,6 +157,9 @@ if dashboard == 'WHOI':
     timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb-data.whoi.edu/'].reset_index(drop=True)
 
 specify_proj = input (' Would you like to automatically download all data or data of just one project? \n Enter ALL or ONE ')
+
+update_project = input ('Are the full dataset being downloaded or are the projects being updated with the latest data? \n Enter FULL or UPDATE')
+
 if specify_proj == 'ONE':
     Project_ID= input(' Would you like to automatically download all data or data of just one project? \n Enter project ID ')
     Project_source = timeseries_data.loc[timeseries_data['Project_ID'] == Project_ID, 'Project_source'].iloc[0]
@@ -164,17 +167,20 @@ if specify_proj == 'ONE':
     dashboard_url = timeseries_data.loc[timeseries_data['Project_ID'] == Project_ID, 'dashboard_url'].iloc[0]
     path_download = str(path_to_projects) + '/' + Project_ID  ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
     # pathname = Project_source + Project_ID + '/'
-    if os.path.isdir(path_download) and len(os.listdir(path_download)) != 0:  # and  os.path.exists(path_download)
-        replace = input('There is already downloaded data in ' + path_download + ' do you want to replace the files? \n Y/N')
-        if replace == 'Y':
-            print('Overwriting ' + Project_ID + ' file(s), please wait')
-            shutil.rmtree(path_download)
+    if update_project =='FULL':
+        if os.path.isdir(path_download) and len(os.listdir(path_download)) != 0:  # and  os.path.exists(path_download)
+            replace = input('There is already downloaded data in ' + path_download + ' do you want to replace the files? \n Y/N')
+            if replace == 'Y':
+                print('Overwriting ' + Project_ID + ' file(s), please wait')
+                shutil.rmtree(path_download)
+                os.mkdir(path_download)
+            elif replace == 'N':
+                print('Skipping ' + Project_ID)
+        elif not os.path.exists(path_download):
             os.mkdir(path_download)
-        elif replace == 'N':
-            print('Skipping ' + Project_ID)
-    elif not os.path.exists(path_download):
-        os.mkdir(path_download)
-    IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date)
+        IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date,update_project)
+    else:
+        IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date, update_project)
 
 else:
     for n in range (0, len(timeseries_data)):
@@ -185,18 +191,21 @@ else:
         # define path for download
         path_download = str(path_to_projects) + '/' + Project_ID  ## NOTE: the first part of the directory needs to be changed for the GIT PSSdb project
         #pathname = Project_source + Project_ID + '/'
-        if os.path.isdir(path_download) and len(os.listdir(path_download) ) != 0: # and  os.path.exists(path_download)
-            replace = input('There is already downloaded data in ' +path_download+ ' do you want to replace the files? \n Y/N')
-            if replace == 'Y':
-                print('Overwriting '+ Project_ID  +' file(s), please wait')
-                shutil.rmtree(path_download)
+        if update_project =='FULL':
+            if os.path.isdir(path_download) and len(os.listdir(path_download) ) != 0: # and  os.path.exists(path_download)
+                replace = input('There is already downloaded data in ' +path_download+ ' do you want to replace the files? \n Y/N')
+                if replace == 'Y':
+                    print('Overwriting '+ Project_ID  +' file(s), please wait')
+                    shutil.rmtree(path_download)
+                    os.mkdir(path_download)
+                elif replace == 'N':
+                    print('Skipping ' + Project_ID)
+                    continue
+            elif not os.path.exists(path_download):
                 os.mkdir(path_download)
-            elif replace == 'N':
-                print('Skipping ' + Project_ID)
-                continue
-        elif not os.path.exists(path_download):
-            os.mkdir(path_download)
-        IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date)
+            IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date, update_project)
+        else:
+            IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_download, start_date, end_date,update_project)
 
 
 
