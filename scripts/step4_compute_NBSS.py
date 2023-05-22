@@ -47,7 +47,7 @@ NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
 if not os.path.exists(NBSSpath):
     os.mkdir(NBSSpath)
 
-currentMonth = str(datetime.now().month)
+currentMonth = str(datetime.now().month).rjust(2, '0')
 currentYear = str(datetime.now().year)
 
 NBSS_1a_raw_full = pd.DataFrame()
