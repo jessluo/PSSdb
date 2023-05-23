@@ -370,10 +370,8 @@ def get_df_list_IFCB (base_url, Project_ID,  startdate=20000101, enddate=2100010
     r_content = json.loads(r_content.decode('utf-8'))
     all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
     # generate a new column to index by dates:
-    date_info = []
-    for i in all_file_info.loc[:, 'sample_time']:
-        date_info.append(int(pd.to_datetime(i).date().strftime('%Y%m%d')))
-    all_file_info['date_info'] = date_info # [int(sample[1:9]) for sample in all_file_info['pid']] changed
+    all_file_info['date_info'] = all_file_info['sample_time'].apply(lambda x: pd.to_datetime(x).date().strftime('%Y%m%d'))
+    all_file_info = all_file_info[~all_file_info.pid.str.contains('|'.join(['IFCB014']))].reset_index(drop=True) # remove data produced by IFCB014 based on Heidi Sosik's feedback
     # constrain date ranges for file download.
     #start_stamp=int(startdate.strftime('%Y%m%d'))
     #end_stamp=int(y['enddate'].strftime('%Y%m%d'))
@@ -389,7 +387,6 @@ def update_df_list_IFCB(base_url, Project_ID):
     # open the metadata of the standardized files
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
-    IFCB_dashboard_data_path = str(Path(cfg['IFCB_dir']).expanduser())
     path_IFCB_dashboard_data = Path(cfg['raw_dir']).expanduser() / cfg['IFCB_dir']
     project_dir = str(path_IFCB_dashboard_data) + '/'+ Project_ID
     file_list = glob(str(project_dir) + '/*.tsv', recursive=True)
@@ -688,13 +685,13 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
                 if pid_id == last_file :
                     file_numbers = file_numbers + 1
                     print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
-                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
+                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers).rjust(2, '0') +'.tsv', sep='\t')
                     df_concatenated = pd.DataFrame()
                     #pass
                 elif len(df_concatenated.index) > 500000:
                     file_numbers = file_numbers + 1
                     print ('saving file # ' + str(file_numbers) + ' of '+ Project_ID)
-                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers) +'.tsv', sep='\t')
+                    df_concatenated.to_csv(path_download + '/' + dashboard_id +'_'+ dataset_id +'_'+ df_concatenated.loc[1, 'project_ID'] +'_'+ year + '_features_' + str(file_numbers).rjust(2, '0') +'.tsv', sep='\t')
                     df_concatenated = pd.DataFrame()
 
 
