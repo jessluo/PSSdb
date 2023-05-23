@@ -370,7 +370,7 @@ def get_df_list_IFCB (base_url, Project_ID,  startdate=20000101, enddate=2100010
     r_content = json.loads(r_content.decode('utf-8'))
     all_file_info = pd.DataFrame.from_dict(r_content['data'], orient = 'columns')
     # generate a new column to index by dates:
-    all_file_info['date_info'] = all_file_info['sample_time'].apply(lambda x: pd.to_datetime(x).date().strftime('%Y%m%d'))
+    all_file_info['date_info'] = all_file_info['sample_time'].apply(lambda x: int(pd.to_datetime(x).date().strftime('%Y%m%d')))
     all_file_info = all_file_info[~all_file_info.pid.str.contains('|'.join(['IFCB014']))].reset_index(drop=True) # remove data produced by IFCB014 based on Heidi Sosik's feedback
     # constrain date ranges for file download.
     #start_stamp=int(startdate.strftime('%Y%m%d'))
