@@ -56,6 +56,7 @@ import pandas as pd
 import numpy as np
 from natsort import natsorted
 from itertools import compress
+from datetime import datetime
 
 # Globe data modules
 import geopandas as gpd
@@ -508,6 +509,34 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
     dataframe['Flag']=np.where(dataframe[[column for column in dataframe.columns if 'Flag_' in column]].sum(axis=1)==0,0,1) # Default is 0, aka no anomaly
     return dataframe
 
+def save_flag_summary(df_flagged,df_standardizer,project_id,path_to_summary):
+    oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
+    Longhurst = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('Longhurst_world_v4_2010.shp'))[0])
+    gdf = gpd.GeoDataFrame(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna(),geometry=gpd.points_from_xy(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Longitude,df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
+    df_flagged['Study_area'] = pd.merge(df_flagged, gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')[['Sample', 'name']], how='left', on='Sample')['name'].astype(str)
+    df_flagged['Longhurst_province'] = pd.merge(df_flagged, gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']], how='left', on='Sample')['ProvDescr'].astype(str)
+    if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
+        with ecotaxa_py_client.ApiClient(configuration) as api_client:
+            api_instance = projects_api.ProjectsApi(api_client)
+            api_response = api_instance.project_query(int(project_id))
+        instrument = api_response['instrument']
+    else:
+        instrument = df_standardizer['Instrument'][project_id]
+    df_flagged= df_flagged.assign(Project_ID=project_id, Instrument=instrument)
+    df_summary = df_flagged.rename(
+        columns={'Flag': 'Sample_flag', 'Sample_URL': 'Sample_url', 'datetime': 'Sample_datetime'}).astype(
+        {'Project_ID': str, 'Instrument': str, 'Sample': str, 'Sample_url': str, 'Sample_localpath': str,
+         'Sample_flag': str, 'Longitude': str, 'Latitude': str, 'Study_area': str, 'Longhurst_province': str,
+         'Sample_datetime': str}).groupby(
+        ['Project_ID', 'Instrument', 'Sample', 'Sample_url', 'Sample_localpath', 'Sample_flag', 'Longitude', 'Latitude',
+         'Study_area', 'Longhurst_province', 'Sample_datetime']).apply(lambda x: pd.Series(
+        {'Sampling_depth_min_range': x.Depth_min.min(), 'Sampling_depth_max_range': x.Depth_max.max(),
+         'object_number': len(x) if 'ROI_number' not in df_flagged.columns else x.object_number.sum()})).reset_index()
+    path_to_summary_file = str(path_to_summary / instrument / 'Summary_project_{}.csv'.format(project_id)) if path_to_summary.stem.lower() == 'ecotaxa' else str(path_to_summary / 'Summary_project_{}.csv'.format(project_id))
+    Path(path_to_summary_file).parent.mkdir(parents=True, exist_ok=True)
+    df_summary.to_csv(path_to_summary_file, sep=',', index=False)
+
+
 #filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb/reports')
 def filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95):
     """
@@ -559,14 +588,19 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
 
          # Skip existing samples if flag file exists
+         path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
+         path_to_summary.mkdir(parents=True, exist_ok=True)
+
          if Path(flag_overrule_path).expanduser().is_file():
              df_flags = pd.read_csv(flag_overrule_path, sep=',')
              df_flagged_existing = pd.merge(df[df.Sample.isin(list(df_flags.Sample))], df_flags, how='left',on='Sample')
+             df_existing=df[df.Sample.isin(list(df_flags.Sample)) == True]
              df = df[df.Sample.isin(list(df_flags.Sample)) == False]
              if len(df):
                  print('Existing flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
              else:
                  print('Existing flags found at {}, but no additional samples.\nSaving flags summary to {} and skipping project'.format(flag_overrule_path,path_to_project_list))
+                 save_flag_summary(df_flagged=pd.merge(df_existing,df_flags ,how='left',on='Sample'),df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
                  sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
                  columns_project_list=dict(map(lambda sheet: (sheet,pd.read_excel(path_to_project_list,sheet_name=sheet).columns.tolist()),sheets_project_list))
                  df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
@@ -632,8 +666,6 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          report_path.mkdir(parents=True, exist_ok=True)
          report_filename = 'Report_project_' + str(project_id) + '.html'
          path_to_report = Path(report_path).expanduser() / report_filename
-         path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
-         path_to_summary.mkdir(parents=True, exist_ok=True)
 
          # Create readme file for the report and flag folders:
          if not Path(path_to_datafile.parent / 'README.txt').is_file():
@@ -657,23 +689,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          #  Generate project summary:
 
          df_all=pd.concat([flagged_df.reset_index(drop=True),df_flagged_existing.reset_index(drop=True)],axis=0)
-         oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
-         Longhurst = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('Longhurst_world_v4_2010.shp'))[0])
-         gdf = gpd.GeoDataFrame(df_all[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna(),geometry=gpd.points_from_xy(df_all[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Longitude,df_all[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
-         df_all['Study_area'] = pd.merge(df_all, gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')[['Sample', 'name']], how='left', on='Sample')['name'].astype(str)
-         df_all['Longhurst_province'] = pd.merge(df_all, gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']],how='left', on='Sample')['ProvDescr'].astype(str)
-         if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
-             with ecotaxa_py_client.ApiClient(configuration) as api_client:
-                 api_instance = projects_api.ProjectsApi(api_client)
-                 api_response = api_instance.project_query(int(project_id))
-             instrument = api_response['instrument']
-         else:
-             instrument = df_standardizer['Instrument'][project_id]
-         df_all=df_all.assign(Project_ID=project_id,Instrument=instrument)
-         df_summary=df_all.rename(columns={'Flag':'Sample_flag','Sample_URL':'Sample_url','datetime':'Sample_datetime'}).astype({'Project_ID':str,'Instrument':str,'Sample':str,'Sample_url':str,'Sample_localpath':str,'Sample_flag':str,'Longitude':str,'Latitude':str,'Study_area':str,'Longhurst_province':str,'Sample_datetime':str}).groupby(['Project_ID','Instrument','Sample','Sample_url','Sample_localpath','Sample_flag','Longitude','Latitude','Study_area','Longhurst_province','Sample_datetime']).apply(lambda x:pd.Series({'Sampling_depth_min_range':x.Depth_min.min(),'Sampling_depth_max_range':x.Depth_max.max(),'object_number':len(x) if 'ROI_number' not in df_all.columns else x.object_number.sum()})).reset_index()
-         path_to_summary_file=str(path_to_summary / instrument / 'Summary_project_{}.csv'.format(project_id)) if path_to_summary.stem.lower()=='ecotaxa' else str(path_to_summary / 'Summary_project_{}.csv'.format(project_id))
-         Path(path_to_summary_file).parent.mkdir(parents=True, exist_ok=True)
-         df_summary.to_csv(path_to_summary_file,sep=',',index=False)
+         save_flag_summary(df_flagged=df_all), df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
 
          # Update standardizer spreadsheet with flagged samples path and save
          df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
@@ -884,7 +900,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
        :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
        :param project_id: unique integer for project ID to be standardized
        :return: standardized project dataframe
-       """
+    """
 
     # Open standardizer spreadsheet
     sheets = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
@@ -1365,9 +1381,54 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
     fig.for_each_yaxis(lambda x: x.update(showgrid=False, ticks="inside"))
     return fig
 
+# Function (5): Update flag summaries to account for overruled sample(s)
+def update_summaries(path_to_flags=path_to_git / cfg['dataset_subdir'] / cfg['flag_subdir'],path_to_summaries=path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']):
+    """
+        Objective: This function update the summary files(=project-specific table including a summary of individual sample source, path, locations, date, study area, flag) according to individual flag files(=project-specific table including a summary of individual sample source, path, overall flag, individual flags, and overruling)
+           :param path_to_flags: Full path of the subdirectory containing all flag datafiles
+           :param path_to_summaries: Full path of the subdirectory containing all summary datafiles
+        :return: updated project summary datafiles at path_to_summaries/[data source/ instrument]/Summary_project_[Project_ID].csv
+    """
+
+    flag_datafiles=list(Path(path_to_flags).expanduser().rglob('project_*_flags.csv'))
+    summary_datafiles=list(Path(path_to_summaries).expanduser().rglob('Summary_project_*.csv'))
+    remaining_flags = flag_datafiles
+    with tqdm(desc='Updating project-specific summary table', total=len(summary_datafiles), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+        for path in summary_datafiles:
+            df_summary=pd.read_table(path,sep=",",parse_dates=['Sample_datetime'],date_parser=lambda date: datetime.strptime(date,'%Y-%m-%dT%H%M%SZ'))
+            percent=np.round(100*bar.n/len(summary_datafiles))
+            bar.set_description("Updating project-specific summary table {} ({}%)".format(path.stem.replace('Summary_',''),percent) , refresh=True)
+            path_flag=Path(str(path).replace( str(path_to_summaries) + (str(path).replace(str(path_to_summaries), '').replace(path.name, '')),str(path_to_flags) + os.sep+str(str(Path(str(path).replace(str(path_to_summaries),'').replace(path.name,''))).split(os.sep)[1])).replace('Summary_project_', '/project_').replace('.csv', '_flags.csv'))
+            if path_flag.exists():
+                df_flag=pd.read_table(path_flag,sep=",")
+                df_flag['Sample_flag']=np.where(((df_flag.Flag==0) & (df_flag.Overrule==False)) | ((df_flag.Flag==1) & (df_flag.Overrule==True)),0,1)
+                df_summary=pd.merge(df_summary,df_flag[['Sample','Sample_flag']],how='left',on='Sample') if 'Sample_flag' not in df_summary.columns else pd.merge(df_summary.drop(columns='Sample_flag'),df_flag[['Sample','Sample_flag']],how='left',on='Sample')
+                df_summary=df_summary.sort_values(['Sample_datetime'])
+                df_summary['Sample_datetime']=df_summary['Sample_datetime'].dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
+                df_summary.to_csv(path,index=False)
+                remaining_flags.remove(path_flag)
+            else:
+                print('Flag table not found for {} project {}. Skipping'.format(str(path).replace(str(path_to_summaries),'').replace(path.name,''),path.stem.split('_')[2]))
+            ok = bar.update(n=1)
+    if len(remaining_flags):
+        sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
+        columns_project_list = dict(map(lambda sheet: (sheet, pd.read_excel(path_to_project_list, sheet_name=sheet).columns.tolist()),sheets_project_list))
+        df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
+        df_projects = pd.concat(map(lambda sheet: pd.read_excel(path_to_project_list, sheet_name=sheet).assign(Portal=sheet),sheets_project_list)).reset_index(drop=True)
+        with tqdm(desc='Summary table not found', total=len(remaining_flags),bar_format='{desc}{bar}', position=0, leave=True) as bar:
+            for path in remaining_flags:
+                project_id=path.stem.replace('project_','').replace('_flags','')
+                percent = np.round(100 * bar.n / len(remaining_flags))
+                bar.set_description( "Generating project-specific summary table {} ({}%)".format(project_id, percent), refresh=True)
+                df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
+                filling_standardizer_flag_func( standardizer_path=path_to_flags.parent / 'project_{}_standardizer.xlsx'.format(re.split(r"\s+|\d+", df_project.Instrument.unique()[0])[0]), project_id=project_id, report_path=path_to_git / 'reports' ,validation_threshold=0.95)
+                bar.update(n=1)
+
+
+
 if __name__ == '__main__':
     print('Assisting standardizer completion. \nPlease enter the following information (attention: method sensitive to empty space and lower/upper case. Do not use quotation)\n')
-    funcs_args=input('Press:\n 1 for printing all fields for Ecotaxa project using the API (downloading export files is not required)\n 1b for printing all possible units\n 2 for generating/saving interactive plot of raw ecotaxa export\n 3 for flagging project\n 4 for generating/saving/plotting project export standardization\n')
+    funcs_args=input('Press:\n 1 for printing all fields for Ecotaxa project using the API (downloading export files is not required)\n 1b for printing all possible units\n 2 for generating/saving interactive plot of raw ecotaxa export\n 3 for flagging project\n 4 for generating/saving/plotting project export standardization\n 5 for updating all summary files according to latest flag datafiles')
 
     if funcs_args == '1b':
         unitfile_args=input('Custom units full path:')
@@ -1401,7 +1462,7 @@ if __name__ == '__main__':
 
     if funcs_args == '3':
         if len(project_args) > 0 and len(standardizerfile_args) > 0:
-             filling_standardizer_flag_func(standardizer_path=standardizerfile_args, project_id=project_args)
+             filling_standardizer_flag_func(standardizer_path=standardizerfile_args, project_id=project_args, report_path=path_to_git / 'reports')
         else:
              print('Missing information. Please run again')
 
@@ -1410,3 +1471,6 @@ if __name__ == '__main__':
             standardization_func(standardizer_path=standardizerfile_args, project_id=project_args)
         else:
             print('Missing information. Please run again')
+
+    if funcs_args=='5':
+        update_summaries(path_to_flags=path_to_git / cfg['dataset_subdir'] / cfg['flag_subdir'],path_to_summaries=path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir'])

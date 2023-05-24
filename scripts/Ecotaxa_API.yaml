@@ -38,6 +38,9 @@ gridded_subdir : 'gridded_data'
 #Summary datasets storage subdirectory
 summary_subdir : 'summary'
 
+#Flag datasets storage subdirectory
+flag_subdir : 'flags'
+
 # Path to project_list_all.xlsx
 proj_list : 'raw/project_list_all.xlsx'
 
