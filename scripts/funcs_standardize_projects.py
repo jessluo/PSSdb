@@ -689,7 +689,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          #  Generate project summary:
 
          df_all=pd.concat([flagged_df.reset_index(drop=True),df_flagged_existing.reset_index(drop=True)],axis=0)
-         save_flag_summary(df_flagged=df_all), df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
+         save_flag_summary(df_flagged=df_all, df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
 
          # Update standardizer spreadsheet with flagged samples path and save
          df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
@@ -1157,65 +1157,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
         # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
         df_standardized =df_standardized.astype({key:value for key,value in dict(zip(['Sample','Profile','Cruise','Station','Sampling_date','Sampling_time', 'Category', 'Annotation'],8*[str])).items() if key in df_standardized.columns})
-        """
-        if path_to_data.stem == cfg[ 'UVP_consolidation_subdir']:  # Add individual small particles for UVP consolidated dataframe
-            profile_dict = dict({value[0]: key for key, value in path_dict.items()})
-            df_standardized_all = pd.DataFrame({})
-            summary_df_standardized = pd.DataFrame({})
-            # First, create summary for existing profiles for interactive report
-            if len(df_standardized_existing):
-                for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
-                    subset_df_standardized=df_standardized_existing[df_standardized_existing.Sample==profile]
-                    summary_subset_df = subset_df_standardized[(subset_df_standardized.Longitude <= 180) & (subset_df_standardized.Longitude >= -180) & ( subset_df_standardized.Latitude <= 90) & (subset_df_standardized.Latitude >= -90)].groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min','Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI.count(), 'Abundance': x.ROI.count() / (x.Volume_analyzed.unique()[0]),# individuals per liter
-                     'Average_diameter': np.nanmean( 2 * np.power(x.Area / np.pi, 0.5)) if 'Area' in df_standardized.columns else np.nanmean(x.ESD), # micrometer
-                     'Std_diameter': np.nanstd( 2 * np.power(x.Area / np.pi, 0.5)) if 'Area' in df_standardized.columns else np.nanstd(x.ESD)})).reset_index()
-                    summary_subset_df = summary_subset_df.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'], dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
-                                     'Average_diameter': np.nanmean(x.Average_diameter),  # micrometer
-                                     'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
 
-                    summary_df_standardized = pd.concat([summary_df_standardized, summary_subset_df], axis=0, ignore_index=True).reset_index(drop=True)
-            # Second, create summary and save standardized files for non-existing profiles
-            df_standardized_all = pd.DataFrame({})
-            with tqdm(desc='Saving standardized profile:', total=len(df_standardized.Sample.unique()), bar_format='{desc}{bar}', position=0, leave=True) as bar:
-                for profile in df_standardized.Sample.unique():
-                    p = str(profile) + " ({}/{})".format(str(1 + np.argwhere(df_standardized.Sample.unique() == profile)[0][0]),len(df_standardized.Sample.unique()))
-                    bar.set_description("Saving standardized profile {}".format(p), refresh=True)
-                    subset_df_standardized = df_standardized[df_standardized.Sample == profile]
-                    df_small_particles = subset_df_standardized[subset_df_standardized.ROI.isna()].drop(columns=['Biovolume','ESD','Minor_axis']).astype({key:str for  key in list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','Minor_axis','ESD']) == False])}).groupby(by=list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','Minor_axis','ESD']) == False]),observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df_standardized.columns[df_standardized.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number','Biovolume','ESD','Minor_axis']) == False])))],axis=1)
-                    df_small_particles =df_small_particles.astype({key:subset_df_standardized.dtypes[key] for  key in df_small_particles.columns})
-                    df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index(drop=True)
-                    # summary_small_particles=df_small_particles.groupby(by=list(df_small_particles.columns[df_small_particles.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df_small_particles.columns[df_small_particles.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
-                    df_small_particles['ROI'] = ['{}_particle_{}'.format(str(profile),str(index)) for index in df_small_particles.index]
-                    df_small_particles['Annotation'] = 'unclassified'
-                    df_small_particles['Category'] = ''
-                    subset_df_standardized = pd.concat([subset_df_standardized[subset_df_standardized.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0, ignore_index=True).sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index(drop=True)
-                    subset_df_standardized =subset_df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged', 'ROI', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
-                    subset_df_standardized.to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(profile_dict.get(profile).stem)[str(profile_dict.get(profile).stem).rfind('_' + str(project_id) + '_') + 2 + len(str(project_id)):len(str(profile_dict.get(profile).stem))].replace('_features', '')), sep=",",index=False)
-                    df_standardized_all=pd.concat([df_standardized_all,subset_df_standardized], axis=0, ignore_index=True)
-                    summary_subset_df=subset_df_standardized[(subset_df_standardized.Longitude<=180) & (subset_df_standardized.Longitude>=-180) & (subset_df_standardized.Latitude<=90) & (subset_df_standardized.Latitude>=-90)].groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged','Depth_min','Depth_max'],dropna=True).apply(lambda x: pd.Series({'Count':x.ROI.count(),'Abundance': x.ROI.count() / ( x.Volume_analyzed.unique()[0]), # individuals per liter
-                                                                                                                                                                       'Average_diameter':np.nanmean(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean(x.ESD), # micrometer
-                                                                                                                                                                       'Std_diameter':np.nanstd(2*np.power(x.Area/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(x.ESD)})).reset_index()
-
-                    summary_subset_df =summary_subset_df.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance), # individuals per liter
-                                                                                                                                     'Average_diameter':np.nanmean(x.Average_diameter), # micrometer
-                                                                                                                                     'Std_diameter':np.nanmean(x.Std_diameter)})).reset_index() # micrometer
-
-
-                    summary_df_standardized =pd.concat([summary_df_standardized,summary_subset_df], axis=0, ignore_index=True)
-
-                    ok = bar.update(n=1)
-            df_standardized = df_standardized_all.reset_index(drop=True)
-            
-            df_small_particles = df[df.ROI.isna()].groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area': np.repeat(x.Area.values, repeats=x.object_number.values)})).reset_index().drop(['level_' + str(len(list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False])))], axis=1)
-            df_small_particles = df_small_particles.sort_values(['datetime', 'Depth_min', 'Area'], ascending=[True, True, False]).reset_index( drop=True)
-            # summary_small_particles=df_small_particles.groupby(by=list(df.columns[df.columns.isin(['ROI', 'Category', 'Annotation', 'Area', 'object_number']) == False]), observed=True).apply(lambda x: pd.DataFrame({'Area':x.Area.value_counts().index,'object_number':x.Area.value_counts().values})).reset_index().drop(['level_'+str(len(list(df.columns[df.columns.isin(['ROI','Category','Annotation','Area','object_number'])==False])))],axis=1)
-            df_small_particles['ROI'] = ['particle_unknown_id_{}'.format(str(index)) for index in df_small_particles.index]
-            df_small_particles['Annotation'] = 'unclassified'
-            df_small_particles['Category'] = ''
-            df = pd.concat([df[df.ROI.isna() == False].drop(columns='object_number'), df_small_particles], axis=0,ignore_index=True).sort_values(['datetime', 'Depth_min', 'Area'],ascending=[True, True, False]).reset_index(drop=True)
-            
-        else:
-        """
         df_standardized['object_number']=df_standardized['object_number'] if 'object_number' in df_standardized.columns else np.repeat(1,len(df_standardized))
         df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
         df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
