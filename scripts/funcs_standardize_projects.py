@@ -21,6 +21,8 @@ from pathlib import Path # Handling of path object
 # Config modules
 import wget
 import yaml # requires installation of PyYAML package
+# Multiprocessing mapping
+from multiprocessing.pool import ThreadPool # Use: pip install multiprocess
 
 # Prompt for export confirmation
 import sys
@@ -201,7 +203,7 @@ df_taxonomy=pd.read_excel(path_to_taxonomy,dtype=columns_types )
 rank_categories=[rank.partition("(")[2].replace(')','') for hierarchy in pd.Series(df_taxonomy.loc[df_taxonomy['Full_hierarchy'].astype(str).str.len().nlargest(1, keep="all").index[0],'Full_hierarchy']) for rank in hierarchy.split('>')]
 df_taxonomy['Rank']=pd.Categorical(df_taxonomy.Rank,ordered=True,categories=rank_categories)
 
-# Functions here:
+# Functions start here:
 
 # Function (1): Use EcoTaxa API to search for project fields automatically without downloading export files
 def filling_standardizer_field_func(config_path,project_id):
@@ -567,7 +569,16 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          project_path = natsorted([path for path in project_path_list if 'flag' not in str(path)])
          columns_dict=dict(zip(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().values),list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))))
          columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
-         df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
+         if (df_standardizer.loc[project_id]['Instrument']=='IFCB') & (len(project_path_list)>1):
+             # Read all datafiles
+             chunk = 1000
+             df = pd.DataFrame()  # nbss_all, nbss_max, nbss_sum, nbss_average=pd.concat(map(lambda path:process_nbss_standardized_files(path)[0],standardized_files))
+             with ThreadPool() as pool:
+                 for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                     df = pd.concat([df, result], axis=0)
+             df=df.reset_index(drop=True)
+         else:
+             df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
          old_columns = df.columns
          #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
          index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
