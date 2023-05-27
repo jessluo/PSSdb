@@ -540,13 +540,13 @@ def save_flag_summary(df_flagged,df_standardizer,project_id,path_to_summary):
 
 
 #filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb/reports')
-def filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95):
+def filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[]):
     """
     Objective: This function adds flags to image samples based on multiple criteria and automatically generate a report for a given project
-    :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
-    :param project_id: ID of the project to be flagged in the standardizer spreadsheet
-    :param report_path: Full path for the storage of the project control quality check interactive report
-    :param validation_threshold: Threshold for sample/profile taxonomic annotation validation in percentage [0-1]. UVP and Zooscan projects only. Default is 95%
+        :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
+        :param project_id: ID of the project to be flagged in the standardizer spreadsheet
+        :param report_path: Full path for the storage of the project control quality check interactive report
+        :param validation_threshold: Threshold for sample/profile taxonomic annotation validation in percentage [0-1]. UVP and Zooscan projects only. Default is 95%
     :return: interactive report showing project's flags and update standardizer spreadsheet with flagged samples ID
     """
     sheets = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
@@ -560,49 +560,76 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
     df_standardizer['Flag_path'][df_standardizer['Flag_path'].isna()] = ''
     flag_overrule_path = df_standardizer['Flag_path'][project_id]
     df_standardizer_metadata = pd.read_excel(standardizer_path, sheet_name='Metadata')
-    # Read project datafile, subsetting variables of interest
-    project_path_list = list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("ecotaxa_export_"+str(project_id)+'_*'))
 
-    if len([path for path in project_path_list if 'flag' not in str(path)])>0:
+    # Read project datafile, subsetting variables of interest
+    if len(project_list)==0:
+        project_path_list = list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("ecotaxa_export_"+str(project_id)+'_*'))
+        project_path = natsorted([path for path in project_path_list if 'flag' not in str(path)])
+    else:
+        project_path=natsorted([path for path in project_list if 'flag' not in str(path)])
+
+    if len(project_path)>0:
          # Set missing values to NA
          na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
-         project_path = natsorted([path for path in project_path_list if 'flag' not in str(path)])
          columns_dict=dict(zip(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().values),list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))))
          columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
-         if (df_standardizer.loc[project_id]['Instrument']=='IFCB') & (len(project_path_list)>1):
+         flagged_df = pd.DataFrame()
+         if (df_standardizer.loc[project_id]['Instrument']=='IFCB') & (len(project_path)>1):
              # Read all datafiles
              chunk = 1000
-             df = pd.DataFrame()  # nbss_all, nbss_max, nbss_sum, nbss_average=pd.concat(map(lambda path:process_nbss_standardized_files(path)[0],standardized_files))
              with ThreadPool() as pool:
-                 for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
-                     df = pd.concat([df, result], axis=0)
-             df=df.reset_index(drop=True)
+                 #for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                 for result in pool.map(lambda path: filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path]), project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                     flagged_df = pd.concat([flagged_df, result], axis=0)
+             flagged_df=flagged_df.reset_index(drop=True)
+             project_list = []
          else:
              df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
-         old_columns = df.columns
-         #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
-         index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
-         if any(index_duplicated_fields):
-             # Append duplicated fields
-             df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict(zip(list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace("_field","")[index_duplicated_fields]), list( map(lambda item: df.loc[:, columns_dict[item]].values.tolist(),list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().values[index_duplicated_fields])))))).reset_index( drop=True)], axis=1)
 
-         # Convert datetime format
-         if 'Sampling_date' in df.columns:
-             if is_float(df.at[0, 'Sampling_date']):
-                 df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[ df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
-                 df = df.loc[df['Sampling_date'].astype(float).isna() == False]
-         if 'Sampling_time' in df.columns:
-             if is_float(df.at[0, 'Sampling_time']):
-                 df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
+         if len(flagged_df) == 0:
+             old_columns = df.columns
+             #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
+             index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
+             if any(index_duplicated_fields):
+                 # Append duplicated fields
+                 df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict(zip(list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace("_field","")[index_duplicated_fields]), list( map(lambda item: df.loc[:, columns_dict[item]].values.tolist(),list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().values[index_duplicated_fields])))))).reset_index( drop=True)], axis=1)
 
-         df['datetime'] = pd.to_datetime( df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime( df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime( df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[project_id, 'Sampling_time_format'], utc=True) if 'Sampling_time' in df.columns else pd.NaT
-         df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
+             # Convert datetime format
+             if 'Sampling_date' in df.columns:
+                 if is_float(df.at[0, 'Sampling_date']):
+                     df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[ df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
+                     df = df.loc[df['Sampling_date'].astype(float).isna() == False]
+             if 'Sampling_time' in df.columns:
+                 if is_float(df.at[0, 'Sampling_time']):
+                     df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
 
+             df['datetime'] = pd.to_datetime( df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime( df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime( df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[project_id, 'Sampling_time_format'], utc=True) if 'Sampling_time' in df.columns else pd.NaT
+             df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
+             # Set missing values to NA
+             na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
+             # Replace NA ROI or annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
+             df.ROI = np.where(df.ROI.isna(), '', df.ROI)
+             if 'Category' not in df.columns:
+                 df['Category'] = ''
+                 df['Annotation'] = 'unclassified'
+             if ('Category' in df.columns) and ('Annotation' not in df.columns):
+                 df['Annotation'] = 'predicted'
+             df.Category = np.where((df.Category.isna()) | (df.Category.astype(str)=='nan'),'',df.Category) # Avoid flagging of small particles without annotations for UVP projects
+             df.Annotation = np.where((df.Annotation.isna()) | (df.Annotation.astype(str) == 'nan'), 'unclassified',df.Annotation)
+             df = df.astype({key:value for key,value in dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])).items() if key in df.columns})
+             df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
+             columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
+             df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
+             df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
+             if 'Cruise' not in df.columns:
+                 df['Cruise']='nan'
+         else:
+             df=flagged_df[[column for column in flagged_df.columns if  ('Flag' not in column) &  ('Missing_' not in column)]]
          # Skip existing samples if flag file exists
          path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
          path_to_summary.mkdir(parents=True, exist_ok=True)
 
-         if Path(flag_overrule_path).expanduser().is_file():
+         if (Path(flag_overrule_path).expanduser().is_file()) and len(project_list)==0:
              df_flags = pd.read_csv(flag_overrule_path, sep=',')
              df_flagged_existing = pd.merge(df[df.Sample.isin(list(df_flags.Sample))], df_flags, how='left',on='Sample')
              df_existing=df[df.Sample.isin(list(df_flags.Sample)) == True]
@@ -632,43 +659,28 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              df_flags = pd.DataFrame()
              df_flagged_existing = pd.DataFrame()
 
-         # Set missing values to NA
-         na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
-         # Replace NA ROI or annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
-         df.ROI = np.where(df.ROI.isna(), '', df.ROI)
-         if 'Category' not in df.columns:
-             df['Category'] = ''
-             df['Annotation'] = 'unclassified'
-         if ('Category' in df.columns) and ('Annotation' not in df.columns):
-             df['Annotation'] = 'predicted'
-         df.Category = np.where((df.Category.isna()) | (df.Category.astype(str)=='nan'),'',df.Category) # Avoid flagging of small particles without annotations for UVP projects
-         df.Annotation = np.where((df.Annotation.isna()) | (df.Annotation.astype(str) == 'nan'), 'unclassified',df.Annotation)
-         df = df.astype({key:value for key,value in dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])).items() if key in df.columns})
-         df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
-         columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'ESD', 'Biovolume']]
-         df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
-         df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
-         if 'Cruise' not in df.columns:
-             df['Cruise']='nan'
+         if len(flagged_df) == 0:
+             # Append flags, Avoid flagging on low validation for IFCB projects by setting validation threshold to 0
+             validation_threshold = validation_threshold if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
+             flagged_df=flag_func(df,validation_threshold=validation_threshold)
+             # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
+             flagged_df = pd.merge(flagged_df.drop(columns=['Missing_field']),flagged_df.groupby(['Sample']).apply(lambda x:pd.Series({'Missing_field':'' if all(pd.Series((x['Missing_field'].astype(str).unique()[0]).split(';')).isin(['Sampling_upper_size','Sampling_lower_size','Category','Annotation','Dilution'])) else x['Missing_field'].astype(str).unique()[0]})).reset_index(),how='left',on='Sample')
+             #flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
+             flagged_df.loc[flagged_df['Missing_field'] == '', 'Flag_missing'] = 0
+             flagged_df['Flag'] = np.where(flagged_df[[column for column in flagged_df.columns if 'Flag_' in column]].sum(axis=1)==0,0,1)
 
-         # Append flags, Avoid flagging on low validation for IFCB projects by setting validation threshold to 0
-         validation_threshold = validation_threshold if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
-         flagged_df=flag_func(df,validation_threshold=validation_threshold)
-         # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
-         flagged_df = pd.merge(flagged_df.drop(columns=['Missing_field']),flagged_df.groupby(['Sample']).apply(lambda x:pd.Series({'Missing_field':'' if all(pd.Series((x['Missing_field'].astype(str).unique()[0]).split(';')).isin(['Sampling_upper_size','Sampling_lower_size','Category','Annotation','Dilution'])) else x['Missing_field'].astype(str).unique()[0]})).reset_index(),how='left',on='Sample')
-         #flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
-         flagged_df.loc[flagged_df['Missing_field'] == '', 'Flag_missing'] = 0
-         flagged_df['Flag'] = np.where(flagged_df[[column for column in flagged_df.columns if 'Flag_' in column]].sum(axis=1)==0,0,1)
+             # Adding URL to check flagged samples
+             # Query EcoTaxa API to retrieve samples ID
+             if (df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id)):
+                 with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                     api_instance = samples_api.SamplesApi(api_client)
+                     samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
+                 flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
+             #flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}&bin={}'.format(df_standardizer['Project_source'][project_id],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''
+             flagged_df = pd.merge(flagged_df, flagged_df.groupby(['Sample']).apply(lambda x: pd.Series({ 'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format( df_standardizer['Project_source'][ project_id], str(x.Sample_ID.unique()[0]), project_id) if df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str( project_id) else r'{}&bin={}'.format( df_standardizer['Project_source'][ project_id],str(x.Sample.unique()[0])) if 'ifcb' in df_standardizer['Project_source'][ project_id] else ''})), how='left', on='Sample')
 
-         # Adding URL to check flagged samples
-         # Query EcoTaxa API to retrieve samples ID
-         if (df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id)):
-             with ecotaxa_py_client.ApiClient(configuration) as api_client:
-                 api_instance = samples_api.SamplesApi(api_client)
-                 samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
-             flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
-         #flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}&bin={}'.format(df_standardizer['Project_source'][project_id],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''
-         flagged_df = pd.merge(flagged_df, flagged_df.groupby(['Sample']).apply(lambda x: pd.Series({ 'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format( df_standardizer['Project_source'][ project_id], str(x.Sample_ID.unique()[0]), project_id) if df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str( project_id) else r'{}&bin={}'.format( df_standardizer['Project_source'][ project_id],str(x.Sample.unique()[0])) if 'ifcb' in df_standardizer['Project_source'][ project_id] else ''})), how='left', on='Sample')
+         if len(project_list) != 0:
+             return flagged_df
 
          # Generating flags overruling datafile that will be read to filter samples out during standardization
          path_to_datafile = Path(cfg['raw_dir']).expanduser() / 'flags' / Path(df_standardizer['Project_localpath'][project_id]).stem
@@ -879,7 +891,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                  fig.update_yaxes(domain=[ 0.05 + 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])]), 0.768 - (0.42 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])], row=2, col=2)  # Update scatter 3
                  fig.update_traces(domain={'y': [0, 0.42 - (0.384 / 8) * max([1, 8 - len(summary_df[summary_df.Flag == 1][['Sample_URL']])])]}, row=3, col=1)  # Update table
 
-             title = r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Cruise:' + ', '.join(df.dropna(subset=['Cruise'])["Cruise"].astype(str).unique())) if all(df["Cruise"].astype(str)=='nan') == False else r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
+             title =  r'<a href="{}">{}</a>'.format(df_standardizer['Project_source'][project_id], 'Project ID:' + str(project_id))#'Cruise:' + str(df["Cruise"][0]) + "<br> Hover on datapoint to see sample ID" if str(df["Cruise"][0]) != 'nan' else 'Project ID:' + str(project_id) + "<br> Hover on datapoint to see sample ID"
              fig.update_layout(legend=dict(y=0.95,xanchor="left",yanchor='top',x=-0.02,bgcolor='rgba(255,255,255,0)'),
                 margin=dict(l=0, r=30, t=30, b=30),
                 title={'text': title,'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
