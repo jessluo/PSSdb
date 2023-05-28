@@ -61,10 +61,10 @@ path_to_bins = path_to_data / 'ecopart_size_bins.tsv'
 df_bins=pd.read_table(path_to_bins,sep=",")
 from scipy import stats
 
-bins=df_bins['biovol_um3']
-df_bins = pd.DataFrame({'sizeClasses': pd.cut(bins.to_numpy(), bins.to_numpy(), include_lowest=True).categories.values,  # Define bin categories (cubic micrometers)
-                        'range_size_bin': np.concatenate(np.diff((np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])),(len(bins) - 1, 2))), axis=1)),  # cubic micrometers
-                        'size_class_mid': stats.gmean(np.resize( np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])),(len(bins) - 1, 2)), axis=1)})  # Define geometrical mean of bin categories (cubic micrometers)
+bins=df_bins['ESD_um']
+df_bins = pd.DataFrame({'sizeClasses': pd.cut(bins.to_numpy(), bins.to_numpy(), include_lowest=True).categories.values,  # Define bin categories (micrometers)
+                        'range_size_bin': np.concatenate(np.diff((1 / 6) * np.pi * (np.resize( np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1)),  # cubic micrometers
+                        'size_class_mid': stats.gmean(np.resize( np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])),(len(bins) - 1, 2)), axis=1)})  # Define geometrical mean of bin categories (micrometers)
 
 # Define columns datatypes for standardized files
 dtypes_dict_all = dict(
@@ -154,8 +154,8 @@ if __name__ == '__main__':
         with ThreadPool() as pool:
             for result in pool.map(lambda path:process_nbss_standardized_files(path)[2],standardized_files, chunksize=chunk):#pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
                 nbss = pd.concat([nbss, result], axis=0)
-       # Merge to other instrument
-       nbss_all=pd.concat([nbss_all,nbss]).reset_index(drop=True)
+        # Merge to other instrument
+        nbss_all=pd.concat([nbss_all,nbss]).reset_index(drop=True)
     #Reset nbss_all Group_index:
     group = ['Instrument', 'Project_ID', 'Sample', 'Latitude', 'Longitude', 'volume', 'Min_obs_depth', 'Max_obs_depth']
     nbss_all = pd.merge(nbss_all.drop(columns=['Group_index']),nbss_all.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename( {'index': 'Group_index'}, axis='columns'), how='left', on=group)

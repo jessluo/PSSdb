@@ -116,6 +116,15 @@ import re
 from scipy.stats import poisson # Estimate counts uncertainties assuming detection follows a Poisson distribution
 import math
 
+# NBSS computation
+try:
+    from script_NBSS_datacheck import *
+except:
+    from scripts.script_NBSS_datacheck import *
+
+import ast
+from tqdm import tqdm
+
 # Standardization of taxonomic annotations
 try:
     from funcs_standardize_annotations import taxon_color_palette,annotation_in_WORMS
@@ -564,9 +573,9 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
     # Read project datafile, subsetting variables of interest
     if len(project_list)==0:
         project_path_list = list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("ecotaxa_export_"+str(project_id)+'_*'))
-        project_path = natsorted([path for path in project_path_list if 'flag' not in str(path)])
+        project_path = natsorted([path for path in project_path_list if ('flag' not in str(path)) & ("._" not in str(path))])
     else:
-        project_path=natsorted([path for path in project_list if 'flag' not in str(path)])
+        project_path=natsorted([path for path in project_list if ('flag' not in str(path)) & ("._" not in str(path))])
 
     if len(project_path)>0:
          # Set missing values to NA
@@ -582,7 +591,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                  for result in pool.map(lambda path: filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path]), project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
                      flagged_df = pd.concat([flagged_df, result], axis=0)
              flagged_df=flagged_df.reset_index(drop=True)
-             project_list = []
+
          else:
              df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
 
@@ -711,8 +720,8 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
 
          #  Generate project summary:
 
-         df_all=pd.concat([flagged_df.reset_index(drop=True),df_flagged_existing.reset_index(drop=True)],axis=0)
-         save_flag_summary(df_flagged=df_all, df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
+         flagged_df = pd.concat([df_flagged_existing.reset_index(drop=True), flagged_df.reset_index(drop=True)], axis=0)
+         save_flag_summary(df_flagged=flagged_df , df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
 
          # Update standardizer spreadsheet with flagged samples path and save
          df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
@@ -722,7 +731,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          df_standardizer = df_standardizer[['Project_ID'] + df_standardizer.columns[:-1].tolist()]
          with pd.ExcelWriter(str(standardizer_path), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                 df_standardizer.to_excel(writer, sheet_name=sheetname, index=False)
-                #df_standardizer_metadata.to_excel(writer, sheet_name='Metadata', index=False)
+
 
          # Add flag summary to project list and save
          sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
@@ -742,7 +751,6 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                      pd.concat([df_projects_metadata, pd.DataFrame({'Variables': df_flags_summary.columns[1:], 'Variable_types': df_flags_summary.dtypes[1:],'Units/Values': ['#', '#'] + ['[0-1]'] * 7,'Description': ['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts', 'Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
 
          # Generating interactive project report
-         flagged_df = pd.concat([df_flagged_existing.reset_index(drop=True), flagged_df.reset_index(drop=True)], axis=0)
          flagged_df['Annotation'] = flagged_df['Annotation'] if 'Annotation' in flagged_df.columns else 'predicted' if ( 'Annotation' not in flagged_df.columns) and ('Category' in flagged_df.columns) else 'unclassified'
          # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
          flagged_df.Category =np.where((flagged_df.Category == '') | (flagged_df.Category.isna()), pd.NA, df.Category)
@@ -965,7 +973,7 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
 
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
     path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("ecotaxa_export_"+str(project_id)+'_*'))
-    path_files_list=[path for path in path_files_list if '_flag' not in str(path)]
+    path_files_list=[path for path in path_files_list if ('flag' not in str(path)) & ("._" not in str(path))]
     if len(path_files_list)>0: # Check for native format datafile
         # Load export tsv file
         columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))
@@ -1219,6 +1227,14 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
             fig=standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
             fig.write_html(path_to_standard_plot)
             print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+        elif ((plot=='nbss') and len(summary_df_standardized)>0):
+            path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
+            nbss=process_nbss_standardized_files(path=None,df=df_standardized,category=[],depth_selection=False)[2]
+            # Using report function defined below
+            fig = standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
+            fig.write_html(path_to_standard_plot)
+            print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+
         else:
             print('No samples left after dropping samples NAs. Skipping standardization report')
     else: print('Export file for project {} not found. Please run 1.export_projects.py to export file automatically or export manually'.format(str(project_id)))
@@ -1228,6 +1244,9 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
     if plot == 'diversity':
         subplot_specs = [[{"type": "scattergeo", "rowspan": 2}, {"type": "scatter"}], [None, {"type": "pie"}]]
         subplot_titles = ['Map of the projet samples:', '', 'Annotations diversity']
+    if plot == 'nbss':
+        subplot_specs = [[{"type": "scattergeo", "rowspan": 2}, {"type": "scatter"}], [None, {"type": "scatter"}]]
+        subplot_titles = ['', '', '']
 
     fig = make_subplots(rows=2, cols=2,specs=subplot_specs, subplot_titles=subplot_titles, column_widths=[0.5, 0.5], row_heights=[0.3, 0.7], vertical_spacing=0.1)
     # Map, left panel
@@ -1265,6 +1284,21 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
                                  hoverinfo="text",
                                  marker=dict(color='black'), mode='markers',
                                  showlegend=True, visible=True), row=1, col=2)
+
+    # Scatterplot 2, bottom-right panel
+    if plot=='nbss':
+        colors = sequential_hcl(h=[-220, 20], c=[0, 90, 0], l=[95, 30], power=[1.5, 1.5], rev=True)(len(df_nbss['Sample'].unique()))
+        for i, sample in enumerate(np.sort(df_nbss.Sample.unique())):
+            subset_nbss = df_nbss[df_nbss['Sample'] == sample]  # nbss#
+            for v in subset_nbss.Group_index.unique():  # subset_nbss.Volume_imaged.unique():
+                subset_nbss = subset_nbss[subset_nbss['Group_index'] == v].sort_values(['size_class_mid']).dropna()  # subset_nbss[subset_nbss['Volume_imaged'] == v].sort_values(['bin_gmean']).dropna()
+                fig.add_trace(go.Scatter(y=subset_nbss.NBSS, x=subset_nbss.size_class_mid,
+                         line=dict(color=colors[i]),
+                         name=str(sample),
+                         hovertext='Sample ID: ' + subset_nbss.Sample + '<br>Size bin: ' + np.round( subset_nbss['size_class_mid'], 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( subset_nbss['NBSS'], 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
+                         hoverinfo="text",
+                         legendrank=i,
+                         mode='lines', showlegend=True, visible=True), row=2, col=2)
 
     # Scatterplot 2, bottom-right panel
     if plot == 'diversity':
@@ -1330,13 +1364,13 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
                                'y': [df_summary[cols[k]], 'undefined'],
                                'visible': [True, True, True]}, [2]],# visible should have the same length as number of subplots, second argument specifies which subplot is updated
                         label=cols_labels[k]) for k in np.where(np.isin(list(cols), ['Abundance', 'Average_diameter', 'Std_diameter']))[0]]
-    title = r'<a href="{}">{}</a>'.format(df_standardized['Project_source'].unique(), 'Cruise:' + ', '.join(df_standardized.dropna(subset=['Cruise'])["Cruise"].astype(str).unique())) if all(df_standardized["Cruise"].isna()) == False else r'<a href="{}">{}</a>'.format(df_standardized['Project_source'].unique(), 'Project ID:' + str(project_id))
+    title =  r'<a href="{}">{}</a>'.format(df_standardized['Project_source'].unique()[0], 'Project ID:' + str(df_standardized['Project_ID'].unique()[0]))
     fig.update_layout(updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
     title={'text': title, 'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
     xaxis={'title': 'Sample ID', 'nticks': 2, 'tickangle': 0, 'tickfont': dict(size=10), 'titlefont': dict(size=12)},
     xaxis2={'title': u'Equivalent circular diameter (\u03BCm)', 'tickfont': dict(size=10), 'titlefont': dict(size=12),
-            "tickvals": np.sort(np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(0, np.ceil(np.log10(df_nbss['bin_gmean'].max())), 1)))).tolist() if plot == 'nbss' else [''],
-            'ticktext': [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(0, np.ceil(np.log10(df_nbss['bin_gmean'].max())), 1))))] if plot == 'nbss' else ['']},
+            "tickvals": np.sort(np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(0, np.ceil(np.log10(df_nbss['size_class_mid'].max())), 1)))).tolist() if plot == 'nbss' else [''],
+            'ticktext': [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(0, np.ceil(np.log10(df_nbss['size_class_mid'].max())), 1))))] if plot == 'nbss' else ['']},
     yaxis={"tickmode": "array", 'title': 'Variable selected in <br> dropdown menu ', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
     yaxis2={"tickmode": "array",'title': u'Normalized Biomass Size Spectrum <br> (\u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3)','tickfont': dict(size=10), 'titlefont': dict(size=12)}, boxmode='group')
     fig.update_yaxes(type="log", row=1, col=2)

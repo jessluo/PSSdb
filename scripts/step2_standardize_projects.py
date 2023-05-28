@@ -105,6 +105,6 @@ for standardizer in natsorted(standardizer_files)[::-1]:
     for project in list(df_standardizer.index):
         try:
             print('Standardizing project: {}'.format(str(project)))
-            standardization_func(standardizer_path=standardizer, project_id=project,plot='diversity')
+            standardization_func(standardizer_path=standardizer, project_id=project,plot='nbss')
         except Exception as e:
             print('Skipping standardization of project ', str(project),'\n',e, sep='')
