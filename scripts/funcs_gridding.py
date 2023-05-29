@@ -130,8 +130,8 @@ def biovol_func(df, instrument, keep_cat='none'):
         cfg = yaml.safe_load(config_file)
     path_to_taxonomy = str(Path(cfg['git_dir']).expanduser()) + '/ancillary/plankton_annotated_taxonomy.xlsx'
     taxonomy_df = pd.read_excel(path_to_taxonomy)
-    df['Cat_remove'] = pd.merge(df, taxonomy_df, how='left', on=['Category'])['EcoTaxa_hierarchy']
     df['Category'] = df['Category'].fillna('')
+    df['Cat_remove'] = pd.merge(df, taxonomy_df, how='left', on=['Category'])['EcoTaxa_hierarchy']
     df['Cat_remove'] = df['Cat_remove'].fillna('')
     for n, i in enumerate(df['Cat_remove']):
         if i == '':
