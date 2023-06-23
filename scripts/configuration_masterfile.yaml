@@ -13,10 +13,10 @@ raw_dir : '~/GIT/PSSdb/raw/'
 #standardized raw subdirectory
 standardized_raw_subdir : 'raw_standardized'
 
-# Ecotaxa exported files storage sub-direcotry :
+# Ecotaxa exported files storage sub-directory :
 Ecotaxa_subdir : 'ecotaxa'
 
-# Ecopart exported files storage sub-direcotry:
+# Ecopart exported files storage sub-directory:
 Ecopart_subdir : 'ecopart'
 
 # Ecotaxa/Ecopart consolidated UVP exported files storage sub-direcotry (git_dir/Data)
@@ -52,7 +52,7 @@ proj_id : 3302
 
 
 ### Specifications for instrument, gridding, binning and averaging NBSS products
-instrument_data_source: 'IFCB' # other choices: 'Zooscan', 'UVP'
+instrument_data_source: 'Zooscan' # other choices: 'Zooscan', 'UVP'
 day_night: 'N' # or 'Y'
 depth_binning: 'N' # or 'Y'
 
@@ -67,4 +67,5 @@ N_test: 0 # number of files to be gridded, 0 means all. This is useful for debug
 
 st_increment_avg: 1 #size of the grid used for averaging in step4_compute_NBSS
 date_group_avg: 'yyyymm' #time interval for averaging in step4_compute_NBSS. Other options:  'mm' (month), 'yyyy' (year)
-big_grid: 'Y' # or 'N'
+big_grid: 'N' #  'Y' or 'N'
+size_bins_path: '~/GIT/PSSdb/raw/ecopart_size_bins.tsv'
