@@ -17,59 +17,33 @@ import os
 import shutil
 from tqdm import tqdm
 
-## set up queries :
-instrument = input ('for which instrument do you want to grid the standardized dataset? \n Enter IFCB, Zooscan or UVP ')
-cats = input ('the gridding process by default removes ROIs that have been identified as \n '
-                    'BEADS, DETRITUS, ARTEFACTS or BUBBLES, would you like to keep any of these categories?'
-                    '  \n Enter Y/N \n')
+path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
+with open(path_to_config, 'r') as config_file:
+    cfg = yaml.safe_load(config_file)
 
-day_night = input('Would you like to group data by day/night? Enter Y/N \n' )
-
-st_increment = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
-
+## set up parameters for script:
+instrument = cfg['instrument_data_source']
+cats = cfg['keep_cats']
 if cats == 'Y':
-    keep_cat=[]
-    n = int(input("how many categories do you want to keep? : \n"))
-    # iterating till the range
-    for i in range(0, n):
-        ele = input('type category to keep \n')
-        keep_cat.append(ele)  # adding the element
+    keep_cat= cfg['cats_to_keep']
 elif cats == 'N':
     keep_cat = 'none'
 
-date_group = input ('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n mm by month \n week for weekly average for each month or \n None to keep all time information as is \n')
-depth_binning = input ('Would you like to bin the data by depth? \n Enter Y/N \n ')
+day_night = cfg['day_night']
+st_increment = float(cfg['st_increment'])
+date_group = cfg['date_group']
+depth_binning = cfg['depth_binning']
 if depth_binning == 'Y':
-    custom_depth_bin = input ('default depth binning is done at depths: 0, 25, 50, 100, 200, 500, 1000, 3000, 8000 \n '
-                              'Would you like to bin data using different depths \n Enter Y/N \n')
-    if custom_depth_bin == 'Y':
-        depth_bins = []
-        n = int(input("how many depths would you like to use for binning? : \n"))
-        # iterating till the range
-        for i in range(0, n):
-            ele = int(input('type depth #' + str(i+1) ))
-            depth_bins .append(ele)  # adding the element
-    elif custom_depth_bin == 'N':
-        depth_bins = [0, 25, 50, 100, 200, 500, 1000, 3000, 8000]
-
+    depth_bins = cfg['depth_bins']
 
 ## processing starts here
 files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
-test_1 = int(input('Would you like to test step3 and step4 on a small number of standardized files? \n Enter how many files you want to run through the pipeline, 0 for all files \n '))
+test_1 = cfg['N_test']
 if test_1 == 0:
     files_data = files_data
 else:
     files_data = files_data[0:test_1]
-#if instrument == 'IFCB':  # this removal is only for testing,
-        #since the standardizer should be able to deal with projects with empty rows
-    #IFCB_empty_rows = [3290, 3294, 3297, 3298, 3299, 3313, 3314, 3315, 3318, 3326, 3335, 3337]
-    #for element in IFCB_empty_rows:
-        #if element in df_list:
-            #df_list.remove(element)
 
-path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
-with open(path_to_config, 'r') as config_file:
-    cfg = yaml.safe_load(config_file)
 
 gridpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data'
 if not os.path.exists(gridpath):
