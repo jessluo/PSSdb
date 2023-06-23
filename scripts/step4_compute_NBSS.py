@@ -25,12 +25,18 @@ import cartopy.crs as ccrs
 
 #define the instrument to calculate NBS:
 
-instrument = input ('for which instrument do you want to calculate the size spectra? \n Enter IFCB, Zooscan or UVP ')
-day_night = input('Would you like to group data by day/night? Enter Y/N \n' )
-depth_binning  = input ('Would you like to bin the data by depth? \n Enter Y/N \n')
-bin_loc = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
-group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
-big_grid_status = input('have the gridded files already been parsed and labelled according to their large global grid? \n type Y or N \n' )
+path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
+with open(path_to_config, 'r') as config_file:
+    cfg = yaml.safe_load(config_file)
+
+instrument = cfg['instrument_data_source']
+day_night = cfg['day_night']
+depth_binning = cfg['depth_binning']
+
+
+bin_loc = cfg['st_increment_avg']
+group_by= cfg['date_group_avg']
+big_grid_status = cfg['big_grid']
 # processing starts here
 
 #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
@@ -39,9 +45,7 @@ grid_list = group_gridded_files_func(instrument, already_gridded=big_grid_status
 #get paths to gridded files
 file_list = proj_id_list_func(instrument, data_status ='gridded', big_grid = True)#generate path and project ID's but ONLY for parsed data
 
-path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
-with open(path_to_config, 'r') as config_file:
-    cfg = yaml.safe_load(config_file)
+
 
 NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
 if not os.path.exists(NBSSpath):
