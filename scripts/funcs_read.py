@@ -16,7 +16,7 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
     """
     # returns path to project data and list of projects based on intrument (IFCB, Zooscan, UVP)
     # read git-tracked config file (text file) with inputs:  project ID, output directory
-    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
@@ -125,7 +125,7 @@ def df_list_func(instrument, data_status):
     from pathlib import Path
     # returns path to project data and list of projects based on intrument (IFCB, Zooscan, UVP)
     # read git-tracked config file (text file) with inputs:  project ID, output directory
-    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
     # read config file (text file) with inputs:  project ID, output directory
