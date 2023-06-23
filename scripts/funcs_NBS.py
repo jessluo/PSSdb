@@ -73,11 +73,11 @@ def size_binning_func(df_subset):
     """
 
     # open dataframe with the size bins
-    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     # open the metadata of the standardized files
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
-    path_to_bins = str(Path(cfg['raw_dir']).expanduser() / 'ecopart_size_bins.tsv')
+    path_to_bins = str(Path(cfg['size_bins_path']).expanduser())
     bins_df = pd.read_csv(path_to_bins)
     # create a categorical variable, which are bins defined by the numbers on the sizeClasses list
     # Assign bin to each data point based on biovolume, append bin range and bin class to the dataframe
