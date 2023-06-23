@@ -39,7 +39,7 @@ def biovol_func_old(df, instrument, area_type= 'object_area', remove_cat='none')
     import pandas as pd
     # find the Area column in the metadata file and use its position to select the area
     ID = df.loc[0, 'Project_ID']
-    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
     path_to_metadata = glob(str(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir'])+ '/**/*'+ str(ID)+ '*metadata*')
@@ -125,7 +125,7 @@ def biovol_func(df, instrument, keep_cat='none'):
     """
     import math as m
 
-    path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
     path_to_taxonomy = str(Path(cfg['git_dir']).expanduser()) + '/ancillary/plankton_annotated_taxonomy.xlsx'
