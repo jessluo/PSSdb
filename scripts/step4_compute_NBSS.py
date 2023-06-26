@@ -54,6 +54,7 @@ if not os.path.exists(NBSSpath):
 currentMonth = str(datetime.now().month).rjust(2, '0')
 currentYear = str(datetime.now().year)
 
+NBSS_1a_binned_full = pd.DataFrame()
 NBSS_1a_raw_full = pd.DataFrame()
 NBSS_1a_full = pd.DataFrame()
 lin_fit_1b_full = pd.DataFrame()
@@ -67,16 +68,18 @@ for i in tqdm(grid_list):
         continue
      #df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Sampling_lower_size', 'Sampling_upper_size', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number','Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
     if depth_binning == 'Y':
-        NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
+        NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
     if day_night == 'Y':
-        NBSS_1a_raw, NBSS_1a,  lin_fit_1b= parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, bin_loc = bin_loc, group_by = group_by)
+        NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b= parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, bin_loc = bin_loc, group_by = group_by)
     else:
-        NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
+        NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
 
+    NBSS_1a_binned_full= pd.concat([NBSS_1a_binned_full, NBSS_binned_all])
     NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
     NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
     lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
 # Save NBSS results and sorting
+NBSS_1a_binned_full.to_csv(str(NBSSpath) + '/' + instrument +'_Biovolume-by-Size_FULL_var_v'+currentYear+'-'+currentMonth+'.csv', index=False)
 NBSS_1a_raw_full.to_csv(str(NBSSpath) + '/' + instrument +'_Biovolume-by-Size_raw_v'+currentYear+'-'+currentMonth+'.csv', index=False)
 
 NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
