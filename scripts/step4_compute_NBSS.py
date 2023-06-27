@@ -25,18 +25,12 @@ import cartopy.crs as ccrs
 
 #define the instrument to calculate NBS:
 
-path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
-with open(path_to_config, 'r') as config_file:
-    cfg = yaml.safe_load(config_file)
-
-instrument = cfg['instrument_data_source']
-day_night = cfg['day_night']
-depth_binning = cfg['depth_binning']
-
-
-bin_loc = cfg['st_increment_avg']
-group_by= cfg['date_group_avg']
-big_grid_status = cfg['big_grid']
+instrument = input ('for which instrument do you want to calculate the size spectra? \n Enter IFCB, Zooscan or UVP ')
+day_night = input('Would you like to group data by day/night? Enter Y/N \n' )
+depth_binning  = input ('Would you like to bin the data by depth? \n Enter Y/N \n')
+bin_loc = float(input('select the size of the spatial grid to group the data i.e for a 1x1 degree bin type 1 \n' ))
+group_by= input('input how will the data be grouped by date \n  yyyymm for month and year \n yyyy for year \n ')
+big_grid_status = input('have the gridded files already been parsed and labelled according to their large global grid? \n type Y or N \n' )
 # processing starts here
 
 #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
@@ -45,7 +39,9 @@ grid_list = group_gridded_files_func(instrument, already_gridded=big_grid_status
 #get paths to gridded files
 file_list = proj_id_list_func(instrument, data_status ='gridded', big_grid = True)#generate path and project ID's but ONLY for parsed data
 
-
+path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+with open(path_to_config, 'r') as config_file:
+    cfg = yaml.safe_load(config_file)
 
 NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
 if not os.path.exists(NBSSpath):
@@ -54,6 +50,7 @@ if not os.path.exists(NBSSpath):
 currentMonth = str(datetime.now().month).rjust(2, '0')
 currentYear = str(datetime.now().year)
 
+NBSS_1a_binned_full = pd.DataFrame()
 NBSS_1a_raw_full = pd.DataFrame()
 NBSS_1a_full = pd.DataFrame()
 lin_fit_1b_full = pd.DataFrame()
@@ -67,16 +64,18 @@ for i in tqdm(grid_list):
         continue
      #df = df.filter(['Sample','date_bin', 'Station_location','light_cond', 'midDepthBin', 'Sampling_lower_size', 'Sampling_upper_size', 'Min_obs_depth', 'Max_obs_depth', 'ROI_number','Biovolume', 'midLatBin', 'midLonBin', 'Volume_imaged'], axis=1)
     if depth_binning == 'Y':
-        NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
+        NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, depth_parsing= True, bin_loc = bin_loc, group_by = group_by)
     if day_night == 'Y':
-        NBSS_1a_raw, NBSS_1a,  lin_fit_1b= parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, bin_loc = bin_loc, group_by = group_by)
+        NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b= parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], light_parsing=True, bin_loc = bin_loc, group_by = group_by)
     else:
-        NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
+        NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
 
+    NBSS_1a_binned_full= pd.concat([NBSS_1a_binned_full, NBSS_binned_all])
     NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
     NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
     lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
 # Save NBSS results and sorting
+NBSS_1a_binned_full.to_csv(str(NBSSpath) + '/' + instrument +'_Biovolume-by-Size_FULL_var_v'+currentYear+'-'+currentMonth+'.csv', index=False)
 NBSS_1a_raw_full.to_csv(str(NBSSpath) + '/' + instrument +'_Biovolume-by-Size_raw_v'+currentYear+'-'+currentMonth+'.csv', index=False)
 
 NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
