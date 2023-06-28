@@ -370,7 +370,7 @@ def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bi
         lin_fit_1b = stats_linfit_func(lin_fit_data, bin_loc = bin_loc, group_by = group_by)
 
 
-    return NBSS_binned_all, NBSS_1a_raw, NBSS_1a, lin_fit_1b
+    return NBSS_1a_raw, NBSS_1a,  lin_fit_1b
 
 
 def reshape_date_func(df, group_by ='yyyymm'):
