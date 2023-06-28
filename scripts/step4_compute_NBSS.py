@@ -23,8 +23,7 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 
-#define the instrument to calculate NBS:
-
+#open config file and extract parameters:
 path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
@@ -54,6 +53,7 @@ if not os.path.exists(NBSSpath):
 currentMonth = str(datetime.now().month).rjust(2, '0')
 currentYear = str(datetime.now().year)
 
+
 NBSS_1a_raw_full = pd.DataFrame()
 NBSS_1a_full = pd.DataFrame()
 lin_fit_1b_full = pd.DataFrame()
@@ -73,10 +73,12 @@ for i in tqdm(grid_list):
     else:
         NBSS_1a_raw, NBSS_1a,  lin_fit_1b = parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bin'], bin_loc = bin_loc, group_by = group_by)
 
+
     NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
     NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
     lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
 # Save NBSS results and sorting
+
 NBSS_1a_raw_full.to_csv(str(NBSSpath) + '/' + instrument +'_Biovolume-by-Size_raw_v'+currentYear+'-'+currentMonth+'.csv', index=False)
 
 NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
