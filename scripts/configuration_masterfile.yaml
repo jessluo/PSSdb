@@ -51,19 +51,18 @@ proj_list : 'raw/project_list_all.xlsx'
 proj_id : 3302
 
 
-### Specifications for instrument, gridding, binning and averaging NBSS products
-instrument_data_source: 'Zooscan' # other choices: 'Zooscan', 'UVP'
+### Specifications for instrument, gridding, binning and averaging NBSS products ###
+instrument_data_source: 'IFCB' # other choices: 'Zooscan', 'UVP'
 day_night: 'N' # or 'Y'
 depth_binning: 'N' # or 'Y'
+depth_bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000] # Customize with desired depth bins
 
 st_increment: 0.5 # size of the grid used in step3_gridding_func
 date_group: 'week' # time interval to bin data in step3_gridding_func. Other options:  'mm' (month), 'yyyymm' (year-month), 'yyyy' (year)
 keep_cats: 'N' # or 'Y'
 cats_to_keep: [] # fill if you want to keep any of the categories such as ['beads','detritus', 'artefact', 'bubble', 'plastic']
 
-depth_bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000] # Customize with desired depth bins
 N_test: 0 # number of files to be gridded, 0 means all. This is useful for debugging the pipeline
-
 
 st_increment_avg: 1 #size of the grid used for averaging in step4_compute_NBSS
 date_group_avg: 'yyyymm' #time interval for averaging in step4_compute_NBSS. Other options:  'mm' (month), 'yyyy' (year)
