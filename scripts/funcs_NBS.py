@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 import pandas as pd
 import yaml
+import math as m
 try:
     from funcs_read import *
     from funcs_gridding import *
@@ -46,9 +47,9 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
         df['lat_grid'] = None
         df['lon_grid'] = None
         for la in df['midLatBin'].unique():
-            df.loc[df['midLatBin'] == la, 'lat_grid']= int(np.where(lat_int.contains(la) == True)[0])
+            df.loc[df['midLatBin'] == la, 'lat_grid']= str(lat_int[lat_int.contains(la) == True][0].left) + '-' + str(lat_int[lat_int.contains(la) == True][0].right)
         for lo in df['midLonBin'].unique():
-            df.loc[df['midLonBin'] == lo, 'lon_grid'] = int(np.where(lon_int.contains(lo) == True)[0])
+            df.loc[df['midLonBin'] == lo, 'lon_grid'] = str(lon_int[lon_int.contains(lo) == True][0].left) + '-' + str(lon_int[lon_int.contains(lo) == True][0].right)
         # combine these numbers to form a grid identifier
         df['grid_id'] = df.lat_grid.astype(str).str.cat(df.lon_grid.astype(str), sep='_')
         df_subgrouped = [x for _, x in df.groupby('grid_id')]
@@ -162,27 +163,42 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
                                                                                                                      'ROI_number_sum': x.ROI_number.sum(),
                                                                                                                      'Total_volume': x.cumulative_vol.unique()[0],
                                                                                                                      'size_class_mid': x.size_class_mid.unique()[0],
-                                                                                                                     'NB': (x.Biovolume.sum() /x.cumulative_vol.unique()[0] / x.range_size_bin).unique()[0] })).reset_index()#, 'ROI_number':x['ROI_number'].sum()}))
+                                                                                                                     'size_class_range': x.range_size_bin.unique()[0],
+                                                                                                                     'size_range_ECD': ((x.range_size_bin.unique()[0])*(3/4)*m.pi)**(1./3.)*0.001, # reverting size range to ECD in milimeters
+                                                                                                                     'PSD': (x.ROI_number.sum() /x.cumulative_vol.unique()[0] / (((x.range_size_bin.unique()[0])*(3/4)*m.pi)**(1./3.)*0.001)),
+                                                                                                                     'NB': (x.Biovolume.sum() /x.cumulative_vol.unique()[0] / x.range_size_bin).unique()[0]})).reset_index()#, 'ROI_number':x['ROI_number'].sum()}))
 
 
             # summing the NB for each size class that come from separate size fractions(because of sieving) to obtain the overall NB for a size class in a net
             NBS_biovol_df= NBS_biovol_df.groupby(['Sample_id','date_bin', 'Station_location','sizeClasses','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).apply(lambda x: pd.Series({
                                                                                                                      'Biovolume_mean': x.Biovolume_sum.sum() / x.ROI_number_sum.sum(),
                                                                                                                      'Biovolume_sum': x.Biovolume_sum.sum(),
+                                                                                                                     'ROI_number_sum': x.ROI_number_sum.sum(),
                                                                                                                      'ROI_abundance': np.nansum(x.ROI_number_sum/ x.Total_volume),
                                                                                                                      'size_class_mid': x.size_class_mid.unique()[0],
+                                                                                                                     'size_class_range': x.size_class_range.unique()[0],
+                                                                                                                     'size_range_ECD': x.size_range_ECD.unique()[0],
+                                                                                                                     'PSD': x.PSD.sum(),
                                                                                                                      'NB': x.NB.sum()})).reset_index()#, 'ROI_nu
             #average NB for each date and station bin, from NB that come from different net tows.
             NBS_biovol_df= NBS_biovol_df.groupby(['date_bin', 'Station_location','sizeClasses','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).apply(lambda x: pd.Series({
                                                                                                                      'Biovolume_mean': x.Biovolume_mean.mean(),
+                                                                                                                     'ECD_mean': ((x.Biovolume_mean.mean())*(3/4)*m.pi)**(1./3.)*0.001,
+                                                                                                                     'ROI_number_sum': x.ROI_number_sum.unique()[0],
                                                                                                                      'ROI_abundance_mean': x.ROI_abundance.mean(),
                                                                                                                      'size_class_mid': x.size_class_mid.unique()[0],
+                                                                                                                     'size_class_range': x.size_class_range.unique()[0],
+                                                                                                                     'size_range_ECD': x.size_range_ECD.unique()[0],
+                                                                                                                     'PSD':x.PSD.mean(),
                                                                                                                      'NB': x.NB.mean()})).reset_index()#, 'ROI_nu
 
 
-    # create two more columns with the parameters of normalized size spectra,:
+    # create three more columns with the parameters of particle size distribution and normalized size spectra,:
     NBS_biovol_df['logNB'] = np.log(NBS_biovol_df['NB'])
     NBS_biovol_df['logSize'] = np.log(NBS_biovol_df['size_class_mid'])
+
+    NBS_biovol_df['logPSD'] = np.log(NBS_biovol_df['PSD'])
+    NBS_biovol_df['logECD'] = np.log(NBS_biovol_df['ECD_mean'])
 
     # now calculate the log biovolume for the df_bins dataframe. NOTE updated on 2/23/2023. middle point of the size class
     df_bins['logSize'] = np.log(df_bins['size_class_mid'])
@@ -245,39 +261,45 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     df1 = df1.dropna()
 
     # extract x and y
-    X = df1['logSize'].values#.reshape(-1, 1)
-    Y = df1['logNB'].values#.reshape(-1, 1)
-    # Mean X and Y
-    mean_x = np.mean(X)
-    mean_y = np.mean(Y)
-    # Total number of values
-    n = len(X)
-    # Model 1 -linear model : Y = m*X + b
-    numer = 0 # numerator
-    denom = 0 # denominator
-    for i in range(n):
-        numer += (X[i] - mean_x) * (Y[i] - mean_y)
-        denom += (X[i] - mean_x) ** 2
-    m = numer / denom # slope
-    b = mean_y - (m * mean_x) # intercept
-    #print("Coefficients")
-    #print(m, c)
-    # Calculating Root Mean Squares Error and R2 score
-    rmse = 0 # root mean square error
-    ss_tot = 0 # total sum of squares
-    ss_res = 0 # total sum of squares of residuals
-    for i in range(n):
-        y_pred = b + m * X[i]
-        rmse += (Y[i] - y_pred) ** 2
-        ss_tot += (Y[i] - mean_y) ** 2
-        ss_res += (Y[i] - y_pred) ** 2
-    rmse = np.sqrt(rmse / n)
-    #print("RMSE")
-    #print(rmse)
-    R2 = 1 - (ss_res / ss_tot)
-    #print("R2 Score")
-    #print(R2)
-
+    def regression(df1, X_var, Y_var):
+        '''
+        :param Y_var: string that identifies the column header of the df1 dataframe to use as Y variable
+        '''
+        X = df1[X_var].values#.reshape(-1, 1)
+        Y = df1[Y_var].values#.reshape(-1, 1)
+        # Mean X and Y
+        mean_x = np.mean(X)
+        mean_y = np.mean(Y)
+        # Total number of values
+        n = len(X)
+        # Model 1 -linear model : Y = m*X + b
+        numer = 0 # numerator
+        denom = 0 # denominator
+        for i in range(n):
+            numer += (X[i] - mean_x) * (Y[i] - mean_y)
+            denom += (X[i] - mean_x) ** 2
+        m = numer / denom # slope
+        b = mean_y - (m * mean_x) # intercept
+        #print("Coefficients")
+        #print(m, c)
+        # Calculating Root Mean Squares Error and R2 score
+        rmse = 0 # root mean square error
+        ss_tot = 0 # total sum of squares
+        ss_res = 0 # total sum of squares of residuals
+        for i in range(n):
+            y_pred = b + m * X[i]
+            rmse += (Y[i] - y_pred) ** 2
+            ss_tot += (Y[i] - mean_y) ** 2
+            ss_res += (Y[i] - y_pred) ** 2
+        rmse = np.sqrt(rmse / n)
+        #print("RMSE")
+        #print(rmse)
+        R2 = 1 - (ss_res / ss_tot)
+        #print("R2 Score")
+        #print(R2)
+        return m,b,rmse,R2
+    m_NB, b_NB, rmse_NB, R2_NB = regression(df1, 'logSize','logNB')
+    m_PSD, b_PSD, rmse_PSD, R2_PSD = regression(df1, 'logECD', 'logPSD')
     # generate dataframe and append the results in the corresponding variable
     lin_fit = pd.DataFrame()
     if depth_parsing == True:
@@ -296,10 +318,16 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     lin_fit.loc[0, 'min_depth'] = df1.loc[0, 'Min_obs_depth']
     lin_fit.loc[0, 'max_depth'] = df1.loc[0, 'Max_obs_depth']
 
-    lin_fit.loc[0, 'slope'] = m
-    lin_fit.loc[0, 'intercept'] = b
-    lin_fit.loc[0, 'rmse'] = rmse
-    lin_fit.loc[0, 'r2'] = R2
+    lin_fit.loc[0, 'slope_NB'] = m_NB
+    lin_fit.loc[0, 'intercept_NB'] = b_NB
+    lin_fit.loc[0, 'rmse_NB'] = rmse_NB
+    lin_fit.loc[0, 'r2_NB'] = R2_NB
+
+    lin_fit.loc[0, 'slope_PSD'] = m_PSD
+    lin_fit.loc[0, 'intercept_PSD'] = b_PSD
+    lin_fit.loc[0, 'rmse_PSD'] = rmse_PSD
+    lin_fit.loc[0, 'r2_PSD'] = R2_PSD
+
 
     return (lin_fit)
 
@@ -359,9 +387,9 @@ def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bi
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
 
     #NBSS_binned_all['Station_location'], NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'] = gridding_func(bin_loc, NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'])
-    NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'NB', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
+    NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'NB', 'PSD', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
     NBSS_1a_raw = NBSS_raw.rename(columns={'date_bin': 'date_year_month_week', 'midLatBin': 'latitude', 'midLonBin': 'longitude', 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
-                                      'NB': 'normalized_biovolume', 'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
+                                      'NB': 'normalized_biovolume', 'PSD': 'normalized_abundance',  'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
     if light_parsing==True:
         NBSS_1a = NBSS_stats_func(NBSS_raw, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
         lin_fit_1b = stats_linfit_func(lin_fit_data, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
@@ -370,7 +398,7 @@ def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bi
         lin_fit_1b = stats_linfit_func(lin_fit_data, bin_loc = bin_loc, group_by = group_by)
 
 
-    return NBSS_1a_raw, NBSS_1a,  lin_fit_1b
+    return NBSS_binned_all, NBSS_1a_raw, NBSS_1a,  lin_fit_1b
 
 
 def reshape_date_func(df, group_by ='yyyymm'):
@@ -403,20 +431,21 @@ def NBSS_stats_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm')
 
     if light_parsing == True:
         NBSS_avg = df.groupby(['date_bin', 'Station_location', 'light_cond', 'size_class_mid']).agg(
-            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
+            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'PSD':['count', 'mean', 'std'] , 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
     else:
         NBSS_avg = df.groupby(['date_bin', 'Station_location', 'size_class_mid']).agg(
-            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
+            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'PSD':['count', 'mean', 'std'],'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
 
 
 
     # generate a cleaner dataset (without grouping variables) to finally present 1a
     NBSS_avg.columns = NBSS_avg.columns.map('_'.join).str.removesuffix("first")
     NBSS_avg.columns = NBSS_avg.columns.str.removesuffix("_")
-    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NB_mean', 'NB_std', 'NB_count'], axis=1)
+    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NB_mean', 'NB_std', 'NB_count', 'PSD_mean', 'PSD_std', 'PSD_count'], axis=1)
     NBSS_avg= NBSS_avg.rename(columns={'midLatBin':'latitude', 'midLonBin': 'longitude', 'light_cond':'light_condition',
                                        'Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth', 'size_class_mid': 'biovolume_size_class',
-                                       'NB_count':'N', 'NB_mean':'normalized_biovolume_mean', 'NB_std': 'normalized_biovolume_std' })
+                                       'NB_count':'N', 'NB_mean':'normalized_biovolume_mean', 'NB_std': 'normalized_biovolume_std',
+                                       'PSD_mean':'normalized_abundance_mean', 'PSD_std': 'normalized_abundance_std'})
     NBSS_avg= NBSS_avg[NBSS_avg.N !=0].reset_index(drop = True)
     return NBSS_avg
 
@@ -463,11 +492,13 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     if light_parsing ==True:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin', 'light_condition']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin':'first', 'min_depth': 'first', 'max_depth':'first',
-             'slope': ['count', 'mean', 'std'], 'intercept': ['count', 'mean', 'std'], 'r2': ['count', 'mean', 'std']}).reset_index()
+             'slope_NB': ['count', 'mean', 'std'], 'intercept_NB': ['count', 'mean', 'std'], 'r2_NB': ['count', 'mean', 'std'],
+             'slope_PSD': ['count', 'mean', 'std'], 'intercept_PSD': ['count', 'mean', 'std'], 'r2_PSD': ['count', 'mean', 'std']}).reset_index()
     else:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'min_depth': 'first','max_depth': 'first',
-             'slope': ['count', 'mean', 'std'], 'intercept': ['count', 'mean', 'std'], 'r2': ['count', 'mean', 'std']}).reset_index()
+             'slope_NB': ['count', 'mean', 'std'], 'intercept_NB': ['count', 'mean', 'std'], 'r2_NB': ['count', 'mean', 'std'],
+             'slope_PSD': ['count', 'mean', 'std'], 'intercept_PSD': ['count', 'mean', 'std'], 'r2_PSD': ['count', 'mean', 'std']}).reset_index()
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
