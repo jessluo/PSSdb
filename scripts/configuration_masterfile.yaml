@@ -52,7 +52,7 @@ proj_id : 3302
 
 
 ### Specifications for instrument, gridding, binning and averaging NBSS products ###
-instrument_data_source: 'Zooscan' # other choices: 'Zooscan', 'UVP'
+instrument_data_source: 'IFCB' # other choices: 'Zooscan', 'UVP'
 day_night: 'N' # or 'Y'
 depth_binning: 'N' # or 'Y'
 depth_bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000] # Customize with desired depth bins
