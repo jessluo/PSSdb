@@ -1,6 +1,8 @@
 # Pelagic Size Structure database (PSSdb)
 A collaborative project between NOAA/Geophysical Fluid Dynamics Laboratory and Sorbonne Université/Laboratoire d’Océanographie de Villefranche-sur-Mer (LOV)
 
+v1.2: step4 has been modified to calculate PSD and save intermediate data products of NBSS and PSD calculations
+
 ### Repository organization
 
 ```
