@@ -387,9 +387,9 @@ def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bi
                 lin_fit_data = pd.concat([lin_fit_data, lin_fit])
 
     #NBSS_binned_all['Station_location'], NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'] = gridding_func(bin_loc, NBSS_binned_all['midLatBin'], NBSS_binned_all['midLonBin'])
-    NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'NB', 'PSD', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
+    NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond','size_class_mid', 'ECD_mean', 'NB', 'PSD', 'Min_obs_depth', 'Max_obs_depth'], axis=1)
     NBSS_1a_raw = NBSS_raw.rename(columns={'date_bin': 'date_year_month_week', 'midLatBin': 'latitude', 'midLonBin': 'longitude', 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
-                                      'NB': 'normalized_biovolume', 'PSD': 'normalized_abundance',  'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
+                                      'NB': 'normalized_biovolume', 'ECD_mean': 'equivalent_circular_diameter_mean', 'PSD': 'normalized_abundance',  'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
     if light_parsing==True:
         NBSS_1a = NBSS_stats_func(NBSS_raw, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
         lin_fit_1b = stats_linfit_func(lin_fit_data, light_parsing = True, bin_loc = bin_loc, group_by = group_by)
@@ -431,21 +431,21 @@ def NBSS_stats_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm')
 
     if light_parsing == True:
         NBSS_avg = df.groupby(['date_bin', 'Station_location', 'light_cond', 'size_class_mid']).agg(
-            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'PSD':['count', 'mean', 'std'] , 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
+            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'],'ECD_mean':['mean'], 'PSD':['count', 'mean', 'std'] , 'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
     else:
         NBSS_avg = df.groupby(['date_bin', 'Station_location', 'size_class_mid']).agg(
-            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'PSD':['count', 'mean', 'std'],'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
+            {'year': 'first', 'month': 'first', 'midLatBin':'first', 'midLonBin': 'first', 'NB':['count', 'mean', 'std'], 'ECD_mean':['mean'], 'PSD':['count', 'mean', 'std'],'Min_obs_depth':'first', 'Max_obs_depth':'first'}).reset_index()
 
 
 
     # generate a cleaner dataset (without grouping variables) to finally present 1a
     NBSS_avg.columns = NBSS_avg.columns.map('_'.join).str.removesuffix("first")
     NBSS_avg.columns = NBSS_avg.columns.str.removesuffix("_")
-    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NB_mean', 'NB_std', 'NB_count', 'PSD_mean', 'PSD_std', 'PSD_count'], axis=1)
+    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NB_mean', 'NB_std', 'ECD_mean_mean','PSD_mean', 'PSD_std', 'NB_count'], axis=1)
     NBSS_avg= NBSS_avg.rename(columns={'midLatBin':'latitude', 'midLonBin': 'longitude', 'light_cond':'light_condition',
                                        'Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth', 'size_class_mid': 'biovolume_size_class',
-                                       'NB_count':'N', 'NB_mean':'normalized_biovolume_mean', 'NB_std': 'normalized_biovolume_std',
-                                       'PSD_mean':'normalized_abundance_mean', 'PSD_std': 'normalized_abundance_std'})
+                                       'NB_mean':'normalized_biovolume_mean', 'NB_std': 'normalized_biovolume_std', 'ECD_mean_mean': 'equivalent_circular_diameter_mean',
+                                       'PSD_mean':'normalized_abundance_mean', 'PSD_std': 'normalized_abundance_std', 'NB_count':'N'})
     NBSS_avg= NBSS_avg[NBSS_avg.N !=0].reset_index(drop = True)
     return NBSS_avg
 
