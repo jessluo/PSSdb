@@ -33,7 +33,7 @@ except:
     from scripts.funcs_export_projects import *
 
 
-path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+path_to_config=Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_to_git=Path(cfg['git_dir']).expanduser()
