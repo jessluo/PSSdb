@@ -70,7 +70,7 @@ for i in tqdm(grid_list):
         print('grid' +i + 'files are getting messed up')
         print([f for f in file_subset])
         print(Sample_NB_ID[Sample_NB_ID.duplicated()==True])
-        continue
+        break
     df = df.dropna(subset=['Biovolume']).reset_index(drop=True) # project 5785 from Zooscan is completely empty
     if len(df) == 0:
         print('no data left after removing empty biovolumes in grid cell' + i)
