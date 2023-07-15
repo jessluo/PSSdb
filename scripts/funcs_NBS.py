@@ -23,10 +23,10 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
     #first, create series of numbers that break the globe into 15x15 degree cells:
     lat_left = np.arange(-90, 90+15, 15, dtype=int)
     lat_right = np.arange(-75,105 + 15, 15, dtype=int)
-    lat_int = pd.IntervalIndex.from_arrays(lat_left, lat_right)
+    lat_int = pd.IntervalIndex.from_arrays(lat_left, lat_right, closed='both')
     lon_left = np.arange(-180, 180+15, 15, dtype=int)
     lon_right = np.arange(-165, 195+15, 15, dtype=int)
-    lon_int = pd.IntervalIndex.from_arrays(lon_left, lon_right)
+    lon_int = pd.IntervalIndex.from_arrays(lon_left, lon_right, closed='both')
     grid_list = []
     # create a dictionary that has unique keys for each grid interval
     #grid_dict = {}
