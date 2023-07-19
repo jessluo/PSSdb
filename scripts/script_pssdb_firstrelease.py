@@ -210,3 +210,79 @@ plt.xlabel(r'Latitude ($\degree$N)')
 #plt.set_size_inches(6.5,2.8)
 plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.3_R2_lat.pdf'.format(str(Path.home())), dpi=600)
 plt.close()
+
+
+##Figure 6. Climatology of parameters by ocean basin
+# reasign variables
+month_names = {1:'Jan', 2: 'Feb', 3:'Mar', 4:'Apr', 5:'May', 6: 'Jun', 7:'Jul', 8: 'Aug', 9:'Sep', 10:'Oct', 11: 'Nov', 12:'Dec'}
+ocean_names = {'o00':'coastal', 'o07':'North_Pacific', 'o01': 'Arctic_Ocean', 'o22':'Mediterranean_Sea', 'o24':'Red_Sea', 'o05':'Indian_Ocean', 'o03':'South_Atlantic',
+               'o04': 'Southern_Ocean', 'o06':'South_Pacific', 'o02': 'North_Atlantic', 'o21':'Baltic_Sea'}
+df = df.replace({'month':month_names, 'ocean':ocean_names})
+insufficient_data = ['Arctic_Ocean', 'Red_Sea', 'South_Atlantic', 'Southern_Ocean', 'Baltic_Sea', 'coastal']
+df_clim = df[~df['ocean'].isin(insufficient_data)].reset_index()
+
+fontname = 'serif'
+
+# Slope
+fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
+ocean= list(df_clim['ocean'].unique())
+for ocean, ax in zip(ocean, axs.ravel()):
+    df_subset=df_clim[df_clim['ocean']== ocean]
+    sns.boxplot(ax =ax, data=df_subset, x='month', y='slope_mean',color='skyblue', showfliers = False, order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.despine(top = True, right = True)
+    ax.set_ylim(-2, -0.4)
+    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''])
+    ax.set_title(ocean.replace('_', ' ')).set_fontname(fontname)
+    ax.set(xlabel= None, ylabel = None)
+axs[0].set_ylabel(r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)').set_fontname(fontname)
+plt.tight_layout
+for ax in axs.flatten():
+    labels = ax.get_xticklabels() + ax.get_yticklabels()
+    [label.set_fontname(fontname) for label in labels]
+plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.1_slope_clim_basins.pdf'.format(str(Path.home())), dpi=600)
+plt.close()
+
+
+
+# Intercept
+fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
+ocean= list(df_clim['ocean'].unique())
+for ocean, ax in zip(ocean, axs.ravel()):
+    df_subset=df_clim[df_clim['ocean']== ocean]
+    sns.boxplot(ax =ax, data=df_subset, x='month', y='intercept_mean',color='skyblue', showfliers = False, order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.despine(top = True, right = True)
+    ax.set_ylim(2, 50)
+    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''])
+    ax.set_title(ocean.replace('_', ' ')).set_fontname(fontname)
+    #ax.set_title('')
+    ax.set(xlabel= None, ylabel = None)
+axs[0].set_ylabel(r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)').set_fontname(fontname)
+plt.tight_layout
+for ax in axs.flatten():
+    labels = ax.get_xticklabels() + ax.get_yticklabels()
+    [label.set_fontname(fontname) for label in labels]
+
+plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.2_intercept_clim_basins.pdf'.format(str(Path.home())), dpi=600)
+plt.close()
+
+
+# R2
+fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
+ocean= list(df_clim['ocean'].unique())
+for ocean, ax in zip(ocean, axs.ravel()):
+    df_subset=df_clim[df_clim['ocean']== ocean]
+    sns.boxplot(ax =ax, data=df_subset, x='month', y='r2_mean',color='skyblue', showfliers = False, order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.despine(top = True, right = True)
+    ax.set_ylim(0.65, 1)
+    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''])
+    ax.set_title(ocean.replace('_', ' ')).set_fontname(fontname)
+    #ax.set_title('')
+    ax.set(xlabel= None, ylabel = None)
+axs[0].set_ylabel(r'Mean R$^{2}$').set_fontname(fontname)
+plt.tight_layout
+for ax in axs.flatten():
+    labels = ax.get_xticklabels() + ax.get_yticklabels()
+    [label.set_fontname(fontname) for label in labels]
+
+plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.3_r2_clim_basins.pdf'.format(str(Path.home())), dpi=600)
+plt.close()
