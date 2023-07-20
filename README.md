@@ -91,7 +91,7 @@ The acquisition and pre-processing steps of imaging datasets prior PSSdb ingesti
 > Imaging sensors are deployed on various platforms/water-supply modes, including research vessel's flowthrough water supply and mooring stations for IFCb, floats/gliders or CTD rosette for UVP, and plankton nets for ZooScan. <br><br>> Images are segmented (i.e the process of detouring individual region of interests from the background frame) and masks are generated to extract morphometric features in real-time for UVP deployments, or after the acquisition.<br><br>> Automated classifiers are trained on features or directly on raw pictures, in the case of CNN. <br><br>> Metadata, including samples/profiles GPS coordinates, timestamp and depth, are filled in before or after the image acquisition.<br><br>> Resulting tables are uploaded to online data streams, and can be extracted using API (IFCb dashboards, EcoTaxa) or custom web-scraping scripts (EcoPart). 
 </font>
 
-<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-pre-processing.png" width="130%" style="  float:right; padding:0.7em"/>
+<img clear="both" src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-pre-processing.png" width="130%" style="  float:right; padding:0.7em"/>
 <br><br><br><br><br><br>
 
 </p>
