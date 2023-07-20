@@ -91,7 +91,7 @@ The acquisition and pre-processing steps of imaging datasets prior PSSdb ingesti
 > Imaging sensors are deployed on various platforms/water-supply modes, including research vessel's flowthrough water supply and mooring stations for IFCb, floats/gliders or CTD rosette for UVP, and plankton nets for ZooScan. <br><br>> Images are segmented (i.e the process of detouring individual region of interests from the background frame) and masks are generated to extract morphometric features in real-time for UVP deployments, or after the acquisition.<br><br>> Automated classifiers are trained on features or directly on raw pictures, in the case of CNN. <br><br>> Metadata, including samples/profiles GPS coordinates, timestamp and depth, are filled in before or after the image acquisition.<br><br>> Resulting tables are uploaded to online data streams, and can be extracted using API (IFCb dashboards, EcoTaxa) or custom web-scraping scripts (EcoPart). 
 </font>
 
-<img src="figures/readme/PSSdb-workflow-pre-processing.png" width="100%" style="  float:right; padding:0.7em"/>
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-pre-processing.png" width="100%" style="  float:right; padding:0.7em"/>
 <br><br><br><br><br><br>
 
 </p>
@@ -123,7 +123,7 @@ We used the application programming interface (or API) developed for IFCb dashbo
 
 <div>
 <p style='padding:-0.1em;line-height:1.0em; margin-left:0.7em; display: inline-block;'>
-<img src="figures/readme/PSSdb-workflow-extraction.png" width="100%" style="  float:right; padding:0.7em"/>
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-extraction.png" width="100%" style="  float:right; padding:0.7em"/>
 <font size="1">
 </font>
 </p>
@@ -148,7 +148,7 @@ python ~/GIT/PSSdb/scripts/step2_standardize_projects.py
 <div>
 <p style='padding:-0.1em;line-height:1.0em; margin-left:0.7em; display: inline-block;'>
 
-<img src="figures/readme/PSSdb-workflow-consolidation.png" width="100%" style="  float:right; padding:0.7em"/>
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-consolidation.png" width="100%" style="  float:right; padding:0.7em"/>
 <br><br>
 <font size="2">
 
@@ -187,7 +187,7 @@ python ~/GIT/PSSdb/scripts/step2_standardize_projects.py
 <div>
 <p style='padding:-0.1em;line-height:1.0em; margin-left:0.7em; display: inline-block;'>
 <font size="2"></font>
-<img src="figures/readme/PSSdb-workflow-standardization.png" width="100%" style="  float:right; padding:0.7em"/>
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-standardization.png" width="100%" style="  float:right; padding:0.7em"/>
 <br><br>
 </p>
 </div>
@@ -219,7 +219,7 @@ python ~/GIT/PSSdb/scripts/step3_grid_data.py
 
 <div>
 <p style='padding:-0.1em;line-height:1.0em; margin-left:0.7em; display: inline-block;'>
-<img src="figures/readme/PSSdb-workflow-binning.png" width="100%" style="  float:right; padding:0.7em"/>
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-binning.png" width="100%" style="  float:right; padding:0.7em"/>
 
 <font size="1">
 </font>
@@ -247,7 +247,7 @@ python ~/GIT/PSSdb/scripts/step4_compute_NBSS.py
 <div>
 <p style='padding:-0.1em;line-height:1.0em; margin-left:0.7em; display: inline-block;'>
 <font size="1"></font>
-<img src="figures/readme/PSSdb-workflow-nbss.png" width="100%" style="  float:right; padding:0.7em"/>
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/PSSdb-workflow-nbss.png" width="100%" style="  float:right; padding:0.7em"/>
 <br>
 </p>
 </div>
@@ -285,7 +285,7 @@ On step2 (datasets standardization), individual projects will be checked for con
 <font size="1"></font>
 <figure>
 <figcaption>Table S1: Example of UVP standardizer spreadsheet illustrating the columns that are automatically filled in during project listing ("Project_ID", "Project_localpath" and "EcoPart_project" columns) or flagging ("Flag_path" column). Note that existing flag files will not be updated (in order to preserve manual overruling factor) unless the path has been deleted in the standardizer. In this example, flags will be generated for project 548.</figcaption>
-  <img src="figures/readme/table_s1.png" max-width="100%" style="  float:left; padding:0em"/> 
+  <img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s1.png" max-width="100%" style="  float:left; padding:0em"/> 
 </figure>
 </p>
 </div>
@@ -297,7 +297,7 @@ On step2 (datasets standardization), individual projects will be checked for con
 <font size="1"></font>
 <figure>
 <figcaption>Table S2: Example of IFCB standardizer spreadsheet containing projects with separate date and time columns (e.g. 3342, 3343) or a single datetime column (e.g. SPIROPA, WHOI_dock, EXPORTS, NAAMES)</figcaption>
-  <img src="figures/readme/table_s2.png" max-width="100%" style="  float:left; padding:0em"/> 
+  <img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s2.png" max-width="100%" style="  float:left; padding:0em"/> 
 </figure>
 </p>
 </div>
@@ -314,19 +314,16 @@ On step2 (datasets standardization), individual projects will be checked for con
 <figure>
 <figcaption>Table S3: Examples of ZooScan (A), UVP (B), and IFCb (C) standardizer spreadsheets sampling description:</figcaption>
   A)
-<img src="figures/readme/table_s3a.png" max-width="100%" style="  float:left; padding:0em"/> 
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s3a.png" max-width="100%" style="  float:left; padding:0em"/> 
   <br></br>B)
-<img src="figures/readme/table_s3b.png" max-width="100%" style="  float:left; padding:0em"/> 
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s3b.png" max-width="100%" style="  float:left; padding:0em"/> 
   <br></br>C)
-<img src="figures/readme/table_s3c.png" max-width="100%" style="  float:left; padding:0em"/> 
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s3c.png" max-width="100%" style="  float:left; padding:0em"/> 
 
 </figure>
 </p>
 </div>
 
-<br><br><br><br><br><br><br>
-
-</div>
 </details>
 </ul>
 
@@ -341,7 +338,7 @@ On step2 (datasets standardization), individual projects will be checked for con
 <figure>
 <figcaption>Table S4: Default size limit (in pixels unless otherwise noted) used in PSSdb</figcaption>
 
-<img src="figures/readme/table_s4.png" max-width="100%" style="  float:left; padding:0em"/> 
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s4.png" max-width="100%" style="  float:left; padding:0em"/> 
 
 </figure>
 </p>
