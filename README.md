@@ -290,7 +290,7 @@ On step2 (datasets standardization), individual projects will be checked for con
 </p>
 </div>
 
-<br><br><br><br><br><br><br>Missing values will be flagged during control quality check based on the "NA_value" column (accepts several values separated by a semi-colon), unless the corresponding field is left empty in the spreadsheets. For example, IFCB and Zooscan projects may not have a profile ID: **If the field is documented but all samples have missing values the entire dataset will be flagged**, so datasets without profile ID should have an empty Profile_field in the standardizer spreadsheet not to be flagged. Similarly, if the dataset contains a single column to describe sampling date/time, fill only one associated field (either Sampling_date_field or Sampling_time_field) and the corresponding format (see Table S2).
+Missing values will be flagged during control quality check based on the "NA_value" column (accepts several values separated by a semi-colon), unless the corresponding field is left empty in the spreadsheets. For example, IFCB and Zooscan projects may not have a profile ID: **If the field is documented but all samples have missing values the entire dataset will be flagged**, so datasets without profile ID should have an empty Profile_field in the standardizer spreadsheet not to be flagged. Similarly, if the dataset contains a single column to describe sampling date/time, fill only one associated field (either Sampling_date_field or Sampling_time_field) and the corresponding format (see Table S2).
 <div>
 
 <p style='padding:-0.3em;line-height:1.0em; margin-top:0em; margin-left:0.7em; display: inline-block;'>
@@ -302,7 +302,7 @@ On step2 (datasets standardization), individual projects will be checked for con
 </p>
 </div>
 
-<br><br><br><br><br><br><br>Incorrect mapping can cause the code to crash, which will result in skipping the project. Known issues include:
+Incorrect mapping can cause the code to crash, which will result in skipping the project. Known issues include:
 
 * Incorrect units: The main issue when running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_projects.py"><span class="link">script</span></a> originates from incorrect standardizer spreadsheets. For example, make sure the _unit columns contain units that are defined in the <a href="https://pint.readthedocs.io/en/stable/"><span class="link">pint package</span></a> (all SI units and their derivatives) or defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/units_def.txt"><span class="link">custom definition file</span></a>. To print all available units, run the python <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_project.py.txt"><span class="link">script</span></a> and select option 1b. Use units compatible with standard conversions
 * Incorrect sampling description: Sampling description is a single column that allows users to describe the sampling/acquisition protocols further using variables comprised in the original export files or manual inputs (see Table S3). The format of this column should be similar to a dictionary where individual information are separated by a semi-colon and may include the field, to map the dictionary key to the native column header, and the unit, defined in the pint package or in the custom units_def.txt file, much like the other standardizer variables. For example, the sampling description of Zooscan projects may include the net type and characteristics, a description of the chemical (formula and final concentration) used to fix the samples, the splitting method etc. For UVP projects, the sampling description may include the sampling platform (e.g. rosette, float, glider), the serial number of the instrument, and the size calibration factors reported in the calibration report (e.g. aa and exp). For IFCB projects, the sampling description may include the syringe volume, the gain and trigger threshold for the different photomultiplier (pmtA: sidescatter, pmtB: red fluorescence). **Attention: the title of the dictionaries cannot be repeated**
@@ -313,7 +313,7 @@ On step2 (datasets standardization), individual projects will be checked for con
 <font size="1"></font>
 <figure>
 <figcaption>Table S3: Examples of ZooScan (A), UVP (B), and IFCb (C) standardizer spreadsheets sampling description:</figcaption>
-  A)
+  <br></br>A)
 <img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s3a.png" max-width="100%" style="  float:left; padding:0em"/> 
   <br></br>B)
 <img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s3b.png" max-width="100%" style="  float:left; padding:0em"/> 
