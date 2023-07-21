@@ -1,29 +1,29 @@
-# Ecotaxa login
-# Cut-paste lines 1:4, replace with appropriate credentials, and save as Ecotaxa_API_pw.yalm (file on .gitignore)
+### Specifications of EcoTaxa login information (required to export datasets hosted on EcoTaxa/EcoPart) ###
+# Cut-paste lines 1:4, replace with appropriate credentials, and save as configuration_masterfile_pw.yalm (file on .gitignore)
 ecotaxa_user : 'your Ecotaxa email login'
 ecotaxa_pass : 'your Ecotaxa password'
 
-
-# GIT repository for storage
+### Specifications of PSSdb data, plots, and custom files sub-directories ###
+# GIT repository
 git_dir : '~/GIT/PSSdb/'
 
-#raw subdirectory
+#raw subdirectory: contains all data required for PSSdb including the list of imaging datasets, standardizers spreadsheets, raw data from imaging data streams, gridded and final NBSS products
 raw_dir : '~/GIT/PSSdb/raw/'
 
-#standardized raw subdirectory
+#standardized raw subdirectory: contains all standardized datasets with harmonized variable headers and units
 standardized_raw_subdir : 'raw_standardized'
 
-# Ecotaxa exported files storage sub-directory :
+# Ecotaxa exported files storage sub-directory : contains all raw datafiles exported from EcoTaxa
 Ecotaxa_subdir : 'ecotaxa'
 
-# Ecopart exported files storage sub-directory:
+# Ecopart exported files storage sub-directory: contains all raw/detailed summaries exported from EcoPart
 Ecopart_subdir : 'ecopart'
 
-# Ecotaxa/Ecopart consolidated UVP exported files storage sub-direcotry (git_dir/Data)
+# Ecotaxa/Ecopart consolidated UVP exported files storage sub-direcotry: contains all UVP consolidated files with size estimates for small (EcoPart) and large (EcoTaxa) particles
 UVP_consolidation_subdir: 'ecotaxa_ecopart_consolidation'
 UVP_consolidation_metadata_subdir: 'ecotaxa_metadata'
 
-#IFCB dashboard directory:
+#IFCB dashboard directory: contains the raw datafiles exported from IFCb dashboards
 IFCB_dir : 'IFCB_dashboard_downloads'
 
 # General data storage sub-directory
@@ -32,27 +32,20 @@ dataset_subdir : 'raw'
 #standadrized datasets storage sub-subdirectory
 standardized_subdir : 'raw/raw_standardized'
 
-#binned datasets storage sub-subdirectory
+#binned datasets storage sub-subdirectory: contains gridded standardized datafiles
 gridded_subdir : 'gridded_data'
 
-#Summary datasets storage subdirectory
+#Summary datasets storage subdirectory: contains a summary of datasets samples location, timestamp, study area, and flag
 summary_subdir : 'summary'
 
-#Flag datasets storage subdirectory
+#Flag datasets storage subdirectory: contains project-specific datatables including the flag returned after control quality check
 flag_subdir : 'flags'
 
-# Path to project_list_all.xlsx
+# Path to project_list_all.xlsx: The list of imaging datasets generated automatically using API
 proj_list : 'raw/project_list_all.xlsx'
 
-# Numeric id of project to download
-# you should have appropriate access rights to it:
-# - either the project should be visible to all
-# - or you should be explicitly registered to it, as viewer at least
-proj_id : 3302
-
-
 ### Specifications for instrument, gridding, binning and averaging NBSS products ###
-instrument_data_source: 'IFCB' # other choices: 'Zooscan', 'UVP'
+instrument_data_source: 'Zooscan' # other choices: 'Zooscan', 'UVP'
 day_night: 'N' # or 'Y'
 depth_binning: 'N' # or 'Y'
 depth_bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000] # Customize with desired depth bins

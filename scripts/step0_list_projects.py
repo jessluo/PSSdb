@@ -34,11 +34,11 @@ columns_for_flag_summary=['Number_samples', 'Number_flagged_samples', 'Percentag
 df_projects_list=pd.DataFrame({})
 
 # read git-tracked config file (text file) with inputs:  git directory and data subdirectory, username/password for Ecotaxa/Ecopart authentication
-path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+path_to_config=Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 # read config file (text file) with inputs:  EcoTaxa username, password. Make sure to secure this file if needed
-path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
+path_to_config_usr=Path('~/GIT/PSSdb/scripts/configuration_masterfile_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 

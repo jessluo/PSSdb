@@ -37,13 +37,13 @@ from ecotaxa_py_client.model.project_filters import ProjectFilters
 from ecotaxa_py_client.api import taxonomy_tree_api
 from ecotaxa_py_client.model.taxon_model import TaxonModel
 
-path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+path_to_config=Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_to_git=Path(cfg['git_dir']).expanduser()
 path_to_project_list=path_to_git / cfg['proj_list']
 
-path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
+path_to_config_usr=Path('~/GIT/PSSdb/scripts/configuration_masterfile_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
@@ -448,13 +448,13 @@ def convert(na, type):
 
 def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2,validation_threshold=0.95):
     """
-        Objective: This function assign flags to image samples contained in a dataframe based on multiple criteria.
-        Criteria include missing data/metadata, anomalous GPS location, low ROI counts, presence of artefacts, multiple size calibration factors
+        Objective: This function assign flags to samples contained in a imaging dataset based on multiple criteria.
+        Criteria include missing data/metadata, anomalous GPS location, low ROI counts/validation percentage, presence of artefacts, multiple size calibration factors
         :param dataframe: dataframe whose samples need to be quality controlled
         :param count_uncertainty_threshold: threshold used to flag samples with low ROI counts [0-1]
         :param artefacts_threshold: threshold used to flag samples with high percentage of artefacts [0-1]
         :param validation_threshold: threshold used to flag samples with low percentage of taxonomic annotation [0-1]
-        :return: dataframe with flags
+        :return: initial dataframe with flags
     """
 
     # Replace sample if missing
@@ -924,13 +924,14 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
 
 # Function (4): Perform EcoTaxa export files standardization and harmonization based on standardizer spreadsheets
 #standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_IFCB_standardizer.xlsx',project_id=2248)
-def standardization_func(standardizer_path,project_id,plot='diversity',df_taxonomy=df_taxonomy):
+def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df_taxonomy):
     """
-       Objective: This function uses the instrument-specific standardizer spreadsheet to standardize variable names and units
-       This should facilitate the size spectrum analysis of projects collected with UVP, IFCB, and Zooscan
-       :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
-       :param project_id: unique integer for project ID to be standardized
-       :return: standardized project dataframe
+       Objective: This function uses the instrument-specific standardizer spreadsheet to standardize variable names and units. This should facilitate the size spectrum analysis of projects collected with UVP, IFCB, and Zooscan
+           :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
+           :param project_id: unique integer for project ID to be standardized
+           :param plot: Specification of the information plotted in the interactive standardization report. Options include a diversity pie chart of the taxonomic annotations ("diversity") or the sample-specific Normalized Biovolume Size Spectrum ("nbss")
+           :param df_taxonomy: A taxonomic look-up table containing the native taxonomic annotations and standard taxonomy from the World Register of Marine Species. The table will be updated with new annotations if needed
+    :return: standardized project dataframe and interactive standardization report
     """
 
     # Open standardizer spreadsheet
@@ -1024,12 +1025,17 @@ def standardization_func(standardizer_path,project_id,plot='diversity',df_taxono
                                                  'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
 
                         #summary_df_standardized = pd.concat([summary_df_standardized, summary_subset_df], axis=0, ignore_index=True).reset_index(drop=True)
+                    path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
+
                     if ( (plot == 'diversity') and len(summary_df_standardized) > 0):
-                        path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
                         # Using report function defined below
                         fig = standardization_report_func(df_summary=summary_df_standardized, df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=None, plot=plot)
-                        fig.write_html(path_to_standard_plot)
-                        print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+                    elif ((plot == 'nbss') and len(summary_df_standardized) > 0):
+                        nbss = process_nbss_standardized_files(path=None, df=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), category=[],depth_selection=False)[2]
+                        # Using report function defined below
+                        fig = standardization_report_func(df_summary=summary_df_standardized, df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=nbss, plot=plot)
+                    fig.write_html(path_to_standard_plot)
+                    print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
 
                 return
         else:
@@ -1383,7 +1389,7 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
 # Function (5): Update flag summaries to account for overruled sample(s)
 def update_summaries(path_to_flags=path_to_git / cfg['dataset_subdir'] / cfg['flag_subdir'],path_to_summaries=path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']):
     """
-        Objective: This function update the summary files(=project-specific table including a summary of individual sample source, path, locations, date, study area, flag) according to individual flag files(=project-specific table including a summary of individual sample source, path, overall flag, individual flags, and overruling)
+        Objective: This function update the summary files(=project-specific table including a summary of individual sample source, path, locations, date, study area, flag) according to individual flag files(=project-specific table including a summary of individual sample source, path, overall flag, individual flags, and overruling boolean factor)
            :param path_to_flags: Full path of the subdirectory containing all flag datafiles
            :param path_to_summaries: Full path of the subdirectory containing all summary datafiles
         :return: updated project summary datafiles at path_to_summaries/[data source/ instrument]/Summary_project_[Project_ID].csv
@@ -1444,7 +1450,7 @@ if __name__ == '__main__':
     # Example: 377
     if funcs_args=='1':
         configfile_args = input('Configuration file (containing EcoTaxa authentication) full path:')
-        # Example: ~/GIT/PSSdb/raw/Ecotaxa_API_pw.yaml
+        # Example: ~/GIT/PSSdb/scripts/configuration_masterfile_pw.yaml
         if len(configfile_args) > 0 and len(standardizerfile_args) > 0:
             if len(project_args) == 0:
                 filling_standardizer_field_func(config_path=configfile_args, standardizer_path=standardizerfile_args)

@@ -13,13 +13,13 @@ import re
 # Config modules
 import yaml # requires installation of PyYAML package
 # read git-tracked config file (text file) with inputs:  project ID, output directory
-path_to_config=Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
+path_to_config=Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 path_to_git=Path(cfg['git_dir']).expanduser()
 path_to_data=path_to_git / cfg['dataset_subdir']
 
-path_to_config_usr=Path('~/GIT/PSSdb/scripts/Ecotaxa_API_pw.yaml').expanduser()
+path_to_config_usr=Path('~/GIT/PSSdb/scripts/configuration_masterfile_pw.yaml').expanduser()
 with open(path_to_config_usr ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
