@@ -394,9 +394,9 @@ After looking at the report, a data provider can send <a href='mailto:nmfs.pssdb
 <figure>
 <figcaption>Figure S5: Examples of good (A) and flagged (B) datasets interactive reports generated for PSSdb</figcaption>
   <br></br>A)
-<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s5a.png" max-width="100%" style="  float:left; padding:0em"/> 
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/fig_s5a.png" max-width="100%" style="  float:left; padding:0em"/> 
   <br></br>B)
-<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/table_s5b.png" max-width="100%" style="  float:left; padding:0em"/> 
+<img src="https://github.com/jessluo/PSSdb/blob/main/figures/readme/fig_s5b.png" max-width="100%" style="  float:left; padding:0em"/> 
 
 </figure>
 </p>
