@@ -62,12 +62,13 @@ for i in tqdm(grid_list):
     #print('grouping data and calculating NBSS for cell number ' + i)
     file_subset = [file for file in file_list if i in file]
     df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+    #rows 66-74 contain routine to detect duplicates in the data
     df['NB_Sample_ID'] = df.date_bin.astype(str) + df.Station_location.astype(str)
     contains_sample= pd.Series(df.NB_Sample_ID.unique()).isin(Sample_NB_ID)
     Sample_NB_ID = pd.concat([Sample_NB_ID, pd.Series(df.NB_Sample_ID.unique())])
     if contains_sample.any()==True:
         print ('Warning! during 15 degree gridding, duplicate datasets were generated')
-        print('grid' +i + 'files are getting messed up')
+        print('grid' +i + 'files in more than one 15 degree cell')
         print([f for f in file_subset])
         print(Sample_NB_ID[Sample_NB_ID.duplicated()==True])
         break
