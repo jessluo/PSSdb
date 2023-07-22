@@ -949,8 +949,8 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     if project_id not in df_standardizer.index:
         print('Project ID is not included in standardizer. Quitting')
         return
-    if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','IFCB','UVP','Other']:
-        print('Standardization only applies to Zooscan, IFCB, UVP and other projects. Quitting')
+    if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','ZooCam','IFCB','UVP','Other','Scanner']:
+        print('Standardization only applies to Zooscan, ZooCam, IFCB, UVP and other scanners projects. Quitting')
         return
 
     # Retrieve fields to standardize in standardizer (indicated by variable_field)

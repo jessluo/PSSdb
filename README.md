@@ -2,11 +2,7 @@
 ###### Jessica Luo, Rainer Kiko, Marco Corrales-Ugalde, Mathilde Dugenne, Todd O'Brien, Charles Stock, Jean-Olivier Irisson, Lars Stemmann, Fabien Lombard
 <a href="mailto:nmfs.pssdb@noaa.gov">Contact us</a>
 
-<<<<<<< HEAD
-v1.2: step4 has been modified to calculate PSD and save intermediate data products of NBSS and PSD calculations
 
-### Repository organization
-=======
 We developed the Pelagic Size Structure database to provide globally consistent datasets of living and non-living particle size distributions obtained from marine imaging devices.
 
 The objectives for PSSdb were both to:

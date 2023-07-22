@@ -55,11 +55,11 @@ import datetime, time # Time module for break and current date
 ## Path definition:
 path_to_git=Path('~/GIT/PSSdb').expanduser()
 
-path_to_config=path_to_git/ 'scripts'/ 'Ecotaxa_API.yaml'
+path_to_config=path_to_git/ 'scripts'/ 'configuration_masterfile.yaml'
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
 
-path_to_config_pw=path_to_git/ 'scripts'/ 'Ecotaxa_API_pw.yaml'
+path_to_config_pw=path_to_git/ 'scripts'/ 'configuration_masterfile_pw.yaml'
 with open(path_to_config_pw ,'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 password_ecotaxa=cfg_pw['ecotaxa_pass']
