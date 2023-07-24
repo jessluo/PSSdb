@@ -10,6 +10,7 @@ import pandas as pd
 from pathlib import Path  # Handling of path object
 import os
 import yaml
+import math as m
 path_to_config=Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg= yaml.safe_load(config_file)
@@ -19,6 +20,7 @@ except:
     from scripts.funcs_standardize_projects import *
 
 # Functions for plotting:
+from plotnine import *
 import seaborn as sns
 import matplotlib.pyplot as plt
 palette=list((sns.color_palette("PuRd",4).as_hex()))
@@ -31,6 +33,7 @@ path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
 df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
+fontname = 'serif'
 
 # Fig 2. Spatial coverage
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
@@ -80,21 +83,48 @@ plot[0].set_size_inches(6.5,2.8)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 #Fig. 3. Average NBSS
-
 df_1a['log_biovolume_size_class'] = np.log10(df_1a['biovolume_size_class'])
 df_1a['log_normalized_biovolume_mean'] = np.log10(df_1a['normalized_biovolume_mean'])
-sns.lineplot(data=df_1a, x='log_biovolume_size_class', y='log_normalized_biovolume_mean', hue='Instrument', palette=['green', 'red', 'cyan'], legend=False)
+df_1a['log_diameter'] =df_1a['biovolume_size_class'].apply(lambda x: np.log10((x*6)/m.pi)**(1./3.))
+df_1a['biovolume_size_class']= df_1a['biovolume_size_class'].astype(str)
+
+graph_data = df_1a.groupby(['Instrument', 'log_biovolume_size_class']).apply(lambda x: pd.Series({'NB_mean':x.log_normalized_biovolume_mean.mean(), 'NB_std':x.log_normalized_biovolume_mean.std()})).reset_index()
+colors = ['green', 'gray', 'blue']
+fig = plt.figure()
+ax1 = fig.add_subplot(111)
+ax2 = ax1.twiny()
+
+for i, instrument in enumerate (['IFCB','UVP','Zooscan']):
+    data_plot = graph_data[graph_data['Instrument'] == instrument].reset_index()
+    ax1.plot(data_plot.log_biovolume_size_class, data_plot.NB_mean, label=instrument, color= colors[i])
+    ax1.fill_between(data_plot.log_biovolume_size_class, data_plot.NB_mean - data_plot.NB_std*2, data_plot.NB_mean + data_plot.NB_std*2, color=colors[i], alpha=0.2)
+
+new_tick_values = np.array([10e1,  10e5,  10e9,  10e13])
+new_tick_locations = np.array([1,  5,  9,  13])
+
+def tick_function(X):
+    V = np.round(np.log10(((X*6)/m.pi)**(1./3.))).astype(int)
+    return V
+
+#sns.despine(top = True, right = True)
+ax1.set_yticks([-3, -1, 1, 3, 5])
+ax1.spines['right'].set_visible(False)
+
+ax1.set_ylabel( r'$log_{10}$ Normalized Biovolume ($\mu$m$^{3}$ dm$^{-3}$ $\Delta\mu$m$^{-3}$)')
+ax1.set_xlabel(r'$log_{10}$ Biovolume ($\mu$m$^{3}$)')
+
+ax2.set_xticks(new_tick_locations)
+ax2.set_xticklabels(tick_function(new_tick_values))
+ax2.spines['right'].set_visible(False)
+ax2.set_xlabel(r'$log_{10}$ ESD ($\mu$m)')
 
 
-sns.despine(top = True, right = True)
-plt.yticks([-3, -1, 1, 3, 5])
-plt.ylabel( r'$log_{10}$ Normalized Biovolume ($\mu$m$^{3}$ dm$^{-3}$ $\Delta\mu$m$^{-3}$)')
-plt.xlabel(r'$log_{10}$ Biovolume ($\mu$m$^{3}$)')
-#plt.xlabel('log'+r'$_1_0$' + 'ESD ' +r'($\mu$m$^{3}$)')
-plot[0].set_size_inches(6.5,2.8)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_3_NBSS_summary.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_3_NBSS_summary.pdf'.format(str(Path.home())),  dpi=600)
 plt.close()
 
+##finding weird values in IFCB
+IFCB_df = df_1a[df_1a.Instrument == 'IFCB']
+min_IFCB = IFCB_df[IFCB_df.log_biovolume_size_class == IFCB_df.log_biovolume_size_class.min()]
 # Fig 4. Intercept, slope, R2
 
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
@@ -124,7 +154,8 @@ plt.tight_layout()
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_4.1_slopes_NBSS.pdf'.format(str(Path.home())), dpi=600)
 plt.close()
 
-# Intercept
+# Intercept: untransformed
+#df['intercept_unt'] = df['intercept_mean'].apply(lambda x: m.e**x)
 
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
 world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
@@ -134,7 +165,7 @@ plot=(ggplot(data=df)+
   geom_point( aes(x="longitude",y="latitude",fill='intercept_mean'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1, size=1) +
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
- labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean slope') +
+ labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean Intercept') +
  scale_fill_cmap(limits=[5,25]) +
  #scale_fill_gradientn(trans='log10',colors=palette)+
 theme(axis_ticks_direction="inout",
@@ -183,33 +214,89 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_4.3_regress_coef
 plt.close()
 
 #Figure 5. Parameters by latitude
+df['latitude_cat'] = pd.cut(df['latitude'], bins=list(np.arange(-90,100, 1))).apply(lambda x: np.round(x.mid))#.astype(str)
+graph_data_lat = df.groupby(['Instrument', 'latitude_cat']).apply(lambda x: pd.Series({'slope_mean':x.slope_mean.mean(),
+                                                                                      'slope_std':x.slope_mean.std(),
+                                                                                      'intercept_mean': x.intercept_mean.mean(),
+                                                                                      'intercept_std': x.intercept_mean.std(),
+                                                                                      'r2_mean': x.r2_mean.mean(),
+                                                                                      'r2_std': x.r2_mean.std()})).reset_index()
 
+colors = {'IFCB':'green', 'UVP':'gray', 'Zooscan':'blue'}
 #slope
-sns.lineplot(data=df, x='latitude', y='slope_mean', hue='Instrument', palette=['red', 'cyan', 'green'], ci= None)
-sns.despine(top = True, right = True)
-plt.ylabel( r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)')
-plt.xlabel(r'Latitude ($\degree$N)')
-#plt.set_size_inches(6.5,2.8)
-plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.1_slope_lat.pdf'.format(str(Path.home())), dpi=600)
-plt.close()
+plot = (ggplot(data=graph_data_lat)+
+        geom_point(aes(x='latitude_cat', y='slope_mean', color='Instrument'))+
+        geom_line(aes(x='latitude_cat', y='slope_mean', color='Instrument'))+
+        geom_errorbar(aes(x ='latitude_cat', ymin = 'slope_mean-slope_std', ymax = 'slope_mean+slope_std', color = 'Instrument'))+
+        coord_flip()+
+        scale_color_manual(values = colors)+
+        scale_x_continuous(breaks = np.arange(-90, 100, 10))+
+        labs(y=r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', x=r'Latitude ($^{\circ}$N)')+
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,8)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.1_slope_lat.pdf'.format(str(Path.home())), dpi=600)
 
 #intercept
-sns.lineplot(data=df, x='latitude', y='intercept_mean', hue='Instrument', palette=['red', 'cyan', 'green'], ci= None)
-sns.despine(top = True, right = True)
-plt.ylabel( r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)')
-plt.xlabel(r'Latitude ($\degree$N)')
-#plt.set_size_inches(6.5,2.8)
-plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.2_intercept_lat.pdf'.format(str(Path.home())), dpi=600)
-plt.close()
+plot = (ggplot(data=graph_data_lat)+
+        geom_point(aes(x='latitude_cat', y='intercept_mean', color='Instrument'))+
+        geom_line(aes(x='latitude_cat', y='intercept_mean', color='Instrument'))+
+        geom_errorbar(aes(x ='latitude_cat', ymin = 'intercept_mean-intercept_std', ymax = 'intercept_mean+intercept_std', color = 'Instrument'))+
+        coord_flip()+
+        scale_color_manual(values = colors)+
+        scale_x_continuous(breaks = np.arange(-90, 100, 10))+
+        labs(y=r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', x=r'Latitude ($^{\circ}$N)')+
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,8)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.2_intercept_lat.pdf'.format(str(Path.home())), dpi=600)
 
 #R2
-sns.lineplot(data=df, x='latitude', y='r2_mean', hue='Instrument', palette=['red', 'cyan', 'green'], ci= None)
-sns.despine(top = True, right = True)
-plt.ylabel( r'Mean R$^{2}$')
-plt.xlabel(r'Latitude ($\degree$N)')
-#plt.set_size_inches(6.5,2.8)
-plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.3_R2_lat.pdf'.format(str(Path.home())), dpi=600)
-plt.close()
+plot = (ggplot(data=graph_data_lat)+
+        geom_point(aes(x='latitude_cat', y='r2_mean', color='Instrument'))+
+        geom_line(aes(x='latitude_cat', y='r2_mean', color='Instrument'))+
+        geom_errorbar(aes(x ='latitude_cat', ymin = 'r2_mean-r2_std', ymax = 'r2_mean+r2_std', color = 'Instrument'))+
+        coord_flip()+
+        scale_color_manual(values = colors)+
+        scale_x_continuous(breaks = np.arange(-90, 100, 10))+
+        labs(y=r'Mean R$^{2}$', x=r'Latitude ($^{\circ}$N)')+
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,8)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_5.3_R2_lat.pdf'.format(str(Path.home())), dpi=600)
 
 
 ##Figure 6. Climatology of parameters by ocean basin
@@ -221,7 +308,7 @@ df = df.replace({'month':month_names, 'ocean':ocean_names})
 insufficient_data = ['Arctic_Ocean', 'Red_Sea', 'South_Atlantic', 'Southern_Ocean', 'Baltic_Sea', 'coastal']
 df_clim = df[~df['ocean'].isin(insufficient_data)].reset_index()
 
-fontname = 'serif'
+
 
 # Slope
 fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
