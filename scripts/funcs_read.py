@@ -6,6 +6,33 @@ import yaml
 from pathlib import Path
 from glob import glob
 
+def proj_id_list_func_new(instrument, data_status, big_grid = False):
+    """
+    Objective:
+    read standaroizer files, and generate an instrument specific list of either standardized or gridded files
+    :param instrument: the device used for image adcquisition. important since the path will change according to it
+    :return path_to_data: string where the tsv files are stores
+    :return file_list: list with the filenames that have data
+    """
+    # read config file
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
+    with open(path_to_config, 'r') as config_file:
+        cfg = yaml.safe_load(config_file)
+    # generate paths to standardized, gridded files, and the standardizer spreadsheets
+    path_to_standardized = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']
+    path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']
+    path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
+    #make a dataframe with all the projects and then subset based on the instrument:
+    standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
+    standardizer_df = pd.concat(map((lambda path: (pd.read_excel(path))), standardizer_files))
+    standardizer_df_subset = standardizer_df[standardizer_df.Instrument == instrument].reset_index(drop=True)
+    # generate the file list (standardized or gridded files)
+    if data_status == 'standardized':
+        file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + instrument + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+    elif data_status == 'gridded':
+        file_list = [file for project in [glob(str(path_to_gridded) + '*/**/*' + instrument + '*/**/*' + str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
+    return file_list
+
 def proj_id_list_func(instrument, data_status, big_grid = False):
     """
     Objective:
@@ -34,26 +61,6 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
         files_data = [x for x in file_list if not 'metadata' in x]
         files_data_clean = []
         [files_data_clean.append(x) for x in files_data if x not in files_data_clean]
-        #if instrument  == 'Zooscan':
-            #path_to_data =  path_to_ecotaxa / instrument
-            #file_list = os.listdir(path_to_data)
-            #files_data = [(str(path_to_data / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
-        #elif instrument == 'UVP':
-            #file_list = os.listdir(path_to_consolidated_UVP)
-            #files_data = [(str(path_to_consolidated_UVP / x)) for x in file_list if not 'metadata' in x and '.csv' in x]
-        #elif instrument  == 'IFCB':
-            #get data from ecotaxa
-            #path_to_ecotaxa_data = path_to_ecotaxa / instrument / instrument # little glitch here
-            #ecotaxa_list = os.listdir(path_to_ecotaxa_data)
-            #ecotaxa_data = [(str(path_to_ecotaxa_data / x)) for x in ecotaxa_list  if not 'metadata' in x and '.csv' in x]
-            #get data from dashboards
-            #dashboard_list = [f for f in os.listdir(path_to_IFCBdashboard) if not f.startswith('.')]
-            #dashboard_data = []
-            #for i in dashboard_list:
-                #proj_list = os.listdir(path_to_IFCBdashboard / i)
-                #proj_data = [(str(path_to_IFCBdashboard / i / x )) for x in proj_list if not 'metadata' in x and '.csv' in x]
-                #dashboard_data = dashboard_data + proj_data
-            #files_data = ecotaxa_data + dashboard_data
     elif data_status == 'gridded':
         path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']
         file_list = glob(str(path_to_gridded) + '/**/*' + instrument +'*/**/*.csv', recursive=True)
