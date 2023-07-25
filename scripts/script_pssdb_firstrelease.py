@@ -27,6 +27,14 @@ palette=list((sns.color_palette("PuRd",4).as_hex()))
 
 
 ## Workflow starts here:
+# Generate stats for table 1:
+path_to_datafile=(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']).expanduser()
+path_files=list(path_to_datafile.rglob('standardized_*.csv'))
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}),path_files)).drop_duplicates().reset_index(drop=True)
+
+df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.unique()),'Date_min':x.Sampling_datetime.dt.strftime('%Y %m').min(),'Date_max':x.Sampling_datetime.dt.strftime('%Y %m').max()})).reset_index()
+
+
 # Generate maps and heatmap of the spatio-temporal coverage for PSSdb products 1
 path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data'
 path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
