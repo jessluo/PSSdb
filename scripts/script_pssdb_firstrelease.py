@@ -133,7 +133,9 @@ plt.close()
 ##finding weird values in IFCB
 IFCB_df = df_1a[df_1a.Instrument == 'IFCB']
 min_IFCB = IFCB_df[IFCB_df.log_biovolume_size_class == IFCB_df.log_biovolume_size_class.min()]
-# Fig 4. Intercept, slope, R2
+
+
+# Fig 4. Intercept, slope, R2 global map
 
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
 world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
@@ -144,47 +146,49 @@ plot=(ggplot(data=df)+
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
  labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean slope') +
- scale_fill_cmap(limits=[-0.5, -2]) +
- #scale_fill_gradientn(trans='log10',colors=palette)+
+ scale_fill_cmap(cmap_name='PuRd',limits=[-0.5, -2])+
+#scale_fill_gradientn(trans='log10',colors=palette)+
 theme(axis_ticks_direction="inout",
                       panel_grid=element_blank(),
                       panel_background=element_rect(fill='white'),
                       panel_border=element_rect(color='#222222'),
-                      legend_title=element_text(family="serif", size=10),
-                      legend_text=element_text(family="serif", size=10),
-                      axis_title=element_text(family="serif", size=10),
-                      axis_text_x=element_text(family="serif", size=10),
-                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      legend_title=element_text(family="serif", size=20),
+                      legend_text=element_text(family="serif", size=15),
+                      axis_title=element_text(family="serif", size=15),
+                      axis_text_x=element_text(family="serif", size=15),
+                      axis_text_y=element_text(family="serif", size=15, rotation=90),
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(13,3.1)
-plt.tight_layout()
+#plt.tight_layout()
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_4.1_slopes_NBSS.pdf'.format(str(Path.home())), dpi=600)
 plt.close()
 
 # Intercept: untransformed
-#df['intercept_unt'] = df['intercept_mean'].apply(lambda x: m.e**x)
-
+df['intercept_unt'] = df['intercept_mean'].apply(lambda x: m.e**x) # ths will not be used for the map since the untransformed values are drastically different between instruments
+Intercept_unt_summary=df.groupby(['Instrument']).apply(lambda x: pd.Series({'intercept_mean_unt': x.intercept_unt.mean(),
+                                                                            'intercept_mean': x.intercept_mean.mean(),
+                                                                            'intercept_sd_unt': x.intercept_unt.std(),
+                                                                             'intercept_sd': x.intercept_mean.std()}))
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
 world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
-#df_summary=df.groupby(['Instrument','latitude','longitude']).agg({'N':'sum'}).reset_index().rename(columns={'N':'count'})
 plot=(ggplot(data=df)+
   facet_wrap('~Instrument', nrow=1)+
   geom_point( aes(x="longitude",y="latitude",fill='intercept_mean'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1, size=1) +
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
  labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean Intercept') +
- scale_fill_cmap(limits=[5,25]) +
+ scale_fill_cmap(cmap_name='PuRd', limits=[5,25]) +
  #scale_fill_gradientn(trans='log10',colors=palette)+
 theme(axis_ticks_direction="inout",
                       panel_grid=element_blank(),
                       panel_background=element_rect(fill='white'),
                       panel_border=element_rect(color='#222222'),
-                      legend_title=element_text(family="serif", size=10),
-                      legend_text=element_text(family="serif", size=10),
-                      axis_title=element_text(family="serif", size=10),
-                      axis_text_x=element_text(family="serif", size=10),
-                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      legend_title=element_text(family="serif", size=20),
+                      legend_text=element_text(family="serif", size=15),
+                      axis_title=element_text(family="serif", size=15),
+                      axis_text_x=element_text(family="serif", size=15),
+                      axis_text_y=element_text(family="serif", size=15, rotation=90),
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(13,3.1)
@@ -203,17 +207,17 @@ plot=(ggplot(data=df)+
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
  labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean slope') +
- scale_fill_cmap(limits=[0.85,0.99]) +
+ scale_fill_cmap(cmap_name='PuRd',limits=[0.85,0.99]) +
  #scale_fill_gradientn(trans='log10',colors=palette)+
 theme(axis_ticks_direction="inout",
                       panel_grid=element_blank(),
                       panel_background=element_rect(fill='white'),
                       panel_border=element_rect(color='#222222'),
                       legend_title=element_text(family="serif", size=10),
-                      legend_text=element_text(family="serif", size=10),
-                      axis_title=element_text(family="serif", size=10),
-                      axis_text_x=element_text(family="serif", size=10),
-                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      legend_text=element_text(family="serif", size=15),
+                      axis_title=element_text(family="serif", size=15),
+                      axis_text_x=element_text(family="serif", size=15),
+                      axis_text_y=element_text(family="serif", size=15, rotation=90),
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(13,3.1)
@@ -315,21 +319,28 @@ ocean_names = {'o00':'coastal', 'o07':'North_Pacific', 'o01': 'Arctic_Ocean', 'o
 df = df.replace({'month':month_names, 'ocean':ocean_names})
 insufficient_data = ['Arctic_Ocean', 'Red_Sea', 'South_Atlantic', 'Southern_Ocean', 'Baltic_Sea', 'coastal']
 df_clim = df[~df['ocean'].isin(insufficient_data)].reset_index()
-
+pal = {"IFCB":"tab:green",
+           "UVP":"tab:gray",
+           "Zooscan":"tab:blue"}
 
 
 # Slope
-fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
+fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(30, 4))
 ocean= list(df_clim['ocean'].unique())
 for ocean, ax in zip(ocean, axs.ravel()):
     df_subset=df_clim[df_clim['ocean']== ocean]
-    sns.boxplot(ax =ax, data=df_subset, x='month', y='slope_mean',color='skyblue', showfliers = False, order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.pointplot(ax =ax, data=df_subset, x='month', y='slope_mean',hue='Instrument', palette=pal, dodge= 0.3, errorbar = 'ci', order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     sns.despine(top = True, right = True)
     ax.set_ylim(-2, -0.4)
-    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''])
-    ax.set_title(ocean.replace('_', ' ')).set_fontname(fontname)
+    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''], fontsize = 15)
+    ax.set_yticklabels([-2,-1.8, -1.6, -1.4, -1.2, -1, -0.8, -0.6, -0.4] ,fontsize=15)
+    ax.set_title(ocean.replace('_', ' '),fontsize = 18).set_fontname(fontname)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles[3:], labels=labels[3:])
     ax.set(xlabel= None, ylabel = None)
-axs[0].set_ylabel(r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)').set_fontname(fontname)
+axs[0].set_ylabel(r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', fontsize = 17).set_fontname(fontname)
+fig.set_figheight(4)
+fig.set_figwidth(30)
 plt.tight_layout
 for ax in axs.flatten():
     labels = ax.get_xticklabels() + ax.get_yticklabels()
@@ -340,44 +351,50 @@ plt.close()
 
 
 # Intercept
-fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
+fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(30, 4))
 ocean= list(df_clim['ocean'].unique())
 for ocean, ax in zip(ocean, axs.ravel()):
     df_subset=df_clim[df_clim['ocean']== ocean]
-    sns.boxplot(ax =ax, data=df_subset, x='month', y='intercept_mean',color='skyblue', showfliers = False, order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.pointplot(ax =ax, data=df_subset, x='month', y='intercept_mean',hue='Instrument', palette=pal, dodge= 0.3, errorbar = 'ci', order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     sns.despine(top = True, right = True)
-    ax.set_ylim(2, 50)
-    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''])
-    ax.set_title(ocean.replace('_', ' ')).set_fontname(fontname)
-    #ax.set_title('')
+    ax.set_ylim(0, 35)
+    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''], fontsize = 15)
+    ax.set_yticklabels([0, 5,10,15,20,25,30,35] ,fontsize=15)
+    ax.set_title(ocean.replace('_', ' '),fontsize = 18).set_fontname(fontname)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles[3:], labels=labels[3:])
     ax.set(xlabel= None, ylabel = None)
-axs[0].set_ylabel(r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)').set_fontname(fontname)
+axs[0].set_ylabel(r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', fontsize = 17).set_fontname(fontname)
+fig.set_figheight(4)
+fig.set_figwidth(30)
 plt.tight_layout
 for ax in axs.flatten():
     labels = ax.get_xticklabels() + ax.get_yticklabels()
     [label.set_fontname(fontname) for label in labels]
-
 plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.2_intercept_clim_basins.pdf'.format(str(Path.home())), dpi=600)
 plt.close()
 
 
 # R2
-fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(25, 4))
+fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(30, 4))
 ocean= list(df_clim['ocean'].unique())
 for ocean, ax in zip(ocean, axs.ravel()):
     df_subset=df_clim[df_clim['ocean']== ocean]
-    sns.boxplot(ax =ax, data=df_subset, x='month', y='r2_mean',color='skyblue', showfliers = False, order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.pointplot(ax=ax, data=df_subset, x='month', y='r2_mean', hue='Instrument', palette=pal, dodge=0.3,errorbar='ci',order=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     sns.despine(top = True, right = True)
     ax.set_ylim(0.65, 1)
-    ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''])
-    ax.set_title(ocean.replace('_', ' ')).set_fontname(fontname)
-    #ax.set_title('')
-    ax.set(xlabel= None, ylabel = None)
-axs[0].set_ylabel(r'Mean R$^{2}$').set_fontname(fontname)
+    ax.set_xticklabels(['Jan', '', 'Mar', '', 'May', '', 'Jul', '', 'Sep', '', 'Nov', ''], fontsize=15)
+    ax.set_yticklabels([0.65,0.7,0.75, 0.8, 0.85, 0.9, 0.95, 1], fontsize=15)
+    ax.set_title(ocean.replace('_', ' '), fontsize=18).set_fontname(fontname)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles[3:], labels=labels[3:])
+    ax.set(xlabel=None, ylabel=None)
+axs[0].set_ylabel(r'Mean R$^{2}$', fontsize = 17).set_fontname(fontname)
+fig.set_figheight(4)
+fig.set_figwidth(30)
 plt.tight_layout
 for ax in axs.flatten():
     labels = ax.get_xticklabels() + ax.get_yticklabels()
     [label.set_fontname(fontname) for label in labels]
-
 plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.3_r2_clim_basins.pdf'.format(str(Path.home())), dpi=600)
 plt.close()
