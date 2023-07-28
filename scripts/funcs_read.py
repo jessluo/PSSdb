@@ -14,6 +14,7 @@ def proj_id_list_func_new(instrument, data_status, big_grid = False):
     :return path_to_data: string where the tsv files are stores
     :return file_list: list with the filenames that have data
     """
+    Instrument_dict = {'IFCB':['IFCB'], 'UVP':['UVP'], 'Scanner': ['Scanner', 'ZooCam', 'Zooscan']}
     # read config file
     path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
@@ -25,13 +26,17 @@ def proj_id_list_func_new(instrument, data_status, big_grid = False):
     #make a dataframe with all the projects and then subset based on the instrument:
     standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
     standardizer_df = pd.concat(map((lambda path: (pd.read_excel(path))), standardizer_files))
-    standardizer_df_subset = standardizer_df[standardizer_df.Instrument == instrument].reset_index(drop=True)
     # generate the file list (standardized or gridded files)
-    if data_status == 'standardized':
-        file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + instrument + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
-    elif data_status == 'gridded':
-        file_list = [file for project in [glob(str(path_to_gridded) + '*/**/*' + instrument + '*/**/*' + str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
-    return file_list
+    file_list_full=[]
+    for i in Instrument_dict[instrument]:
+        standardizer_df_subset = standardizer_df[standardizer_df.Instrument == i].reset_index(drop=True)
+        if data_status == 'standardized':
+            file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + i + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+        elif data_status == 'gridded':
+            file_list = [file for project in [glob(str(path_to_gridded) + '*/**/*' + i + '*/**/*' + str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
+    file_list_full.append(file_list)
+    file_list_full = file_list_full[0]
+    return file_list_full
 
 def proj_id_list_func(instrument, data_status, big_grid = False):
     """
