@@ -285,7 +285,7 @@ def threshold_func(binned_data):
 
     #upper threshold based on max NBSS
     list_max_NBSS = binned_data.NB.tolist()
-    binned_data_filt = binned_data.loc[list_max_NBSS.index(np.nanmax(list_max_NBSS)):len(binned_data)] #a ask if its better to just remove all data
+    binned_data_filt = binned_data.loc[list_max_NBSS.index(np.nanmax(list_max_NBSS)):len(binned_data)].reset_index(drop=True)#a ask if its better to just remove all data
     binned_data_filt = binned_data_filt.reset_index(drop=True)
 
     #lower threshold based on three consecutive size bins with nans
