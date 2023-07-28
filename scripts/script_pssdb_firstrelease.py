@@ -132,7 +132,14 @@ plt.close()
 
 ##finding weird values in IFCB
 IFCB_df = df_1a[df_1a.Instrument == 'IFCB']
-min_IFCB = IFCB_df[IFCB_df.log_biovolume_size_class == IFCB_df.log_biovolume_size_class.min()]
+IFCB_df['log_biovolume_size_class'] = np.log10(IFCB_df['biovolume_size_class'])
+IFCB_df['log_normalized_biovolume_mean'] = np.log10(IFCB_df['normalized_biovolume_mean'])
+
+IFCB_df['Sample_ID'] = IFCB_df.year.astype(str) +'_'+ IFCB_df.month.astype(str) +'_'+ IFCB_df.latitude.astype(str) + '_'+ IFCB_df.longitude.astype(str)
+min_IFCB = IFCB_df[IFCB_df.log_biovolume_size_class == IFCB_df.log_biovolume_size_class.min()].reset_index()
+min_IFCB_df = IFCB_df[IFCB_df.Sample_ID == min_IFCB.Sample_ID[0]].reset_index()
+
+sns.lineplot(data=min_IFCB_df , x='log_biovolume_size_class', y='log_normalized_biovolume_mean')
 
 
 # Fig 4. Intercept, slope, R2 global map
@@ -165,7 +172,7 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_4.1_slopes_NBSS.
 plt.close()
 
 # Intercept: untransformed
-df['intercept_unt'] = df['intercept_mean'].apply(lambda x: m.e**x) # ths will not be used for the map since the untransformed values are drastically different between instruments
+df['intercept_unt'] = df['intercept_mean'].apply(lambda x: math.exp(x))
 Intercept_unt_summary=df.groupby(['Instrument']).apply(lambda x: pd.Series({'intercept_mean_unt': x.intercept_unt.mean(),
                                                                             'intercept_mean': x.intercept_mean.mean(),
                                                                             'intercept_sd_unt': x.intercept_unt.std(),
