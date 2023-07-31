@@ -137,8 +137,9 @@ IFCB_df['log_normalized_biovolume_mean'] = np.log10(IFCB_df['normalized_biovolum
 
 IFCB_df['Sample_ID'] = IFCB_df.year.astype(str) +'_'+ IFCB_df.month.astype(str) +'_'+ IFCB_df.latitude.astype(str) + '_'+ IFCB_df.longitude.astype(str)
 min_IFCB = IFCB_df[IFCB_df.log_biovolume_size_class == IFCB_df.log_biovolume_size_class.min()].reset_index()
-min_IFCB_df = IFCB_df[IFCB_df.Sample_ID == min_IFCB.Sample_ID[0]].reset_index()
+min_IFCB_df = IFCB_df[IFCB_df.Sample_ID == min_IFCB.Sample_ID[0]].reset_index() # this data is from NESLTER broadscale
 
+min_IFCB_df = min_IFCB_df.iloc[0:15]
 sns.lineplot(data=min_IFCB_df , x='log_biovolume_size_class', y='log_normalized_biovolume_mean')
 
 
