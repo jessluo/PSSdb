@@ -36,7 +36,7 @@ if depth_binning == 'Y':
     depth_bins = cfg['depth_bins']
 
 ## processing starts here
-for instrument in ['Zooscan', 'UVP', 'IFCB']:
+for instrument in ['Scanner', 'UVP', 'IFCB']:
     files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
     test_1 = cfg['N_test']
     if test_1 == 0:
@@ -71,7 +71,7 @@ for instrument in ['Zooscan', 'UVP', 'IFCB']:
                     #print ('no data left after assessing validation status for ' + filename)
                     #n_del_files += 1
                     #continue
-                if (instrument == 'Zooscan') or (instrument == 'UVP'):
+                if (instrument == 'Scanner') or (instrument == 'UVP'):
                     df = depth_parsing_func(df, instrument)
                     if len(df) == 0:
                         print('no data left after restricting depths to less than 200 meters in ' + filename)
@@ -146,7 +146,7 @@ for instrument in ['Zooscan', 'UVP', 'IFCB']:
                 #continue
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
             df = df[df['Area'] != 0].reset_index(drop=True)
-            if (instrument == 'Zooscan') or (instrument == 'UVP'):
+            if (instrument == 'Scanner') or (instrument == 'UVP'):
                 df = depth_parsing_func(df, instrument)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
