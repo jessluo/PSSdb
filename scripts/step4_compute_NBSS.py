@@ -36,7 +36,7 @@ bin_loc = cfg['st_increment_avg']
 group_by= cfg['date_group_avg']
 big_grid_status = cfg['big_grid']
 # processing starts here
-for instrument in ['Zooscan', 'UVP', 'IFCB']:
+for instrument in ['Scanner', 'UVP', 'IFCB']:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     grid_list = group_gridded_files_func(instrument, already_gridded=big_grid_status)
 
