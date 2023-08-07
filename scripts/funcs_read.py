@@ -6,7 +6,7 @@ import yaml
 from pathlib import Path
 from glob import glob
 
-def proj_id_list_func_new(instrument, data_status, big_grid = False):
+def proj_id_list_func(instrument, data_status, big_grid = False):
     """
     Objective:
     read standaroizer files, and generate an instrument specific list of either standardized or gridded files
@@ -31,14 +31,15 @@ def proj_id_list_func_new(instrument, data_status, big_grid = False):
     for i in Instrument_dict[instrument]:
         standardizer_df_subset = standardizer_df[standardizer_df.Instrument == i].reset_index(drop=True)
         if data_status == 'standardized':
-            file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + i + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+            #file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + i + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+            file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*_' + str(proj_id) + '_*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
+            print(file_list)
         elif data_status == 'gridded':
-            file_list = [file for project in [glob(str(path_to_gridded) + '*/**/*' + i + '*/**/*' + str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
-    file_list_full.append(file_list)
-    file_list_full = file_list_full[0]
+            file_list = [file for project in [glob(str(path_to_gridded) + '*/**/*_' + str(proj_id) + '_*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
+        file_list_full = file_list_full + file_list
     return file_list_full
 
-def proj_id_list_func(instrument, data_status, big_grid = False):
+def proj_id_list_func_old(instrument, data_status, big_grid = False):
     """
     Objective:
     generate a list and create the path  of the standardized Ecotaxa projects
@@ -90,7 +91,7 @@ def depth_parsing_func(df, instrument):
         df_d = df.drop(df[(df['Depth_min'] > 200)].index)
         df_d['Min_obs_depth'] = 0
         df_d['Max_obs_depth'] = 200
-    elif instrument == 'Zooscan':
+    elif instrument == 'Scanner':
         df_d = df.drop(df[(df['Depth_min'] > 250) | (df['Depth_max'] > 250)].index)
         df_d['Min_obs_depth'] = 0
         df_d['Max_obs_depth'] = 250
