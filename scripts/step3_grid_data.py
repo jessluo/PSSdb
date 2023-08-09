@@ -83,6 +83,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                     sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
                     df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
                     df = df.replace('', np.nan)
+                    df = df[df['Sample'].str.contains('D20190603T001443_IFCB115') == False].reset_index()
                     if len(df) == 0:
                         print('no data left after restricting depths to less than 200 meters in ' + filename)
                         n_del_files += 1
@@ -158,6 +159,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                 sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
                 df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
                 df = df.replace('', np.nan)
+                df = df[df['Sample'].str.contains('D20190529T031045_IFCB115') == False].reset_index()
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     n_del_files += 1
