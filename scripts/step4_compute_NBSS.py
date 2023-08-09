@@ -38,7 +38,7 @@ big_grid_status = cfg['big_grid']
 # processing starts here
 for instrument in ['Scanner', 'UVP', 'IFCB']:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
-    grid_list = group_gridded_files_func(instrument, already_gridded=big_grid_status)
+    grid_list = group_gridded_files_func(instrument, already_gridded='Y')
 
     #get paths to gridded files
     file_list = proj_id_list_func(instrument, data_status ='gridded', big_grid = True)#generate path and project ID's but ONLY for parsed data
