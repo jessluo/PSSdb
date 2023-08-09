@@ -127,7 +127,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                                     'longitude of the center point of the 1x1 degree cell',
                                     'middle point within a depth bin']})
             metadata_bins.to_csv(str(dirpath) + '/' + instrument + '_' + 'metadata_gridded.csv', index=False)
-
+            grid_list = group_gridded_files_func(instrument, already_gridded='N')
         elif replace == 'N':
             print('previously gridded files will be kept')
 
@@ -206,3 +206,4 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                                  'middle point within a depth bin']})
         metadata_bins.to_csv(str(dirpath) + '/' + instrument + '_' + 'metadata_gridded.csv', index=False)
 
+        grid_list = group_gridded_files_func(instrument, already_gridded='N')
