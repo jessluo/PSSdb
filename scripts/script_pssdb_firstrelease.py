@@ -102,7 +102,7 @@ fig = plt.figure()
 ax1 = fig.add_subplot(111)
 ax2 = ax1.twiny()
 
-for i, instrument in enumerate (['IFCB','UVP','Zooscan']):
+for i, instrument in enumerate (['IFCB','UVP','Scanner']):
     data_plot = graph_data[graph_data['Instrument'] == instrument].reset_index()
     ax1.plot(data_plot.log_biovolume_size_class, data_plot.NB_mean, label=instrument, color= colors[i])
     ax1.fill_between(data_plot.log_biovolume_size_class, data_plot.NB_mean - data_plot.NB_std*2, data_plot.NB_mean + data_plot.NB_std*2, color=colors[i], alpha=0.2)
