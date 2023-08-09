@@ -9,6 +9,7 @@ import pandas as pd
 import calendar
 import numpy as np
 import datetime as dt
+from tqdm import tqdm
 import pytz # to define the timezone of the time info
 from datetime import datetime
 from astral.sun import sun #run pip install astral
@@ -17,6 +18,11 @@ from astral import LocationInfo
 # an alternative to astral
 from suncalc import get_position, get_times # pip install suncalc
 #from dtki import d_n_calc # R. Kiko's module, see PSSdb documentation to install
+try:
+    from funcs_read import *
+except:
+    from scripts.funcs_read import *
+
 
 
 # NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
@@ -222,6 +228,52 @@ def gridding_func(st_increment, lat= 'Latitude', lon= 'Longitude'):
         Station_ID.append(str(midLat_bin[i]) + '_' + str(midLon_bin[i]))
 
     return Station_ID, midLat_bin, midLon_bin
+
+def group_gridded_files_func(instrument, already_gridded= 'N'):
+    """
+    Objective: assign a label to each gridded dataset, so when the compilation of files occurs, it is only done with a group of data and prevents
+    the creation of a huge file
+    """
+    #first, create series of numbers that break the globe into 15x15 degree cells:
+    lat_left = np.arange(-90, 90+15, 15, dtype=int)
+    lat_right = np.arange(-75,105 + 15, 15, dtype=int)
+    lat_int = pd.IntervalIndex.from_arrays(lat_left, lat_right, closed='both')
+    lon_left = np.arange(-180, 180+15, 15, dtype=int)
+    lon_right = np.arange(-165, 195+15, 15, dtype=int)
+    lon_int = pd.IntervalIndex.from_arrays(lon_left, lon_right, closed='both')
+    grid_list = []
+    # create a dictionary that has unique keys for each grid interval
+    #grid_dict = {}
+    #for x in range(0, len(lon_int)):
+        #for y in range(0, len(lat_int)):
+            #grid_dict[(str(x) + '_' + str(y))] = {'lon': lon_int[x], 'lat': lat_int[y]} ## however, this might not be necessary
+    # try now to assing lat & lon grid numbers to the dataframe directly
+    file_list = proj_id_list_func(instrument, data_status='gridded')
+    for i in tqdm(file_list):
+        if already_gridded == 'N':
+            print('generating subsets of data for 15 degree grids from ' + i)
+        else:
+            print('extracting big grid labels for subsetting from ' + i)
+        filename = i.split('/')[-1]
+        dirpath = i.replace(filename, '')
+        df = pd.read_csv(i, header = 0)
+        df['lat_grid'] = None
+        df['lon_grid'] = None
+        for la in df['midLatBin'].unique():
+            df.loc[df['midLatBin'] == la, 'lat_grid']= str(lat_int[lat_int.contains(la) == True][0].left) + '-' + str(lat_int[lat_int.contains(la) == True][0].right)
+        for lo in df['midLonBin'].unique():
+            df.loc[df['midLonBin'] == lo, 'lon_grid'] = str(lon_int[lon_int.contains(lo) == True][0].left) + '-' + str(lon_int[lon_int.contains(lo) == True][0].right)
+        # combine these numbers to form a grid identifier
+        df['grid_id'] = df.lat_grid.astype(str).str.cat(df.lon_grid.astype(str), sep='_')
+        df_subgrouped = [x for _, x in df.groupby('grid_id')]
+        for s in df_subgrouped:
+            grid_list.append(str(s['grid_id'].unique()[0]))
+            if already_gridded == 'N':
+                s.to_csv(str(dirpath) + 'grid_N_'+str(s['grid_id'].unique()[0]) + '_'+ filename, index=False)
+            #os.remove(i)
+    grid_list_unique = [*set(grid_list)]
+    grid_list_unique = ['N_' + s for s in grid_list_unique]
+    return grid_list_unique
 
 #def date_binning_func_old(date, time, lat, lon, group_by= 'yyyymm'): # consider adding a day/night column, this will have to consider latitude and month
 
