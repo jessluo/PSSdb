@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
-from pathlib import Path  # Handling of path object
+from wcmatch.pathlib import Path # Handling of path object
 import os
 import yaml
 import math as m
@@ -24,13 +24,96 @@ from plotnine import *
 import seaborn as sns
 import matplotlib.pyplot as plt
 palette=list((sns.color_palette("PuRd",4).as_hex()))
-
+fontname = 'serif'
 
 ## Workflow starts here:
 # Generate stats for table 1:
 path_to_datafile=(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']).expanduser()
+path_standardizer=list(Path(path_to_datafile.parent).glob(['project_Zooscan*', 'project_Other*']))
+path_standardizer=list(Path(path_to_datafile.parent).glob('project_UVP_*'))
+path_standardizer=list(Path(path_to_datafile.parent).glob('project_IFCB_*'))
+
 path_files=list(path_to_datafile.rglob('standardized_*.csv'))
-df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}),path_files)).drop_duplicates().reset_index(drop=True)
+df_standardizer=pd.concat(map(lambda path: pd.read_excel(path),path_standardizer)).reset_index(drop=True)
+# Select only standard files for the instrument of interest
+path_files=[path for project in df_standardizer.index  for path in path_files if path in list(Path(df_standardizer.loc[project,'Project_localpath'].replace('raw',cfg['standardized_subdir'])).expanduser().rglob('standardized_project_{}_*'.format(df_standardizer.loc[project,'Project_ID'])))]
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time','Depth_min','Depth_max','Sampling_description'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}),path_files)).drop_duplicates().reset_index(drop=True)
+## Convert sampling description column
+df_method=pd.concat(map (lambda desc:pd.DataFrame(ast.literal_eval('{"'+(' '.join(list(filter(lambda x:':' in x,desc.split(' '))))).replace(' ','","').replace(':','":"')+'"}') ,index=[0]).assign(Sampling_description=desc)  if str(desc)!='nan' else pd.DataFrame({'Sampling_description':desc},index=[0]),df.Sampling_description)).reset_index(drop=True)
+df=pd.concat([df,df_method.drop(columns='Sampling_description')],axis=1)
+# Apply depth and artefacts filter, as well as category filter if non-null
+df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 250)).values[0]})).reset_index()
+df_depthselection.Depth_selected.value_counts(normalize=True)
+df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1))
+# Group net depth range in 50m bins
+if all(df.Instrument.isin(['Zooscan','Scanner'])):
+    df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(50 * round(float(depth.split('-')[0]) / 50))),str(int(50 * round(float(depth.split('-')[1]) / 50)))]))
+if all(df.Instrument.isin(['IFCB'])):
+    df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(10 * round(float(depth.split('-')[0]) / 10))),str(int(10 * round(float(depth.split('-')[1]) / 10)))]))
+
+df['Depth_range']=pd.Categorical(df['Depth_range'],categories=natsorted(df['Depth_range'].unique()))
+df_summary=df.groupby(['Depth_selected','Depth_range']).apply(lambda x: pd.Series({'Sample_count':len(x.Sample)})).reset_index()
+
+df_summary['Sample_percentage']=df_summary.groupby(['Depth_selected'])['Sample_count'].transform(lambda x:np.round(100*(x/np.nansum(x)),1))
+df_summary['Sample_percentage']=np.where((df_summary.Sample_percentage<5) | (df_summary.Sample_percentage.isna()),'',df_summary.Sample_percentage.astype(str)+'%')
+(100*(df_summary.groupby(['Depth_selected'])['Sample_count'].sum()/df_summary['Sample_count'].sum())).round(1)
+plot=(ggplot(data=df_summary)+
+  geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'), position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,100),alpha=1) +
+geom_text(df_summary,aes(x='Depth_range', y='Sample_count',label='Sample_percentage', group=1), position=position_dodge(width=0.9), size=8,va='bottom') +
+      labs(x=r'Depth range (m)', y=r'# samples') +scale_fill_manual(values={True:'#{:02x}{:02x}{:02x}'.format(0, 0 , 0),False:'#{:02x}{:02x}{:02x}'.format(236, 236 , 236)},drop=True)+
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      panel_border=element_rect(color='#222222'),
+                      legend_title=element_text(family="serif", size=10),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=8, rotation=90,ha='center'),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+
+plot[0].set_size_inches(9.2,4)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_depth_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+
+df_summary=df[(df.Depth_selected==True) &(df.Sampling_description.isna()==False)][['Cruise','Pmta_voltage','Pmta_threshold','Pmtb_voltage','Pmtb_threshold']].drop_duplicates().melt(id_vars=['Cruise'])
+df_summary=df_summary.astype({'value':float}).groupby(['Cruise','variable']).agg({'value':['mean','std'] }).reset_index()
+df_summary.columns=['Cruise','variable','mean','sd']
+
+plot=(ggplot(data=df_summary.astype(dict(zip(['mean','sd'],2*[float]))))+
+geom_pointrange(aes(x="variable", y='mean',ymax='mean+sd',ymin='mean-sd', color='Cruise', group='Cruise'), position=position_dodge(width=0.9), alpha=1) +
+labs(x=r'', y=r'Instrument settings (mV)') +scale_color_manual(values={'EXPORTS':'#{:02x}{:02x}{:02x}'.format(145,111,111), 'NESLTER_broadscale':'#{:02x}{:02x}{:02x}{:02x}'.format(145,73,111,255), 'NESLTER_transect':'#{:02x}{:02x}{:02x}{:02x}'.format(145,73,111,200), 'SPIROPA':'#{:02x}{:02x}{:02x}{:02x}'.format(145,73,111,155), 'san-francisco-pier-17':'#{:02x}{:02x}{:02x}{:02x}'.format(145,170,186,255), 'santa-cruz-municipal-wharf':'#{:02x}{:02x}{:02x}{:02x}'.format(145,170,186,155)},drop=True)+
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      panel_border=element_rect(color='#222222'),
+                      legend_title=element_text(family="serif", size=10),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+
+plot[0].set_size_inches(3.2,4)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+
+plot=(ggplot(data=df[(df.Depth_selected==True) & (df.Net_mesh.isna()==False)])+
+  facet_wrap('~Instrument', nrow=1)+
+  geom_histogram( aes(x="Net_mesh"),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1) +
+geom_text(aes(x='Net_mesh', y=after_stat('count'),label=after_stat('prop*100'), group=1),stat='count', position=position_dodge(width=0.9), size=8,va='bottom', format_string='{:.1f}%') +
+      labs(x=r'Net mesh (${\mu}$m)', y=r'# samples') +
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      panel_border=element_rect(color='#222222'),
+                      legend_title=element_text(family="serif", size=10),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+
+plot[0].set_size_inches(4.5,4)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.unique()),'Date_min':x.Sampling_datetime.dt.strftime('%Y %m').min(),'Date_max':x.Sampling_datetime.dt.strftime('%Y %m').max()})).reset_index()
 
@@ -41,7 +124,7 @@ path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
 df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
-fontname = 'serif'
+
 
 # Fig 2. Spatial coverage
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
