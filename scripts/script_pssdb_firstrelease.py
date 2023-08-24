@@ -28,6 +28,9 @@ fontname = 'serif'
 
 ## Workflow starts here:
 # Generate stats for table 1:
+path_to_project_list=Path(cfg['git_dir']).expanduser()/ cfg['proj_list']
+df_list=pd.concat(map(lambda x:pd.read_excel(path_to_project_list,sheet_name=x).assign(Portal=x),['ecotaxa','ecopart','ifcb']))
+
 path_to_datafile=(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']).expanduser()
 path_standardizer=list(Path(path_to_datafile.parent).glob(['project_Zooscan*', 'project_Other*']))
 path_standardizer=list(Path(path_to_datafile.parent).glob('project_UVP_*'))
@@ -45,20 +48,27 @@ df=pd.concat([df,df_method.drop(columns='Sampling_description')],axis=1)
 df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 250)).values[0]})).reset_index()
 df_depthselection.Depth_selected.value_counts(normalize=True)
 df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1))
+
 # Group net depth range in 50m bins
 if all(df.Instrument.isin(['Zooscan','Scanner'])):
     df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(50 * round(float(depth.split('-')[0]) / 50))),str(int(50 * round(float(depth.split('-')[1]) / 50)))]))
 if all(df.Instrument.isin(['IFCB'])):
     df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(10 * round(float(depth.split('-')[0]) / 10))),str(int(10 * round(float(depth.split('-')[1]) / 10)))]))
+if all(df.Instrument.isin(['UVP'])):
+    df['Depth_min']=df.astype({'Depth_min':float}).groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'])['Depth_min'].transform(min)
+    df['Depth_max']=df.astype({'Depth_max':float}).groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'])['Depth_max'].transform(max)
+    df=df.drop(columns=['Depth_selected','Depth_range']).drop_duplicates().reset_index(drop=True)
+    df=df.assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[float]))).astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1),Depth_selected=df.groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description']).apply(lambda x:  ((x.Depth_min.astype(float) < 200))).reset_index(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'], drop=True))
+    df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(50 * round(float(depth.split('-')[0]) / 50))),str(int(50 * round(float(depth.split('-')[1]) / 50)))]))
 
 df['Depth_range']=pd.Categorical(df['Depth_range'],categories=natsorted(df['Depth_range'].unique()))
 df_summary=df.groupby(['Depth_selected','Depth_range']).apply(lambda x: pd.Series({'Sample_count':len(x.Sample)})).reset_index()
 
 df_summary['Sample_percentage']=df_summary.groupby(['Depth_selected'])['Sample_count'].transform(lambda x:np.round(100*(x/np.nansum(x)),1))
-df_summary['Sample_percentage']=np.where((df_summary.Sample_percentage<5) | (df_summary.Sample_percentage.isna()),'',df_summary.Sample_percentage.astype(str)+'%')
+df_summary['Sample_percentage']=np.where((df_summary.Sample_percentage<1) | (df_summary.Sample_percentage.isna()),'',df_summary.Sample_percentage.astype(str)+'%')
 (100*(df_summary.groupby(['Depth_selected'])['Sample_count'].sum()/df_summary['Sample_count'].sum())).round(1)
 plot=(ggplot(data=df_summary)+
-  geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'), position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,100),alpha=1) +
+  geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'),width=0.1, position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,100),alpha=1) +
 geom_text(df_summary,aes(x='Depth_range', y='Sample_count',label='Sample_percentage', group=1), position=position_dodge(width=0.9), size=8,va='bottom') +
       labs(x=r'Depth range (m)', y=r'# samples') +scale_fill_manual(values={True:'#{:02x}{:02x}{:02x}'.format(0, 0 , 0),False:'#{:02x}{:02x}{:02x}'.format(236, 236 , 236)},drop=True)+
 theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
