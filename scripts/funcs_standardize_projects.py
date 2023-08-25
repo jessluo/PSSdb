@@ -108,7 +108,7 @@ from pint import UnitRegistry # Use pip install pint to install
 ureg=UnitRegistry()
 PQ=ureg.Quantity
 #ureg.default_format = '~' # Add this if you want to use abbreviated unit names.
-ureg.load_definitions(Path.home()/'GIT'/'PSSdb'/'scripts' /'units_def.txt')  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
+ureg.load_definitions(Path(cfg['git_dir']).expanduser()/cfg['units_file'])  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
 full_list_units = list(dict.fromkeys(sorted(dir(ureg))))  # list(dict.fromkeys(sorted(list(np.concatenate([dir(getattr(ureg.sys,system)) for system in dir(ureg.sys)]).flat))))
 import re
 
@@ -133,7 +133,7 @@ except:
 import ast
 from tqdm import tqdm
 
-path_to_taxonomy=Path(Path.home()/'GIT'/'PSSdb'/'ancillary' /'plankton_annotated_taxonomy.xlsx').expanduser()
+path_to_taxonomy=Path(Path.home()/'GIT'/'PSSdb'/cfg['annotations_lookup']).expanduser()
 if not path_to_taxonomy.exists():
     print ('Creating a taxonomic annotation standardization spreadsheet using the World Register of Marine Species (https://www.marinespecies.org/). Please wait')
     # 1) Retrieve fields of interest (including taxonomic hierarchies) in EcoTaxa projects
@@ -268,7 +268,7 @@ def filling_standardizer_field_func(config_path,project_id):
     return project_fields
 
 # Function (1b): Print possible units
-def filling_standardizer_unit_func(custom_units_path='~/GIT/PSSdb/scripts/units_def.txt'):
+def filling_standardizer_unit_func(custom_units_path=Path(cfg['git_dir']).expanduser()/cfg['units_file']):
     """
     Objective: This function print the units available to fill out the standardizer spreadsheets.
     :param custom_units_path: Full path of the custom unit definition file
@@ -294,7 +294,7 @@ def diagnostic_plots_func(standardizer_path,project_id):
     path_to_git = Path('~/GIT/PSSdb').expanduser()
 
     df_standardizer = pd.read_excel(standardizer_path,index_col=0)
-    path_to_plotdir = path_to_git / 'figures' / 'Standardizer'
+    path_to_plotdir = path_to_git / cfg['figures_subdir'] / 'Standardizer'
     path_to_plotdir.mkdir(parents=True, exist_ok=True)
 
     path_to_data =Path(df_standardizer.at[project_id,"Project_localpath"]).expanduser()# path_to_git / Path(cfg['dataset_subdir']) / df_standardizer.at[project_id,"Instrument"]
@@ -1000,7 +1000,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}*.csv'.format(str(project_id))))
-        path_to_standard_plot = path_to_git / 'figures' / 'standardizer' / path_to_data.stem / path_files_list[ 0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
+        path_to_standard_plot = path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[ 0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
 
         if len(path_to_standard_file):

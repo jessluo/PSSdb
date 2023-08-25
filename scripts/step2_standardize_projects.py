@@ -39,7 +39,7 @@ with open(path_to_config ,'r') as config_file:
 path_to_git=Path(cfg['git_dir']).expanduser()
 
 # Workflow starts here:
-path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
+path_to_standardizer=Path(cfg['raw_dir']).expanduser()
 standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
 
@@ -91,7 +91,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
     for project in list(df_standardizer.index):
         # Flagging project
         report_file='report_project_'+str(project)+'.html'
-        report_path=path_to_standardizer.parent / 'reports'
+        report_path=path_to_standardizer.parent / cfg['report_subdir']
         try:
             print('Flagging project: {}'.format(str(project)))
             filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path,validation_threshold=0.95)
