@@ -59,8 +59,11 @@ if all(df.Instrument.isin(['UVP'])):
     df['Depth_max']=df.astype({'Depth_max':float}).groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'])['Depth_max'].transform(max)
     df=df.drop(columns=['Depth_selected','Depth_range']).drop_duplicates().reset_index(drop=True)
     df=df.assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[float]))).astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1),Depth_selected=df.groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description']).apply(lambda x:  ((x.Depth_min.astype(float) < 200))).reset_index(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'], drop=True))
-    df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(50 * round(float(depth.split('-')[0]) / 50))),str(int(50 * round(float(depth.split('-')[1]) / 50)))]))
-
+    df['Depth_range']=df.Depth_range.astype(str).apply(lambda depth:'-'.join([str(int(100 * round(float(depth.split('-')[0]) / 100))),str(int(100 * round(float(depth.split('-')[1]) / 100)))]))
+    df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_range'])[['Project_ID', 'Sample', 'Depth_range']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_range'],[str]*3))).reset_index(drop=True).groupby(['Project_ID', 'Sample', 'Depth_range']).apply(lambda x: pd.Series({'Depth_selected': ((float(x.Depth_range.unique()[0].split('-')[0]) < 200))})).reset_index()
+    df_depthselection.Depth_selected.value_counts(normalize=True)
+    df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_range'],[str]*3))).drop(columns='Depth_selected'),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_range'])
+    df=pd.merge(df.astype({'Project_ID':str}),df_list.astype({'Project_ID':str}).loc[df_list.Portal=='ecotaxa',['Project_ID','Instrument']],how='left',on='Project_ID')
 df['Depth_range']=pd.Categorical(df['Depth_range'],categories=natsorted(df['Depth_range'].unique()))
 df_summary=df.groupby(['Depth_selected','Depth_range']).apply(lambda x: pd.Series({'Sample_count':len(x.Sample)})).reset_index()
 
@@ -68,7 +71,7 @@ df_summary['Sample_percentage']=df_summary.groupby(['Depth_selected'])['Sample_c
 df_summary['Sample_percentage']=np.where((df_summary.Sample_percentage<1) | (df_summary.Sample_percentage.isna()),'',df_summary.Sample_percentage.astype(str)+'%')
 (100*(df_summary.groupby(['Depth_selected'])['Sample_count'].sum()/df_summary['Sample_count'].sum())).round(1)
 plot=(ggplot(data=df_summary)+
-  geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'),width=0.1, position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,100),alpha=1) +
+  geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'),width=1.5, position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,100),alpha=1) +
 geom_text(df_summary,aes(x='Depth_range', y='Sample_count',label='Sample_percentage', group=1), position=position_dodge(width=0.9), size=8,va='bottom') +
       labs(x=r'Depth range (m)', y=r'# samples') +scale_fill_manual(values={True:'#{:02x}{:02x}{:02x}'.format(0, 0 , 0),False:'#{:02x}{:02x}{:02x}'.format(236, 236 , 236)},drop=True)+
 theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
@@ -123,6 +126,25 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(4.5,4)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+
+plot=(ggplot(data=df[(df.Depth_selected==True)])+
+  facet_wrap('~Instrument', nrow=1)+
+  geom_histogram( aes(x="Profiling_mode",group='Instrument'),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1) +
+geom_text(aes(x='Profiling_mode', y=after_stat('count'),label=after_stat('prop*100'), group=1),stat='count', position=position_dodge(width=0.9), size=8,va='bottom', format_string='{:.1f}%') +
+      labs(x=r'Profiling_mode', y=r'# samples') +
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      panel_border=element_rect(color='#222222'),
+                      legend_title=element_text(family="serif", size=10),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+
+plot[0].set_size_inches(3,4)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.unique()),'Date_min':x.Sampling_datetime.dt.strftime('%Y %m').min(),'Date_max':x.Sampling_datetime.dt.strftime('%Y %m').max()})).reset_index()
