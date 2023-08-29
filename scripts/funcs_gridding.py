@@ -305,30 +305,27 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
     month = np.char.array(pd.DatetimeIndex(date_bin).month.values).zfill(2)
     week_of_year = np.char.array(pd.DatetimeIndex(date_bin).isocalendar().week.values).zfill(2) #zfill(2).
 
-    if group_by == 'yyyy':
-        df['date_bin'] = (year).astype(str)
-    elif group_by == 'yyyymm':
-        df['date_bin'] = (year + b'_' + month).astype(str)
-    elif group_by == 'mm':
-        df['date_bin'] = (month).astype(str)
-    elif group_by == 'week':
-        df['year_week'] = (year + b'_' + week_of_year).astype(str)
-        df['month'] = (month).astype(str)
-        week_dict = {key: None for key in df['year_week'].unique()}
-        for i in df['year_week'].unique():
-            week_dict[i] = list(df['month'].where(df['year_week'] == i).dropna().unique())  # .astype(int)
-            if len(week_dict[i]) == 1:
-                week_dict[i] = week_dict[i][0]
-            else:
-                week_dict[i] = list(map(int, week_dict[i]))
-                week_dict[i] = str(int(np.round(np.mean(week_dict[i])))).zfill(2)
-        df['month'] = df['year_week'].map(week_dict)
-        mwk_df = df['year_week'].str.split("_", expand=True)
-        df['date_bin'] = mwk_df[0] + '_' + df['month'] + '_wk'+ mwk_df[1]
-        df = df.drop(['year_week', 'month'], axis=1).reset_index(drop=True)
+    df['year'] = pd.DatetimeIndex(date_bin).year.values
+    df['month'] = pd.DatetimeIndex(date_bin).month.values
+    df['week'] = pd.DatetimeIndex(date_bin).isocalendar().week.values
 
+    dict_week = df.groupby(['week']).apply(lambda x: pd.Series({ 'week': x.week.unique()[0],
+                                                               'month': np.round(x.month.mean())})).set_index('week')['month'].to_dict()
+    df['month'] = df['week'].map(dict_week)
+
+    if group_by == 'yyyy':
+        df['date_bin'] = df['year'].astype(str)
+    elif group_by == 'yyyymm':
+        df['date_bin'] = df['year'].astype(str) + '_' + df['month'].astype(int).astype(str).str.zfill(2)
+    elif group_by == 'mm':
+        df['date_bin'] = df['month'].astype(int).astype(str).str.zfill(2)
+    elif group_by == 'week':
+        df['date_bin'] = df['year'].astype(str) + '_' + df['month'].astype(int).astype(str).str.zfill(2) + '_wk' +df['week'].astype(int).astype(str).str.zfill(2)
     elif group_by == 'None':
         df['date_bin'] == str(date_bin)
+
+    df['date_grouping'] = df['year'].astype(str) + '-' + df['month'].astype(int).astype(str).str.zfill(2)
+
     if day_night == True:
         time_bin = pd.to_datetime(time, format='%H%M%S')
         day = np.char.array(pd.DatetimeIndex(date_bin).day.values).zfill(2)
@@ -347,6 +344,7 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
         df['light_cond'] = light_cond
         df = df.drop(columns=['date_new', 'time_new']).reset_index(drop=True)
 
+    df = df.drop(columns=['year', 'month', 'week']).reset_index(drop=True)
 
     return df
         # section below deprecated (5/9/2023)
