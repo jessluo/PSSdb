@@ -55,9 +55,10 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             shutil.rmtree(dirpath)
             os.mkdir(dirpath)
             n_del_files = 0
+            #spatial gridding starts here:
             for i in tqdm(files_data):
                 filename= i.split('/')[-1]
-                print('gridding and binning ' + i)
+                print('gridding  ' + i)
                 df = pd.read_csv(i, header=0)
                 df = df.dropna(subset=['Latitude']).reset_index(drop=True)
                 if len(df) == 0:
@@ -89,18 +90,40 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                         n_del_files += 1
                         continue
                 df = biovol_func(df, instrument, keep_cat='none')
-                if day_night == 'Y':
-                    df = date_binning_func(df, group_by=date_group, day_night=True)
-                elif day_night == 'N':
-                    df = date_binning_func(df, group_by=date_group, day_night=False)
-                if len(df)==0:
-                    print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
-                    n_del_files += 1
-                    continue
-                df['date_bin'] = df['date_bin'].astype(str)
                 df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
                 filename = filename.replace("standardized", "gridded")
-                df.to_csv(str(dirpath) +'/'+ instrument + '_' + filename, index=False)
+                df.to_csv(str(dirpath) + '/' + instrument + '_' + filename, index=False)
+            grid_list = group_gridded_files_func(instrument, already_gridded='N') # saving files in 15x15  lat/lon cells to facilitate computation
+
+            # Temporal binning function starts here: since we consider sample size to assign time bins, data needs to be aggregated by each cell
+            file_list = proj_id_list_func(instrument, data_status='gridded', big_grid=True)
+            for cell in tqdm(grid_list):
+                print('assinging temporal bin to large cell ' + cell)
+                file_subset = [file for file in file_list if cell in file]
+                df_gridded = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+                df_gridded_temp_binned = pd.DataFrame()
+                for st in list(set(df_gridded['Station_location'])):
+                    # print(st)
+                    df_st_subset = df_gridded[df_gridded['Station_location'] == st].reset_index(drop=True)
+                    if day_night == 'Y':
+                        df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night=True)
+                    elif day_night == 'N':
+                        df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night=False)
+                    if len(df)==0:
+                        print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
+                        n_del_files += 1
+                        continue
+                    df_st_subset['date_bin'] = df_st_subset['date_bin'].astype(str)
+                    df_gridded_temp_binned = pd.concat([df_gridded_temp_binned, df_st_subset])
+                    # separate data into months of year and save to avoid the creation of large files
+                    for m in list(set(df_gridded_temp_binned['date_grouping'])):
+                        df_st_t_subset = df_gridded_temp_binned[df_gridded_temp_binned['date_grouping'] == m].reset_index(drop=True)
+                        df_st_t_subset.to_csv(str(dirpath) +'/'+ instrument + '_gridded_' + cell +'_temp_binned_'+m+'.csv', index=False)
+
+            for file in glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/grid_N*' + instrument + '*.csv', recursive=True):
+                os.remove(file)
+
+
             print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
             if depth_binning == 'N':
                 metadata_bins = pd.DataFrame(
@@ -128,7 +151,6 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                                     'longitude of the center point of the 1x1 degree cell',
                                     'middle point within a depth bin']})
             metadata_bins.to_csv(str(dirpath) + '/' + instrument + '_' + 'metadata_gridded.csv', index=False)
-            grid_list = group_gridded_files_func(instrument, already_gridded='N')
         elif replace == 'N':
             print('previously gridded files will be kept')
 
@@ -137,7 +159,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         n_del_files = 0
         for i in tqdm(files_data):
             filename = i.split('/')[-1]
-            print('gridding and binning ' + i)
+            print('gridding  ' + i)
             df = pd.read_csv(i, header=0)
         #if instrument == 'UVP':
             #df = remove_UVP_noVal(df)
@@ -165,18 +187,39 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                     n_del_files += 1
                     continue
             df = biovol_func(df, instrument, keep_cat='none')
-            if day_night == 'Y':
-                df = date_binning_func(df, group_by=date_group, day_night=True)
-            elif day_night == 'N':
-                df = date_binning_func(df, group_by=date_group, day_night=False)
-            if len(df) == 0:
-                print('no data left after removing data without proper time stamp in ' + filename)  # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
-                n_del_files += 1
-                continue
-            df['date_bin'] = df['date_bin'].astype(str)
-            df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'],df['Longitude'])
+            df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
             filename = filename.replace("standardized", "gridded")
-            df.to_csv(str(dirpath)  + '/'+ instrument + '_' + filename, index=False)
+            df.to_csv(str(dirpath) + '/' + instrument + '_' + filename, index=False)
+
+        grid_list = group_gridded_files_func(instrument, already_gridded='N')  # saving files in 15x15  lat/lon cells to facilitate computation
+        # Temporal binning function starts here: since we consider sample size to assign time bins, data needs to be aggregated by each cell
+        file_list = proj_id_list_func(instrument, data_status='gridded', big_grid=True)
+        for cell in tqdm(grid_list):
+            print('assinging temporal bin to large cell ' + cell)
+            file_subset = [file for file in file_list if cell in file]
+            df_gridded = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+            df_gridded_temp_binned = pd.DataFrame()
+            for st in list(set(df_gridded['Station_location'])):
+                # print(st)
+                df_st_subset = df_gridded[df_gridded['Station_location'] == st].reset_index(drop=True)
+                if day_night == 'Y':
+                    df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night=True)
+                elif day_night == 'N':
+                    df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night=False)
+                if len(df) == 0:
+                    print('no data left after removing data without proper time stamp in ' + filename)  # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
+                    n_del_files += 1
+                    continue
+                df_st_subset['date_bin'] = df_st_subset['date_bin'].astype(str)
+                df_gridded_binned = pd.concat([df_gridded_temp_binned, df_st_subset])
+                # separate data into months of year and save to avoid the creation of large files
+                for m in list(set(df_gridded_temp_binned['date_grouping'])):
+                    df_st_t_subset = df_gridded_temp_binned[df_gridded_temp_binned['date_grouping'] == m].reset_index(drop=True)
+                    df_st_t_subset.to_csv(str(dirpath) + '/' + instrument + '_gridded_' + cell + '_temp_binned_' + m + '.csv',index=False)
+
+        for file in glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/grid_N*' + instrument + '*.csv',recursive=True):
+            os.remove(file)
+
         print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
         if depth_binning == 'N':
             metadata_bins = pd.DataFrame(
@@ -208,4 +251,3 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                                  'middle point within a depth bin']})
         metadata_bins.to_csv(str(dirpath) + '/' + instrument + '_' + 'metadata_gridded.csv', index=False)
 
-        grid_list = group_gridded_files_func(instrument, already_gridded='N')
