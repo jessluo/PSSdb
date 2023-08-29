@@ -41,7 +41,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     grid_list = group_gridded_files_func(instrument, already_gridded='Y')
 
     #get paths to gridded files
-    file_list = proj_id_list_func(instrument, data_status ='gridded', big_grid = True)#generate path and project ID's but ONLY for parsed data
+    file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
 
     NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
     if not os.path.exists(NBSSpath):
@@ -57,7 +57,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     Sample_NB_ID = pd.Series()
     for i in tqdm(grid_list):
         #print('grouping data and calculating NBSS for cell number ' + i)
-        file_subset = [file for file in file_list if i in file]
+        file_subset = [file for file in file_list if i  in file]
         df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
         #rows 66-74 contain routine to detect duplicates in the data
         df['NB_Sample_ID'] = df.date_bin.astype(str) + df.Station_location.astype(str)
