@@ -237,7 +237,7 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     import matplotlib.pyplot as plt
 
     #remove Nans
-    df1 = df1.dropna()
+    df1 = df1[df1['NB'].notna()].reset_index()
 
     # extract x and y
     def regression(df1, X_var, Y_var):
