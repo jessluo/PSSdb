@@ -154,21 +154,19 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
             # alternative"
             NBS_biovol_df2['Min_obs_depth'] = np.nanmin(NBS_biovol_df2['Depth_range_min'])
             NBS_biovol_df2['Max_obs_depth'] = np.nanmax(NBS_biovol_df2['Depth_range_max'])
-            nbss_sum=NBS_biovol_df2
-            NBS_biovol_df = nbss_sum.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses']).apply(lambda x: pd.Series({
+
+            NBS_biovol_df = NBS_biovol_df2.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses']).apply(lambda x: pd.Series({
                                                                                                                         'Biovolume_mean': x.Biovolume_mean.mean(),
-                                                                                                                        'ECD_mean': np.round(((x.size_class_mid.unique()[0] * 6) / m.pi) ** (1. / 3.), decimals=2),
+                                                                                                                        'ECD_mean': np.round((([x.size_class_mid.unique()[0] if len(x.size_class_mid.unique()) == 1 else x.size_class_mid.dropna().unique()[0]][0] * 6) / m.pi) ** (1. / 3.), decimals=2),
                                                                                                                         # in micrometers
                                                                                                                         'ROI_number_sum': np.nansum(x.ROI_number_sum),
                                                                                                                         'ROI_abundance_mean': np.nansum(x.ROI_abundance * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1), # also need to integrate
-                                                                                                                        'size_class_mid':  x.size_class_mid.unique()[0],
-                                                                                                                        'size_class_range': x.size_class_range.unique()[0],
-                                                                                                                        'size_range_ECD': x.size_range_ECD.unique()[0],
+                                                                                                                        'size_class_mid':  [x.size_class_mid.unique()[0] if len(x.size_class_mid.unique()) == 1 else x.size_class_mid.dropna().unique()[0]][0],
+                                                                                                                        'size_class_range': [x.size_class_range.unique()[0] if len(x.size_class_range.unique()) == 1 else x.size_class_range.dropna().unique()[0]][0],
+                                                                                                                        'size_range_ECD': [x.size_range_ECD.unique()[0] if len(x.size_range_ECD.unique()) == 1 else x.size_range_ECD.dropna().unique()[0]][0],
                                                                                                                         'NB_std': np.sqrt(sum((((x.NB_std) ** 2) * ((np.where((x.Max_obs_depth.astype(float) - x.Min_obs_depth.astype(float)).values > 1,(x.Max_obs_depth.astype(float) - x.Min_obs_depth.astype(float)).values, 1) / np.where((x.Depth_range_max.astype(float).unique()[0] - x.Depth_range_min.astype(float).unique()[0]) > 1,(x.Depth_range_max.astype(float).unique()[0] - x.Depth_range_min.astype(float).unique()[0]),1)) ** 2)))),
                                                                                                                         'NB': np.nansum(x.NB * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1),
                                                                                                                         'PSD': np.nansum(x.PSD * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1)})).reset_index()
-                                                                                                                        #'NB': x.NB.mean()})).reset_index()  # , 'ROI_nu
-
 
 
 
