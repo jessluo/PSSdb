@@ -3,6 +3,7 @@
 
 import os
 from pathlib import Path
+import re
 from glob import glob
 import yaml
 import pandas as pd
@@ -81,9 +82,9 @@ def biovol_func_old(df, instrument, area_type= 'object_area', remove_cat='none')
                 ind = metadata.loc[(metadata['Description'].str.contains('object_area') == True) &
                                    (metadata['Description'].str.contains('summed') == False)].index[0]
 
-    elif instrument == 'Zooscan':
-        df = df[df['Category'].str.contains('artefact') == False]
-        df = df[df['Category'].str.contains('detritus') == False]
+    elif instrument == 'Scanner':
+        df = df[df['Category'].str.lower().apply(lambda annotation: len(re.findall(r'bead|bubble|artefact|artifact|glue', annotation)) == 0 if str(annotation) != 'nan' else True)]
+
         df = df.reset_index(drop=True)
         ind = metadata.loc[(metadata['Description'].str.contains('object_area')==True) &
                            (metadata['Description'].str.contains('exc')== False)].index[0]
