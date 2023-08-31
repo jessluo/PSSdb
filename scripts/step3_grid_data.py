@@ -1,5 +1,6 @@
 # gridding standardized files generated in 2.
-
+import warnings
+warnings.filterwarnings('ignore')
 ## load packages
 import numpy as np
 import pandas as pd
