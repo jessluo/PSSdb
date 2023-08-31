@@ -92,6 +92,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                         continue
                 df = biovol_func(df, instrument, keep_cat='none')
                 df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
+                df['Instrument']= instrument # necessary to set the same instrument name for all scanner types
                 filename = filename.replace("standardized", "gridded")
                 df.to_csv(str(dirpath) + '/' + instrument + '_' + filename, index=False)
             grid_list = group_gridded_files_func(instrument, already_gridded='N') # saving files in 15x15  lat/lon cells to facilitate computation
@@ -189,6 +190,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                     continue
             df = biovol_func(df, instrument, keep_cat='none')
             df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
+            df['Instrument'] = instrument  # necessary to set the same instrument name for all scanner types
             filename = filename.replace("standardized", "gridded")
             df.to_csv(str(dirpath) + '/' + instrument + '_' + filename, index=False)
 
