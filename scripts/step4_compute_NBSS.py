@@ -1,5 +1,6 @@
 # compute NBS from step3 gridded files
-
+import warnings
+warnings.filterwarnings('ignore')
 import numpy as np
 import pandas as pd
 import statistics as st
