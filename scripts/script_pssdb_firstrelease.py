@@ -205,57 +205,62 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
 plot[0].set_size_inches(6.5,2.8)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
-#Fig. 3. Average NBSS
-df_1a['log_biovolume_size_class'] = np.log10(df_1a['biovolume_size_class'])
-df_1a['log_normalized_biovolume_mean'] = np.log10(df_1a['normalized_biovolume_mean'])
-df_1a['log_diameter'] =df_1a['biovolume_size_class'].apply(lambda x: np.log10((x*6)/m.pi)**(1./3.))
-df_1a['biovolume_size_class']= df_1a['biovolume_size_class'].astype(str)
-
-graph_data = df_1a.groupby(['Instrument', 'log_biovolume_size_class']).apply(lambda x: pd.Series({'NB_mean':x.log_normalized_biovolume_mean.mean(), 'NB_std':x.log_normalized_biovolume_mean.std()})).reset_index()
-colors = ['green', 'gray', 'blue']
-fig = plt.figure()
-ax1 = fig.add_subplot(111)
-ax2 = ax1.twiny()
-
-for i, instrument in enumerate (['IFCB','UVP','Scanner']):
-    data_plot = graph_data[graph_data['Instrument'] == instrument].reset_index()
-    ax1.plot(data_plot.log_biovolume_size_class, data_plot.NB_mean, label=instrument, color= colors[i])
-    ax1.fill_between(data_plot.log_biovolume_size_class, data_plot.NB_mean - data_plot.NB_std*2, data_plot.NB_mean + data_plot.NB_std*2, color=colors[i], alpha=0.2)
-
-new_tick_values = np.array([10e1,  10e5,  10e9,  10e13])
-new_tick_locations = np.array([1,  5,  9,  13])
-
-def tick_function(X):
-    V = np.round(np.log10(((X*6)/m.pi)**(1./3.))).astype(int)
-    return V
-
-#sns.despine(top = True, right = True)
-ax1.set_yticks([-3, -1, 1, 3, 5])
-ax1.spines['right'].set_visible(False)
-
-ax1.set_ylabel( r'$log_{10}$ Normalized Biovolume ($\mu$m$^{3}$ dm$^{-3}$ $\Delta\mu$m$^{-3}$)')
-ax1.set_xlabel(r'$log_{10}$ Biovolume ($\mu$m$^{3}$)')
-
-ax2.set_xticks(new_tick_locations)
-ax2.set_xticklabels(tick_function(new_tick_values))
-ax2.spines['right'].set_visible(False)
-ax2.set_xlabel(r'$log_{10}$ ESD ($\mu$m)')
+#Fig. 3  Average NBSS and supplemental figure 2 Average PSD
+nbss_summary=pd.merge(df_1a.groupby(['Instrument','biovolume_size_class']).apply(lambda x: pd.Series({'NB_5':np.nanquantile(x['normalized_biovolume_mean'],q=0.05),
+                                                                                             'NB_50':np.nanquantile(x['normalized_biovolume_mean'],q=0.5),
+                                                                                             'NB_mean': np.nanmean(x.normalized_biovolume_mean),
+                                                                                             'NB_95':np.nanquantile(x['normalized_biovolume_mean'],q=0.95),
+                                                                                             'NA_5':np.nanquantile(x['normalized_abundance_mean'],q=0.05),
+                                                                                             'NA_50':np.nanquantile(x['normalized_abundance_mean'],q=0.5),
+                                                                                             'NA_mean': np.nanmean(x.normalized_abundance_mean),
+                                                                                             'NA_95':np.nanquantile(x['normalized_abundance_mean'],q=0.95)})).reset_index(),
+                      df_1a[['equivalent_circular_diameter_mean','biovolume_size_class']].round(4).drop_duplicates(),how='left',on=['biovolume_size_class'])
 
 
+plot = (ggplot(data=df_1a)+
+  geom_ribbon(nbss_summary,aes(x="equivalent_circular_diameter_mean",ymin="NB_5",ymax="NB_95",y='NB_50',fill='Instrument',group='Instrument'),color='#{:02x}{:02x}{:02x}{:02x}'.format(0,0,0,0),alpha=0.4) +
+    geom_line(nbss_summary,aes(x="equivalent_circular_diameter_mean", y='NB_50', color='Instrument', fill='Instrument',group='Instrument'), alpha=1, size = 1.5) +
+    scale_fill_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
+ scale_color_manual(values={'IFCB': '#{:02x}{:02x}{:02x}'.format(111, 145, 111),'UVP': '#{:02x}{:02x}{:02x}'.format(147, 167, 172), 'Scanner': '#{:02x}{:02x}{:02x}'.format(95, 141, 211)}) +
+ labs(x=r'Equivalent circular diameter ($\mu$m)', y=r'Normalized Biovolume ($\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)') +
+scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_border = element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      legend_title=element_blank(),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_line = element_line(colour = 'black'),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=True, return_ggplot=True)
 plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_3_NBSS_summary.pdf'.format(str(Path.home())),  dpi=600)
 plt.close()
 
-##finding weird values in IFCB
-IFCB_df = df_1a[df_1a.Instrument == 'IFCB']
-IFCB_df['log_biovolume_size_class'] = np.log10(IFCB_df['biovolume_size_class'])
-IFCB_df['log_normalized_biovolume_mean'] = np.log10(IFCB_df['normalized_biovolume_mean'])
-
-IFCB_df['Sample_ID'] = IFCB_df.year.astype(str) +'_'+ IFCB_df.month.astype(str) +'_'+ IFCB_df.latitude.astype(str) + '_'+ IFCB_df.longitude.astype(str)
-min_IFCB = IFCB_df[IFCB_df.log_biovolume_size_class == IFCB_df.log_biovolume_size_class.min()].reset_index()
-min_IFCB_df = IFCB_df[IFCB_df.Sample_ID == min_IFCB.Sample_ID[0]].reset_index() # this data is from NESLTER broadscale
-
-min_IFCB_df = min_IFCB_df.iloc[0:15]
-sns.lineplot(data=min_IFCB_df , x='log_biovolume_size_class', y='log_normalized_biovolume_mean')
+#supplemental figure 2
+plot = (ggplot(data=df_1a)+
+  geom_ribbon(nbss_summary,aes(x="equivalent_circular_diameter_mean",ymin="NA_5",ymax="NA_95",y='NA_50',fill='Instrument',group='Instrument'),color='#{:02x}{:02x}{:02x}{:02x}'.format(0,0,0,0),alpha=0.4) +
+    geom_line(nbss_summary,aes(x="equivalent_circular_diameter_mean", y='NA_50', color='Instrument', fill='Instrument',group='Instrument'), alpha=1, size = 1.5) +
+    scale_fill_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
+ scale_color_manual(values={'IFCB': '#{:02x}{:02x}{:02x}'.format(111, 145, 111),'UVP': '#{:02x}{:02x}{:02x}'.format(147, 167, 172), 'Scanner': '#{:02x}{:02x}{:02x}'.format(95, 141, 211)}) +
+ labs(x=r'Equivalent circular diameter ($\mu$m)', y=r'Normalized Abundance ( # particles dm$^{-3}$ $\mu$m)') +
+scale_y_log10(breaks=[10**np.arange(-11,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-11,7,step=2)])+
+scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_border = element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      legend_title=element_blank(),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_line = element_line(colour = 'black'),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=True, return_ggplot=True)
+plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_2_PSD_summary.pdf'.format(str(Path.home())),  dpi=600)
+plt.close()
 
 
 # Fig 4. Intercept, slope, R2 global map
@@ -265,7 +270,7 @@ world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country
 #df_summary=df.groupby(['Instrument','latitude','longitude']).agg({'N':'sum'}).reset_index().rename(columns={'N':'count'})
 plot=(ggplot(data=df)+
   facet_wrap('~Instrument', nrow=1)+
-  geom_point( aes(x="longitude",y="latitude",fill='slope_mean'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1, size=1) +
+  geom_point( aes(x="longitude",y="latitude",fill='slope_NB_mean'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1, size=1) +
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
  labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean slope') +
@@ -288,16 +293,16 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_4.1_slopes_NBSS.
 plt.close()
 
 # Intercept: untransformed
-df['intercept_unt'] = df['intercept_mean'].apply(lambda x: math.exp(x))
+df['intercept_unt'] = df['intercept_NB_mean'].apply(lambda x: math.exp(x))
 Intercept_unt_summary=df.groupby(['Instrument']).apply(lambda x: pd.Series({'intercept_mean_unt': x.intercept_unt.mean(),
-                                                                            'intercept_mean': x.intercept_mean.mean(),
+                                                                            'intercept_mean': x.intercept_NB_mean.mean(),
                                                                             'intercept_sd_unt': x.intercept_unt.std(),
-                                                                             'intercept_sd': x.intercept_mean.std()}))
+                                                                             'intercept_sd': x.intercept_NB_mean.std()}))
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
 world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
 plot=(ggplot(data=df)+
   facet_wrap('~Instrument', nrow=1)+
-  geom_point( aes(x="longitude",y="latitude",fill='intercept_mean'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1, size=1) +
+  geom_point( aes(x="longitude",y="latitude",fill='intercept_NB_mean'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1, size=1) +
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
  labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)', color=r'Mean Intercept') +
@@ -349,15 +354,15 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_4.3_regress_coef
 plt.close()
 
 #Figure 5. Parameters by latitude
-df['latitude_cat'] = pd.cut(df['latitude'], bins=list(np.arange(-90,100, 1))).apply(lambda x: np.round(x.mid))#.astype(str)
-graph_data_lat = df.groupby(['Instrument', 'latitude_cat']).apply(lambda x: pd.Series({'slope_mean':x.slope_mean.mean(),
-                                                                                      'slope_std':x.slope_mean.std(),
-                                                                                      'intercept_mean': x.intercept_mean.mean(),
-                                                                                      'intercept_std': x.intercept_mean.std(),
-                                                                                      'r2_mean': x.r2_mean.mean(),
-                                                                                      'r2_std': x.r2_mean.std()})).reset_index()
+df['latitude_cat'] = pd.cut(df['latitude'], bins=list(np.arange(-90,100, 1))).apply(lambda x: np.round(x.mid))
+graph_data_lat = df.groupby(['Instrument', 'latitude_cat']).apply(lambda x: pd.Series({'slope_mean':x.slope_NB_mean.mean(),
+                                                                                      'slope_std':x.slope_NB_mean.std(),
+                                                                                      'intercept_mean': x.intercept_NB_mean.mean(),
+                                                                                      'intercept_std': x.intercept_NB_mean.std(),
+                                                                                      'r2_mean': x.r2_NB_mean.mean(),
+                                                                                      'r2_std': x.r2_NB_mean.std()})).reset_index()
 
-colors = {'IFCB':'green', 'UVP':'gray', 'Zooscan':'blue'}
+colors = {'IFCB':'green', 'UVP':'gray', 'Scanner':'blue'}
 #slope
 plot = (ggplot(data=graph_data_lat)+
         geom_point(aes(x='latitude_cat', y='slope_mean', color='Instrument'))+
@@ -444,7 +449,7 @@ insufficient_data = ['Arctic_Ocean', 'Red_Sea', 'South_Atlantic', 'Southern_Ocea
 df_clim = df[~df['ocean'].isin(insufficient_data)].reset_index()
 pal = {"IFCB":"tab:green",
            "UVP":"tab:gray",
-           "Zooscan":"tab:blue"}
+           "Scanner":"tab:blue"}
 
 
 # Slope
@@ -452,7 +457,7 @@ fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(30, 4))
 ocean= list(df_clim['ocean'].unique())
 for ocean, ax in zip(ocean, axs.ravel()):
     df_subset=df_clim[df_clim['ocean']== ocean]
-    sns.pointplot(ax =ax, data=df_subset, x='month', y='slope_mean',hue='Instrument', palette=pal, dodge= 0.3, errorbar = 'ci', order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.pointplot(ax =ax, data=df_subset, x='month', y='slope_NB_mean',hue='Instrument', palette=pal, dodge= 0.3, errorbar = 'ci', order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     sns.despine(top = True, right = True)
     ax.set_ylim(-2, -0.4)
     ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''], fontsize = 15)
@@ -478,7 +483,7 @@ fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(30, 4))
 ocean= list(df_clim['ocean'].unique())
 for ocean, ax in zip(ocean, axs.ravel()):
     df_subset=df_clim[df_clim['ocean']== ocean]
-    sns.pointplot(ax =ax, data=df_subset, x='month', y='intercept_mean',hue='Instrument', palette=pal, dodge= 0.3, errorbar = 'ci', order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.pointplot(ax =ax, data=df_subset, x='month', y='intercept_NB_mean',hue='Instrument', palette=pal, dodge= 0.3, errorbar = 'ci', order= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     sns.despine(top = True, right = True)
     ax.set_ylim(0, 35)
     ax.set_xticklabels(['Jan', '', 'Mar','', 'May','', 'Jul','', 'Sep','', 'Nov',''], fontsize = 15)
@@ -503,7 +508,7 @@ fig, axs= plt.subplots(nrows=1, ncols=5, sharey=False, figsize=(30, 4))
 ocean= list(df_clim['ocean'].unique())
 for ocean, ax in zip(ocean, axs.ravel()):
     df_subset=df_clim[df_clim['ocean']== ocean]
-    sns.pointplot(ax=ax, data=df_subset, x='month', y='r2_mean', hue='Instrument', palette=pal, dodge=0.3,errorbar='ci',order=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+    sns.pointplot(ax=ax, data=df_subset, x='month', y='r2_NB_mean', hue='Instrument', palette=pal, dodge=0.3,errorbar='ci',order=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
     sns.despine(top = True, right = True)
     ax.set_ylim(0.65, 1)
     ax.set_xticklabels(['Jan', '', 'Mar', '', 'May', '', 'Jul', '', 'Sep', '', 'Nov', ''], fontsize=15)
