@@ -331,6 +331,7 @@ def parse_NBS_linfit_func(df, instrument, parse_by=['Station_location', 'date_bi
     df['date_bin'] = df['date_bin'].astype(str)
     NBSS_binned_all = pd.DataFrame()  # NBSS dataset
     lin_fit_data = pd.DataFrame()
+    #df_binned_test, df_bins = df.groupby(['Station_location', 'date_bin']).apply(lambda x: size_binning_func(x)).reset_index()
     for st in list(set(df[parse_by[0]])):
         # print(st)
         df_st_subset = df[df[parse_by[0]] == st].reset_index(drop=True)
@@ -484,7 +485,7 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
-    lin_fit_stats= lin_fit_stats.rename(columns={'slope_count': 'N', 'midLatBin': 'latitude', 'midLonBin': 'longitude'})
+    lin_fit_stats= lin_fit_stats.rename(columns={'slope_NB_count': 'N', 'midLatBin': 'latitude', 'midLonBin': 'longitude'})
     lin_fit_stats= lin_fit_stats[lin_fit_stats.columns.drop(list(lin_fit_stats.filter(regex='count')))]
     del lin_fit_stats['Station_location']
     del lin_fit_stats['date_bin']
