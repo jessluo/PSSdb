@@ -25,9 +25,14 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 palette=list((sns.color_palette("PuRd",4).as_hex()))
 fontname = 'serif'
+import geopandas as gpd
+oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
+world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
 
 ## Workflow starts here:
-# Generate stats for table 1:
+
+# Generate stats for table 1 and Suppl Fig A1 (Sampling efforts):
 path_to_project_list=Path(cfg['git_dir']).expanduser()/ cfg['proj_list']
 df_list=pd.concat(map(lambda x:pd.read_excel(path_to_project_list,sheet_name=x).assign(Portal=x),['ecotaxa','ecopart','ifcb']))
 
@@ -151,16 +156,64 @@ df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.u
 
 
 # Generate maps and heatmap of the spatio-temporal coverage for PSSdb products 1
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data'
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_09_2023'
 path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
+df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
+
 df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
 
+# Fig 5. Latitudinal trends
+for instrument in df.Instrument.unique():
+    plot=(ggplot(data=df[(df.Instrument==instrument)].melt(id_vars=['Instrument','year', 'month', 'latitude', 'longitude', 'min_depth', 'max_depth', 'N'],value_vars=['slope_NB_mean',  'intercept_NB_mean','r2_NB_mean']))+
+       facet_wrap('~variable',scales='free',ncol=3)+
+       stat_summary( aes(x="latitude",y="value",color='Instrument'),alpha=1,size=0.2) +
+       #stat_summary(aes(x="latitude", y="value", color='Instrument'), alpha=1,geom='line',size=0.1) +
+       labs(x=r'', y=r'') +coord_flip()+scale_x_continuous(limits=[-90,90])+
+       scale_color_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
+       theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      panel_border=element_rect(color='#222222'),
+                      legend_title=element_text(family="serif", size=10),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+    plot[0].set_size_inches( 8,7)
+    plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Latitudinal_trends_{}.svg'.format(str(Path.home()),instrument), limitsize=False, dpi=600, bbox_inches='tight')
+
+
+# Fig 6. Climatology per basin
+df=pd.merge(df.astype(dict(zip(['longitude', 'latitude'],[str]*2))),df.astype(dict(zip(['longitude', 'latitude'],[str]*2))).drop_duplicates(subset=['longitude', 'latitude'], ignore_index=True)[['longitude', 'latitude']].reset_index().rename({'index': 'Group_index'}, axis='columns'),how='left',on=['longitude', 'latitude']).astype(dict(zip(['longitude', 'latitude'],[float]*2)))
+gdf = gpd.GeoDataFrame(df[['Group_index','longitude', 'latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy( df[[ 'Group_index','longitude', 'latitude']].drop_duplicates().dropna().longitude,df[['Group_index','longitude', 'latitude']].drop_duplicates().dropna().latitude))
+df['Study_area'] = pd.merge(df, gpd.tools.sjoin_nearest(gdf, oceans, how='left')[['Group_index', 'name']], how='left',on='Group_index')['name'].astype(str)
+
+plot=(ggplot(data=df[(df.groupby(['Instrument','Study_area'])['month'].transform(lambda x: len(x.unique())>7)) &(df.Study_area.isin(['Indian Ocean','Mediterranean Region','North Atlantic Ocean','North Pacific Ocean','South Pacific Ocean']))].melt(id_vars=['Instrument', 'Group_index', 'Study_area','year', 'month', 'latitude', 'longitude', 'min_depth', 'max_depth', 'N'],value_vars=['slope_NB_mean',  'intercept_NB_mean','r2_NB_mean']))+
+   facet_grid('pd.Categorical(variable,categories=["slope_NB_mean",  "intercept_NB_mean","r2_NB_mean"])~pd.Categorical(Study_area,categories=["Indian Ocean","Mediterranean Region","North Atlantic Ocean","North Pacific Ocean","South Pacific Ocean"])',scales='free')+
+  stat_summary( aes(x="month",y="value",color='Instrument'),alpha=1) +
+      stat_summary(aes(x="month", y="value", color='Instrument'), alpha=1,geom='line') +
+      stat_summary(aes(x="month", y="value", fill='Instrument'),geom='ribbon', alpha=0.3) +
+labs(x=r'', y=r'') +
+scale_color_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
+scale_fill_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
+scale_x_continuous(breaks=np.arange(1,13,3),labels=[calendar.month_abbr[month] for month in np.arange(1,13,3)])+
+theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
+                      panel_grid=element_blank(),
+                      panel_background=element_rect(fill='white'),
+                      panel_border=element_rect(color='#222222'),
+                      legend_title=element_text(family="serif", size=10),
+                      legend_text=element_text(family="serif", size=10),
+                      axis_title=element_text(family="serif", size=10),
+                      axis_text_x=element_text(family="serif", size=10),
+                      axis_text_y=element_text(family="serif", size=10, rotation=90),
+                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches( 8,5)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Climatologies_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600, bbox_inches='tight')
 
 # Fig 2. Spatial coverage
-world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
 df_summary=df.groupby(['Instrument','latitude','longitude']).agg({'N':'sum'}).reset_index().rename(columns={'N':'count'})
 plot=(ggplot(data=df_summary)+
   facet_wrap('~Instrument', nrow=1)+
