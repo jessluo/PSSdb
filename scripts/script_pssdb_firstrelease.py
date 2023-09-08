@@ -160,17 +160,19 @@ path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'N
 path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
-df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
+#df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
 
 df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
 
 # Fig 5. Latitudinal trends
+df['latitude_cat'] = pd.cut(df['latitude'], bins=list(np.arange(-90,100, 1))).apply(lambda x: np.round(x.mid))
+
 for instrument in df.Instrument.unique():
-    plot=(ggplot(data=df[(df.Instrument==instrument)].melt(id_vars=['Instrument','year', 'month', 'latitude', 'longitude', 'min_depth', 'max_depth', 'N'],value_vars=['slope_NB_mean',  'intercept_NB_mean','r2_NB_mean']))+
+    plot=(ggplot(data=df[(df.Instrument==instrument)].melt(id_vars=['Instrument','year', 'month', 'latitude_cat', 'longitude', 'min_depth', 'max_depth', 'N'],value_vars=['slope_NB_mean',  'intercept_NB_mean','r2_NB_mean']))+
        facet_wrap('~variable',scales='free',ncol=3)+
-       stat_summary( aes(x="latitude",y="value",color='Instrument'),alpha=1,size=0.2) +
-       #stat_summary(aes(x="latitude", y="value", color='Instrument'), alpha=1,geom='line',size=0.1) +
-       labs(x=r'', y=r'') +coord_flip()+scale_x_continuous(limits=[-90,90])+
+       stat_summary( aes(x="latitude_cat",y="value",color='Instrument'),alpha=1,size=0.5) +
+       stat_summary(aes(x="latitude_cat", y="value", color='Instrument'), alpha=1,geom='line',size=0.2) +
+       labs(x=r'', y=r'Latitude ($^{\circ}$N)') +coord_flip()+scale_x_continuous(limits=[-90,90], breaks = np.arange(-90, 100, 10))+
        scale_color_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
        theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
                       panel_grid=element_blank(),
@@ -182,8 +184,8 @@ for instrument in df.Instrument.unique():
                       axis_text_x=element_text(family="serif", size=10),
                       axis_text_y=element_text(family="serif", size=10, rotation=90),
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
-    plot[0].set_size_inches( 8,7)
-    plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Latitudinal_trends_{}.svg'.format(str(Path.home()),instrument), limitsize=False, dpi=600, bbox_inches='tight')
+    plot[0].set_size_inches(8,7)
+    plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Latitudinal_trends_{}.pdf'.format(str(Path.home()),instrument),  dpi=600, bbox_inches='tight')
 
 
 # Fig 6. Climatology per basin
@@ -211,7 +213,8 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
                       axis_text_y=element_text(family="serif", size=10, rotation=90),
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches( 8,5)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Climatologies_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600, bbox_inches='tight')
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Climatologies_PSSdb.pdf'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
+
 
 # Fig 2. Spatial coverage
 df_summary=df.groupby(['Instrument','latitude','longitude']).agg({'N':'sum'}).reset_index().rename(columns={'N':'count'})
@@ -259,6 +262,13 @@ plot[0].set_size_inches(6.5,2.8)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 #Fig. 3  Average NBSS and supplemental figure 2 Average PSD
+df_1b_summary = df.groupby(['Instrument']).agg({'slope_NB_mean': ['min', 'max', 'mean', 'median', 'std'],
+                                                'intercept_NB_mean': ['min', 'max', 'mean', 'median', 'std'],
+                                                'r2_NB_mean': ['min', 'max', 'mean', 'median', 'std'],
+                                                'slope_PSD_mean': ['min', 'max', 'mean', 'median', 'std'],
+                                                'intercept_PSD_mean': ['min', 'max', 'mean', 'median', 'std'],
+                                                'r2_PSD_mean': ['min', 'max', 'mean', 'median', 'std']}).reset_index()
+
 nbss_summary=pd.merge(df_1a.groupby(['Instrument','biovolume_size_class']).apply(lambda x: pd.Series({'NB_5':np.nanquantile(x['normalized_biovolume_mean'],q=0.05),
                                                                                              'NB_50':np.nanquantile(x['normalized_biovolume_mean'],q=0.5),
                                                                                              'NB_mean': np.nanmean(x.normalized_biovolume_mean),
@@ -313,6 +323,18 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
                       axis_text_y=element_text(family="serif", size=10, rotation=90),
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=True, return_ggplot=True)
 plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_2_PSD_summary.pdf'.format(str(Path.home())),  dpi=600)
+plt.close()
+
+# extra figure for intercept values:
+
+
+pal = {"IFCB":"tab:green",
+           "UVP":"tab:gray",
+           "Scanner":"tab:blue"}
+ax=sns.barplot(data=df, x='Instrument', y='intercept_NB_mean', palette=pal, errorbar = 'sd', order= ['IFCB', 'Scanner', 'UVP'], width = 0.5)
+sns.despine(top = True, right = True)
+ax.set(xlabel = '', ylabel = 'Intercept \n' + r'log($\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)')
+plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/barplot_intercetpts.png'.format(str(Path.home())),  dpi=600)
 plt.close()
 
 
