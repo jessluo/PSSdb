@@ -223,7 +223,7 @@ def threshold_func(binned_data):
 
     #lower threshold based on three consecutive size bins with nans
     for n, i in enumerate(np.isnan(binned_data_filt['NB'])):
-        if (i == True) and (np.isnan(binned_data_filt.loc[n+1, 'NB']) == True): #and (np.isnan(binned_data_filt.loc[n+2, 'NB']) == True): #edited to test thresholding
+        if (i == True) and (np.isnan(binned_data_filt.loc[n+1, 'NB']) == True) and (np.isnan(binned_data_filt.loc[n+2, 'NB']) == True): #edited to test thresholding
             binned_data_filt = binned_data_filt.loc[0:n-1]
             break
 
