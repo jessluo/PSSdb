@@ -54,7 +54,7 @@ Attention: The repository includes a <a href="https://github.com/jessluo/PSSdb/b
 Read instructions on l.1-4 of the configuration masterfile to save these protected information in a "configuration_masterfile_pw.yaml" file.
 </font>
 
-* <a href="https://github.com/jessluo/PSSdb/blob/main/scripts"><span class="link"></span>scripts</a> section: contains all scripts and functions developed for PSSdb. This section includes a function (named _funcs_xxx.py_) specific to each step of the [Workflow](#workflow), paired with a numbered script of the same name (_[0:4]_xxx.py_), whose objective is to loop through all the available datasets.
+* <a href="https://github.com/jessluo/PSSdb/blob/main/scripts"><span class="link"></span>scripts</a> section: contains all scripts and functions developed for PSSdb. This section includes a function (named _funcs_xxx.py_) specific to each step of the [Workflow](#workflow), paired with a numbered script of the same name (_[0:4]__xxx.py_), whose objective is to loop through all the available datasets.
 Numbered scripts should be run sequentially in order to generate the intermediate and final PSSdb data products. When ran for the first time, the numbered script will automatically save a readme file, describing the datafiles that have been generated. Alternatively, the function files may be run directly to perform a given step for a single dataset. 
 
 
