@@ -106,7 +106,7 @@ Imaging sensors are deployed on various platforms/water-supply modes, including 
 
 
 <font size="2">
-<br>PSSdb data pipeline first extract the raw datasets from the online data streams presented above. 
+<br>PSSdb data pipeline first extract the raw datasets from the online data streams presented above. Disclaimer: data download takes time and requires permission from data owners.
 </font>
 
 <details>
@@ -123,7 +123,7 @@ We used the application programming interface (or API) developed for IFCb dashbo
 ```python ~/GIT/PSSdb/scripts/0_list_projects.py```
 
 
-2. All accessible datasets are extracted from their online data stream using the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/1_export_projects.py"><span class="link"></span>extraction script</a>, except for those hosted on IFCb dashboards that do not include all the datafiles ("features" and "autoclass" files) required for their ingestion in PSSdb, and for EcoPart datasets that do not have a corresponding project on EcoTaxa. Specific functions were defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_export_projects.py"><span class="link"></span>extraction functions</a> file to extract a dataset from EcoTaxa, EcoPart, or IFCb dashboards. The default export option was selected for EcoTaxa datasets, while for EcoPart, we used the alternative "raw" export option, in order to retrieve the size, abundance, and taxonomic annotation of all particles without loosing any information (see the [FAQ](#faq) for more explanations).<br><br> The function file can be run as a script to export a single via the terminal: <br>```python ~/GIT/PSSdb/scripts/funcs_export_projects.py``` <br>To loop through the test set or all the accessible datasets, open terminal and type:<br> ```python ~/GIT/PSSdb/scripts/1_export_projects.py```
+2. All accessible datasets are extracted from their online data stream using the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/1_export_projects.py"><span class="link"></span>extraction script</a>, except for those hosted on IFCb dashboards that do not include all the datafiles ("features" and "autoclass" files) required for their ingestion in PSSdb, and for EcoPart datasets that do not have a corresponding project on EcoTaxa. Specific functions were defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_export_projects.py"><span class="link"></span>extraction functions</a> file to extract a dataset from EcoTaxa, EcoPart, or IFCb dashboards. The default export option was selected for EcoTaxa datasets, while for EcoPart, we used the alternative "raw" export option, in order to retrieve the size, abundance, and taxonomic annotation of all particles without loosing any information (see the [FAQ](#faq) for more explanations).<br><br> The function file can be run as a script to export a single via the terminal: <br>```python ~/GIT/PSSdb/scripts/funcs_export_projects.py``` <br>To loop through the test set or all the accessible datasets, open terminal and type:<br> ```python ~/GIT/PSSdb/scripts/1_export_projects.py```. NOTE: this step contains several queries to ensure the user downloads just the necessary data. Do not download all the IFCB data (takes up to two weeks) and can put contrains on the data transfer of the IFCB servers. First contact Clarissa Anderson and/or Heidi Sosik before downloading data from the CALOOS dashboard or the WHOI dashboard respectively.
 
 
 
