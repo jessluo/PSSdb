@@ -69,7 +69,7 @@ The size bins used to compute the size spectra for PSSdb, according to EcoPart o
 * <a href="https://github.com/jessluo/PSSdb/blob/main/figures"><span class="link"></span>figures</a> section: contains all figures generated to check the control quality, standardization, or NBSS computation for PSSdb datasets. Figures generated for PSSdb papers are stored in specific sub-folder, named after each paper.
 
 
-* <a href="https://github.com/jessluo/PSSdb/blob/main/ancillary"><span class="link"></span>ancillary</a> section: contains the <a href="https://github.com/jessluo/PSSdb/blob/main/ancillary/plankton_annotated_taxonomy.xlsx"><span class="link"></span>taxonomic</a> and <a href="https://github.com/jessluo/PSSdb/blob/main/ancillary/plankton_elemental_quotas.xlsx"><span class="link"></span>elemental quotas</a> look-up tables, as well as a set of environmental datasets (included in the <a href="https://github.com/jessluo/PSSdb/blob/main/.gitignore"><span class="link"></span>gitignore file</a> since they exceed GitHub size limit), used to generate PSSdb taxonomy-resolving and global predictions future data products respectively.
+* <a href="https://github.com/jessluo/PSSdb/blob/main/ancillary"><span class="link"></span>ancillary</a> section: contains the <a href="https://github.com/jessluo/PSSdb/blob/main/ancillary/plankton_annotated_taxonomy.xlsx"><span class="link"></span>taxonomic</a> and <a href="https://github.com/jessluo/PSSdb/blob/main/ancillary/plankton_elemental_quotas.xlsx"><span class="link"></span>elemental quotas</a> look-up tables, used to generate PSSdb taxonomy-resolving future data products.
 </font>
 </details>
 
