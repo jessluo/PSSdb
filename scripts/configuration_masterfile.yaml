@@ -55,6 +55,9 @@ flag_subdir : 'flags'
 # Path to project_list_all.xlsx: The list of imaging datasets generated automatically using API
 proj_list : 'raw/project_list_all.xlsx'
 
+# Path to custom file containing the size classes used to compute the Size Spectra products
+size_bins_path: '~/GIT/PSSdb/raw/ecopart_size_bins.tsv'
+
 # Path to custom units definition: The list of custom units definition needed for datasets standardization
 units_file : 'scripts/units_def.txt'
 
@@ -66,18 +69,18 @@ allometry_lookup : 'ancillary/plankton_elemental_quotas.xlsx'
 
 ### Specifications for instrument, gridding, binning and averaging NBSS products ###
 
-day_night: 'N' # or 'Y'
-depth_binning: 'N' # or 'Y'
+day_night: 'N' # or 'Y', if Y, the data products will be grouped by day and night. This option is not tested yet. 
+depth_binning: 'N' # or 'Y'. If Y, the data products will be grouped by depth bins. If N, data products will be representative of the 0-200m depth layer only
 depth_bins: [0, 25, 50, 100, 200, 500, 1000, 3000, 8000] # Customize with desired depth bins
 
-st_increment: 0.5 # size of the grid used in step3_gridding_func
+st_increment: 0.5 # size of the sub-grid used in step3_gridding_func. Sub-grids are defined to avoid over-representation of frequent sampling locations in any given grid cell.
 date_group: 'week' # time interval to bin data in step3_gridding_func. Other options:  'mm' (month), 'yyyymm' (year-month), 'yyyy' (year)
-keep_cats: 'N' # or 'Y'
-cats_to_keep: [] # fill if you want to keep any of the categories such as ['beads','detritus', 'artefact', 'bubble', 'plastic']
+keep_cats: 'N' # or 'Y'. If Y, the list below will be used to keep specific categories (e.g artefacts) that are removed by default
+cats_to_keep: [] # fill if you want to keep any of the categories such as ['beads','detritus', 'artefact', 'bubble', 'plastic']. Default categories that are filtered out include 'beads','detritus', 'artefact', 'bubble', 'plastic', 'glue'  
 
-N_test: 0 # number of files to be gridded, 0 means all. This is useful for debugging the pipeline
+N_test: 0 # number of files to be gridded, 0 means all. This is used for debugging the pipeline only
 
 st_increment_avg: 1 #size of the grid used for averaging in step4_compute_NBSS
 date_group_avg: 'yyyymm' #time interval for averaging in step4_compute_NBSS. Other options:  'mm' (month), 'yyyy' (year)
-big_grid: 'N' #  'Y' or 'N'
-size_bins_path: '~/GIT/PSSdb/raw/ecopart_size_bins.tsv'
+big_grid: 'N' #  'Y' or 'N'. Deprecated
+
