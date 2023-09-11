@@ -46,7 +46,7 @@ A protected configuration masterfile, containing password and login infromation,
 This repository contains a:
 
 * <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/configuration_masterfile.yaml"><span class="link"></span>configuration masterfile</a>: File used to configure PSSdb GitHub repository.
-This file contains the information related to specific path setup for data storage (folder <a href="https://github.com/jessluo/PSSdb/blob/main/raw"><span class="link"></span>raw</a> and associated subfolders generated after specific steps, see PSSdb [Worflow](#workflow)).
+This file contains the information related to specific path setup for data storage (folder <a href="https://github.com/jessluo/PSSdb/blob/main/raw"><span class="link"></span>raw</a> and associated subfolders generated after specific steps, see PSSdb [Workflow](#workflow)).
 In addition,the file also include the parameters specifying the spatio-temporal resolution used to generate PSSdb current data products. These parameters can thus be tuned in order to answer a specific research question requiring a different resolution.
 
 <font size="2">
@@ -119,11 +119,11 @@ We rely primarily on online, accessible, platforms created by the instrument dev
 * Ecotaxa/EcoPart, initially developed for ZooScan and UVP users.
 
 We used the application programming interface (or API) developed for IFCb dashboards and EcoTaxa, and custom scripts for EcoPart, to (1) list and (2) access these datasets. 
-1. The full <a href="https://github.com/jessluo/PSSdb/blob/main/raw/project_list_all.xslx"><span class="link"></span>list</a> of datasets hosted on these online data streams is generated through the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step0_list_projects.py"><span class="link"></span>listing script</a>. This scripts uses a set of functions defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_list_projects.py"><span class="link"></span>listing functions</a> file, for each data source (EcoTaxa, EcoPart, and IFCb dashboards). These functions list all the available datasets and also identify accessible ones on EcoTaxa/EcoPart based on login info stored in the configuration masterfile password file (see [instructions](#organisation) and  "PSSdb_access" column in the list of datasets).<br><br> To run on terminal:<br>
-```python ~/GIT/PSSdb/scripts/step0_list_projects.py```
+1. The full <a href="https://github.com/jessluo/PSSdb/blob/main/raw/project_list_all.xslx"><span class="link"></span>list</a> of datasets hosted on these online data streams is generated through the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/0_list_projects.py"><span class="link"></span>listing script</a>. This scripts uses a set of functions defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_list_projects.py"><span class="link"></span>listing functions</a> file, for each data source (EcoTaxa, EcoPart, and IFCb dashboards). These functions list all the available datasets and also identify accessible ones on EcoTaxa/EcoPart based on login info stored in the configuration masterfile password file (see [instructions](#organisation) and  "PSSdb_access" column in the list of datasets).<br><br> To run on terminal:<br>
+```python ~/GIT/PSSdb/scripts/0_list_projects.py```
 
 
-2. All accessible datasets are extracted from their online data stream using the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step1_export_projects.py"><span class="link"></span>extraction script</a>, except for those hosted on IFCb dashboards that do not include all the datafiles ("features" and "autoclass" files) required for their ingestion in PSSdb, and for EcoPart datasets that do not have a corresponding project on EcoTaxa. Specific functions were defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_export_projects.py"><span class="link"></span>extraction functions</a> file to extract a dataset from EcoTaxa, EcoPart, or IFCb dashboards. The default export option was selected for EcoTaxa datasets, while for EcoPart, we used the alternative "raw" export option, in order to retrieve the size, abundance, and taxonomic annotation of all particles without loosing any information (see the [FAQ](#faq) for more explanations).<br><br> The function file can be run as a script to export a single via the terminal: <br>```python ~/GIT/PSSdb/scripts/funcs_export_projects.py``` <br>To loop through the test set or all the accessible datasets, open terminal and type:<br> ```python ~/GIT/PSSdb/scripts/step1_export_projects.py```
+2. All accessible datasets are extracted from their online data stream using the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/1_export_projects.py"><span class="link"></span>extraction script</a>, except for those hosted on IFCb dashboards that do not include all the datafiles ("features" and "autoclass" files) required for their ingestion in PSSdb, and for EcoPart datasets that do not have a corresponding project on EcoTaxa. Specific functions were defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_export_projects.py"><span class="link"></span>extraction functions</a> file to extract a dataset from EcoTaxa, EcoPart, or IFCb dashboards. The default export option was selected for EcoTaxa datasets, while for EcoPart, we used the alternative "raw" export option, in order to retrieve the size, abundance, and taxonomic annotation of all particles without loosing any information (see the [FAQ](#faq) for more explanations).<br><br> The function file can be run as a script to export a single via the terminal: <br>```python ~/GIT/PSSdb/scripts/funcs_export_projects.py``` <br>To loop through the test set or all the accessible datasets, open terminal and type:<br> ```python ~/GIT/PSSdb/scripts/1_export_projects.py```
 
 
 
@@ -144,10 +144,10 @@ We used the application programming interface (or API) developed for IFCb dashbo
   <summary>Consolidation of EcoPart/EcoTaxa UVP datasets</summary><blockquote>
 <font size="2">Most UVP datasets are uploaded on both EcoTaxa (for particles larger than the vignetting threshold) and EcoPart, which include all particles size and count info processed in real-time. Since EcoTaxa API does not provide the id of corresponding datasets on EcoPart, we used the custom function developed to list datasets on EcoPart to match-up corresponding datasets.
 Matched-up datafiles are consolidated in a single table, whose format is most similar to the EcoPart "raw" export table:<br><br>  First, only small particles whose size is smaller than the vignetting threshold are selected from the EcoPart "raw" tables, to avoid accounting for the same particle twice.These particles are assigned a null taxonomic annotation and the "unclassified" status.<br><br>  Then, EcoTaxa table is binned according to EcoPArt depth/time bins, and appended to the consolidated table with a "nbr" of 1.
-The consolidation function can be found <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_consolidate_UVP_files.py"><span class="link"></span>here</a>. All UVP datasets are consolidated by running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_projects.py"><span class="link"></span>script</a>:
+The consolidation function can be found <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_consolidate_UVP_files.py"><span class="link"></span>here</a>. All UVP datasets are consolidated by running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/2_standardize_projects.py"><span class="link"></span>script</a>:
 
 ```
-python ~/GIT/PSSdb/scripts/step2_standardize_projects.py
+python ~/GIT/PSSdb/scripts/2_standardize_projects.py
 ```
 
 </font>
@@ -182,10 +182,10 @@ Consolidated tables are standardized according to the "Standardizers" spreadshee
 <br>  Samples are assigned a flag (1 for flagged samples, 0 otherwise) as they pass through PSSdb QC. Interactive reports (see <a href="#faq"><span class="link"></span>FAQ</a>) provide an overview of the QC and are sent to data providers to inform them of the number of samples that are excluded from the database.
 Individual flags can be overruled at the demand of the data providers if they deem the sample can be ingested in PSSdb.
 
-The standardization and QC functions can be found <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_standardize_projects.py"><span class="link"></span>here</a>. All datasets are standardized and QCed by running this <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_projects.py"><span class="link"></span>script</a>:
+The standardization and QC functions can be found <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_standardize_projects.py"><span class="link"></span>here</a>. All datasets are standardized and QCed by running this <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/2_standardize_projects.py"><span class="link"></span>script</a>:
 
 ```
-python ~/GIT/PSSdb/scripts/step2_standardize_projects.py
+python ~/GIT/PSSdb/scripts/2_standardize_projects.py
 ```
 
 </font>
@@ -218,9 +218,9 @@ to compute the Normalized Biovolume Size Spectrum and derived parameters (slope 
 <br><br>Spatio-temporal bins are also appended to standardized tables according to samples latitude, longitude, and timestamp.
 </font>
 
-The binning functions, which depend on the spatio-temporal resolution fixed parameters stored in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/configuration_masterfile.yaml"><span class="link"></span>configuration masterfile</a>, can be found <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_gridding.py"><span class="link"></span>here</a>. All datasets are gridded by running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step3_grid_data.py"><span class="link"></span>script</a>:
+The binning functions, which depend on the spatio-temporal resolution fixed parameters stored in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/configuration_masterfile.yaml"><span class="link"></span>configuration masterfile</a>, can be found <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_gridding.py"><span class="link"></span>here</a>. All datasets are gridded by running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/3_grid_data.py"><span class="link"></span>script</a>:
 ```
-python ~/GIT/PSSdb/scripts/step3_grid_data.py
+python ~/GIT/PSSdb/scripts/3_grid_data.py
 ```
 
 <div>
@@ -242,10 +242,10 @@ python ~/GIT/PSSdb/scripts/step3_grid_data.py
 <br><br>  Unbiased size spectra are selected between the lowest size at which the maximum NB value is observed, and the last size bin at which we observe a finite NB value before recording 3 consecutive empty bins.  
 <br><br>  A log-linear regression is performed to derive the size spectra slope and intercept.
 
-The size spectra computation functions, including the function to select the unbiased size range, to compute the cumulative and average size spectra and to perform the log-linear regression, are defined <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_NBS.py"><span class="link"></span>here</a>. PSSdb first data products can be genereted  by running this <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step4_compute_NBSS.py"><span class="link"></span>script</a>:
+The size spectra computation functions, including the function to select the unbiased size range, to compute the cumulative and average size spectra and to perform the log-linear regression, are defined <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/funcs_NBS.py"><span class="link"></span>here</a>. PSSdb first data products can be genereted  by running this <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/4_compute_NBSS.py"><span class="link"></span>script</a>:
 
 ```
-python ~/GIT/PSSdb/scripts/step4_compute_NBSS.py
+python ~/GIT/PSSdb/scripts/4_compute_NBSS.py
 ```
 
 </font>
@@ -280,9 +280,9 @@ python ~/GIT/PSSdb/scripts/step4_compute_NBSS.py
   <summary>Filling standardizer spreadsheets</summary><blockquote>
 <font size="2">
 <br>By default, the standardizer spreadsheets are empty and need to be manually completed for each project.
-They are generated on step0 (datasets listing), and include the list of accessible projects for each instrument. These spreadsheets are mainly used to map the variables needed for PSSdb ingestion to native variables, standardize the column headers and homogenize their formats/units.
+They are generated on step 0 (datasets listing), and include the list of accessible projects for each instrument. These spreadsheets are mainly used to map the variables needed for PSSdb ingestion to native variables, standardize the column headers and homogenize their formats/units.
 
-On step2 (datasets standardization), individual projects will be checked for control quality and standardized based on these spreadsheets, hence their completion is required. 
+On step 2 (datasets standardization), individual projects will be checked for control quality and standardized based on these spreadsheets, hence their completion is required. 
  Note that a few completion steps will be done automatically during standardization and projects listing (see Table S1), including the completion of the (1)  local paths where export files and flags are stored (e.g. Project_localpath and Flag_path) and (2) the ID of associated projects (i.e. only in the case of UVP projects hosted on both Ecotaxa and Ecopart). 
 </font>
 <div>
@@ -310,7 +310,7 @@ Missing values will be flagged during control quality check based on the "NA_val
 
 Incorrect mapping can cause the code to crash, which will result in skipping the project. Known issues include:
 
-* Incorrect units: The main issue when running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_projects.py"><span class="link">script</span></a> originates from incorrect standardizer spreadsheets. For example, make sure the _unit columns contain units that are defined in the <a href="https://pint.readthedocs.io/en/stable/"><span class="link">pint package</span></a> (all SI units and their derivatives) or defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/units_def.txt"><span class="link">custom definition file</span></a>. To print all available units, run the python <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_project.py.txt"><span class="link">script</span></a> and select option 1b. Use units compatible with standard conversions
+* Incorrect units: The main issue when running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/2_standardize_projects.py"><span class="link">script</span></a> originates from incorrect standardizer spreadsheets. For example, make sure the _unit columns contain units that are defined in the <a href="https://pint.readthedocs.io/en/stable/"><span class="link">pint package</span></a> (all SI units and their derivatives) or defined in the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/units_def.txt"><span class="link">custom definition file</span></a>. To print all available units, run the python <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/2_standardize_project.py.txt"><span class="link">script</span></a> and select option 1b. Use units compatible with standard conversions
 * Incorrect sampling description: Sampling description is a single column that allows users to describe the sampling/acquisition protocols further using variables comprised in the original export files or manual inputs (see Table S3). The format of this column should be similar to a dictionary where individual information are separated by a semi-colon and may include the field, to map the dictionary key to the native column header, and the unit, defined in the pint package or in the custom units_def.txt file, much like the other standardizer variables. For example, the sampling description of Zooscan projects may include the net type and characteristics, a description of the chemical (formula and final concentration) used to fix the samples, the splitting method etc. For UVP projects, the sampling description may include the sampling platform (e.g. rosette, float, glider), the serial number of the instrument, and the size calibration factors reported in the calibration report (e.g. aa and exp). For IFCB projects, the sampling description may include the syringe volume, the gain and trigger threshold for the different photomultiplier (pmtA: sidescatter, pmtB: red fluorescence). **Attention: the title of the dictionaries cannot be repeated**
 
 <div>
@@ -358,11 +358,11 @@ Incorrect mapping can cause the code to crash, which will result in skipping the
 <font size="2">
 <br>Standardized UVP files will be generated after consolidation of the small (≥1 pixel, size and count processed in real time and stored in the .bru files) and large (>30 pixels (~700 micrometers for UVP6), generating vignettes uploaded on Ecotaxa) particle size observations (see Table S4). The former are originally stored in the .bru files of UVP5 projects and uploaded to EcoPart, while the latter are used to generate vignettes that will be uploaded on EcoTaxa for further taxonomic annotations classification and validation. 
 
-Upon running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_projects.py"><span class="link"></span>script</a>, UVP datafiles will be consolidated into a single table before flagging and standardizing each project. These datafiles include Ecotaxa tables exported on step 1, with the taxonomic annotation information, and the raw particle Ecopart tables, containing the number of images and particles of individual size observations in 1m depth bins. The current strategy to consolidated these files follows the steps:
+Upon running the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/2_standardize_projects.py"><span class="link"></span>script</a>, UVP datafiles will be consolidated into a single table before flagging and standardizing each project. These datafiles include Ecotaxa tables exported on step 1, with the taxonomic annotation information, and the raw particle Ecopart tables, containing the number of images and particles of individual size observations in 1m depth bins. The current strategy to consolidated these files follows the steps:
 * EcoTaxa default exported file and EcoPart raw particles exported file are loaded 
 * Large particles from EcoPart datatable are filtered out using the "area" column to use th area and taxonomic annotations stored in EcoTaxa datafiles.The "imgcount" column is used to calculate the volume imaged in each 1-m depth bins, as the product of the image number times the calibrated image volume.
 Small particles are assigned a null id, a null taxonomic annotation and the 'unclassified' status. **Attention: this table contains small particles only (particles>sm_zoo are filtered out since they correspond to EcoTaxa vignettes)**
-* Additional variables are appended to the native EcoTaxa table, including the object_corrected_depth (accounting for the spatial offset between the imaging frame and the depth sensor), object_min/max_depth_bin (1m-depth bins matching those of EcoPart), object_volume_bin (matching the cumulative volume in 1m-depth bins, in liters). A 'object_bru_area' variable may be created (if run_macro set to True in this <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/step2_standardize_projects.py"><span class="link"></span>script</a>, **default is False**) using a custom <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/PyImageJ_ecotaxa_append_metadata.txt"><span class="link"></span>PyimageJ macro</a> that reproduces the initial processing step of all particles segmentation, from the native project folder located in the LOV server ~/plankton/uvpx_missions. **Attention: The project folder should include the required sub-directories (raw with all bmp images, config with readable files, and work directories)**
+* Additional variables are appended to the native EcoTaxa table, including the object_corrected_depth (accounting for the spatial offset between the imaging frame and the depth sensor), object_min/max_depth_bin (1m-depth bins matching those of EcoPart), object_volume_bin (matching the cumulative volume in 1m-depth bins, in liters). A 'object_bru_area' variable may be created (if run_macro set to True in this <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/2_standardize_projects.py"><span class="link"></span>script</a>, **default is False**) using a custom <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/PyImageJ_ecotaxa_append_metadata.txt"><span class="link"></span>PyimageJ macro</a> that reproduces the initial processing step of all particles segmentation, from the native project folder located in the LOV server ~/plankton/uvpx_missions. **Attention: The project folder should include the required sub-directories (raw with all bmp images, config with readable files, and work directories)**
 * Both data tables are concatenated and saved in the sud-dicteroy named after the <a href="https://github.com/jessluo/PSSdb/blob/main/scripts/configuration_masterfile.yaml"><span class="link"></span>configuration masterfile</a>
 * The <a href="https://github.com/jessluo/PSSdb/blob/main/raw/project_UVP_standardizer.xlsx"><span class="link"></span>UVP standardizer</a> is updated with new variables: 
 Project_localpath: ~/GIT/PSSdb/raw/ecotaxa_ecopart_consolidation/ 
