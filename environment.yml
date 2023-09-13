@@ -133,7 +133,6 @@ dependencies:
       - cycler==0.11.0
       - cython==0.29.33
       - dill==0.3.6
-      - dtki==1.0.0
       - easydev==0.12.0
       - git+https://github.com/ecotaxa/ecotaxa_py_client.git
       - ephem==4.1.4
