@@ -20,8 +20,7 @@ except:
 
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-#look for coastline layer and add it to that map, UNABLE to import cartopy, see issue
-import cartopy.crs as ccrs
+
 
 
 #open config file and extract parameters:
@@ -104,42 +103,3 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
     lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_NBSS-fit_v' +currentYear+'-'+currentMonth+'.csv', index=False)
 
-
-
-#lat = lin_fit_1b['latitude']
-#lon = lin_fit_1b['longitude']
-#slope = lin_fit_1b['slope_mean']
-#intercept_t = lin_fit_1b['intercept_mean']
-
-#intercept_plot = [x*3 for x in intercept_t]
-#ax = plt.axes(projection=ccrs.PlateCarree())
-#plt.gca().coastlines('50m')
-#g1=ax.gridlines(draw_labels=True)
-#g1.xlines = False
-#g1.ylines = False
-#plt.scatter(lon, lat, label=None, c=slope, cmap='viridis', s=intercept_plot, linewidth=0, alpha=0.5, transform=ccrs.PlateCarree())
-#plt.gca().coastlines('50m')
-#ax.set_extent([-180, 180, -90, 90])
-#ax.xlabel('longitude')
-#ax.ylabel('latitude')
-#plt.colorbar(label='slope', orientation='horizontal', anchor=(0.5, 1))
-#ax.clim(min(slope), max(slope))
-
-
-#labels = [str(np.round(min(intercept_t), decimals=2)),str(np.round(st.median(intercept_t), decimals=2)), str(np.round(max(intercept_t), decimals=2))]
-
-#for n, area in enumerate([18, 28.5, 73.5]):
-    #plt.scatter([], [], c='k', alpha=0.3, s=area, label=labels[n], transform=ccrs.PlateCarree())
-
-#plt.legend(bbox_to_anchor=(0.75, 0), ncol = 3, scatterpoints=1, frameon=False,
-           #labelspacing=1, title='intercept')
-
-#figname = 'step4_slopes_intercept_updated_firstrelease' + instrument + '.pdf'
-
-#path_to_config = Path('~/GIT/PSSdb/scripts/Ecotaxa_API.yaml').expanduser()
-#with open(path_to_config, 'r') as config_file:
-    #cfg = yaml.safe_load(config_file)
-
-#savepath = Path(cfg['git_dir']).expanduser() / 'figures' / figname
-
-#plt.savefig(savepath)
