@@ -122,7 +122,6 @@ dependencies:
       - beautifulsoup4==4.11.1
       - bracex==2.3.post1
       - bs4==0.0.1
-      - cartopy==0.21.1
       - click-plugins==1.1.1
       - cligj==0.7.2
       - colorama==0.4.6
