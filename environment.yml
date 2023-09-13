@@ -126,6 +126,7 @@ dependencies:
       - cligj==0.7.2
       - colorama==0.4.6
       - colorlog==6.7.0
+      - colormap==1.0.4
       - git+https://github.com/retostauffer/python-colorspace.git
       - contourpy==1.0.6
       - cssselect==1.2.0
