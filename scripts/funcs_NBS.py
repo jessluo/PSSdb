@@ -17,6 +17,8 @@ except:
 import os
 from tqdm import tqdm
 from operator import attrgetter
+import geopandas as gpd
+oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
 
 
 
@@ -67,6 +69,12 @@ def size_binning_func(df_subset):
     return df_subset, df_bins
 
 
+## Different ways of calculating biovolume for sensitivity analyses
+def biovolume_metric(df_binned):
+    ###
+    ###
+    df_binned= df_binned.drop(columns=['Biovolume']).reset_index()
+
 # 7)calculate x and y for NBSS, this includes adding total biovolume per size bin for each station and depth bin,
 # inputs: a dataframe and the volume sampled of each (in cubic meters). other inputs are the column names
 # from the original dataset that want to be retained (i.e;  proj ID, station ID, depth, size classes,
@@ -116,17 +124,17 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         else:
             df_binned['Biovolume'] = df_binned['Biovolume'] * df_binned['ROI_number']
             grouping = ['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin','Depth_min', 'Depth_max', 'Min_obs_depth', 'Max_obs_depth'] if df_binned.Instrument.unique()[0] == 'Scanner' else ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth'] # , 'size_class_mid', 'range_size_bin', 'ECD_mean', 'size_range_ECD'
-            df_vol = df_binned.groupby(grouping, dropna=False).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Depth_min', 'Depth_max','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
-            df_binned['cumulative_vol'] = pd.merge(df_binned, df_vol, how='left', on=grouping )['cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
+            df_vol = df_binned.groupby(grouping, dropna=False).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Depth_min', 'Depth_max','Volume_imaged']].drop_duplicates().Volume_imaged.sum(),
+                                                                                          'Depth_range_min':x.Depth_min.astype(float).min(),
+                                                                                          'Depth_range_max':x.Depth_max.astype(float).max(),})).reset_index()
+            df_binned= pd.merge(df_binned, df_vol, how='left', on=grouping )  # df_vol.loc[0, 'cumulative_volume']
             #computing NBSS for individual size fractions in each samples. Required for zooscan projects, since a single net tow is fractionated by sieves
             niter = 0
-            NBS_biovol_df = df_binned.astype(dict(zip(grouping,[str]*len(grouping)))).groupby(grouping+['sizeClasses']).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
+            NBS_biovol_df = df_binned.astype(dict(zip(grouping,[str]*len(grouping)))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
                                                                                                    'Biovolume_mean': x.Biovolume.sum() / x.ROI_number.sum(),
                                                                                                    'Biovolume_sum': x.Biovolume.sum(),
                                                                                                    'ROI_number_sum': x.ROI_number.sum(),
                                                                                                    'Total_volume': x.cumulative_vol.unique()[0],
-                                                                                                   'Depth_range_min':x.Depth_min.astype(float).min(),
-                                                                                                   'Depth_range_max':x.Depth_max.astype(float).max(),
                                                                                                    'PSD': (x.ROI_number.sum() /x.cumulative_vol.unique()[0] / (((x.range_size_bin.astype(float).unique()[0]*6)/m.pi)**(1./3.))),
                                                                                                    'NB_std': np.std(list(map(lambda count: np.random.normal( loc=np.random.choice(np.repeat(x.Biovolume,x.ROI_number),size=count,replace=True),
                                                                                                                                                              scale=(1 / 3) * np.pi * (np.sqrt((x.Pixel.unique()[0]) * 1e-03 * x.size_class_mid.astype(float).unique()[0]) ** 3) / ( (1e-03 * x.Pixel.unique()[0]) ** 3),
@@ -156,7 +164,7 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
 
             NBS_biovol_df2 = pd.merge(NBS_biovol_df2, nbss_depths, how='left', on=['date_bin','midLatBin', 'midLonBin','Station_location'])
 
-
+            # depth intergrated OR weighted sum
             NBS_biovol_df3 = NBS_biovol_df2.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses', 'size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD']).apply(lambda x: pd.Series({
                                                                                                                         'Biovolume_mean': x.Biovolume_mean.mean(),
 
@@ -170,14 +178,14 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
             NBS_biovol_df= NBS_biovol_df3.astype({'ECD_mean':float}).sort_values(['date_bin','midLatBin', 'midLonBin','Station_location','ECD_mean']).reset_index(drop=True)
 
     # create three more columns with the parameters of particle size distribution and normalized size spectra,:
-    NBS_biovol_df['logNB'] = np.log(NBS_biovol_df['NB'])
-    NBS_biovol_df['logSize'] = np.log(NBS_biovol_df['size_class_mid'].astype(float))
+    NBS_biovol_df['logNB'] = np.log10(NBS_biovol_df['NB'])
+    NBS_biovol_df['logSize'] = np.log10(NBS_biovol_df['size_class_mid'].astype(float))
 
-    NBS_biovol_df['logPSD'] = np.log(NBS_biovol_df['PSD'])
-    NBS_biovol_df['logECD'] = np.log(NBS_biovol_df['ECD_mean'].astype(float))
+    NBS_biovol_df['logPSD'] = np.log10(NBS_biovol_df['PSD'])
+    NBS_biovol_df['logECD'] = np.log10(NBS_biovol_df['ECD_mean'].astype(float))
 
     # now calculate the log biovolume for the df_bins dataframe. NOTE updated on 2/23/2023. middle point of the size class
-    df_bins['logSize'] = np.log(df_bins['size_class_mid'].astype(float))
+    df_bins['logSize'] = np.log10(df_bins['size_class_mid'].astype(float))
     # merge the two dataframes
     df_bins=df_bins.astype(dict(zip(['range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'], [float] * 5)))
     NBS_biovol_df = NBS_biovol_df.astype(dict(zip([ 'range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean', 'logSize'], [float] * 5)))
@@ -199,6 +207,18 @@ def NB_SS_func(df_binned, df_bins, light_parsing = False, depth_parsing = False,
         NBS_binned_thres = binned_NBS
 
     NBS_binned_thres = NBS_binned_thres.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD'], [float] * 6)))
+    NBS_binned_thres = pd.merge(NBS_binned_thres.astype(dict(zip(['midLonBin', 'midLatBin'], [str] * 2))),
+                  NBS_binned_thres.astype(dict(zip(['midLonBin', 'midLatBin'], [str] * 2))).drop_duplicates(
+                      subset=['midLonBin', 'midLatBin'], ignore_index=True)[
+                      ['midLonBin', 'midLatBin']].reset_index().rename({'index': 'Group_index'}, axis='columns'),
+                  how='left', on=['midLonBin', 'midLatBin']).astype(dict(zip(['midLonBin', 'midLatBin'], [float] * 2)))
+    gdf = gpd.GeoDataFrame(NBS_binned_thres[['Group_index', 'midLonBin', 'midLatBin']].drop_duplicates().dropna(),
+                           geometry=gpd.points_from_xy(
+                               NBS_binned_thres[['Group_index', 'midLonBin', 'midLatBin']].drop_duplicates().dropna().midLonBin,
+                               NBS_binned_thres[['Group_index', 'midLonBin', 'midLatBin']].drop_duplicates().dropna().midLatBin))
+    NBS_binned_thres['ocean'] = \
+    pd.merge(NBS_binned_thres, gpd.tools.sjoin_nearest(gdf, oceans, how='left')[['Group_index', 'name']], how='left',
+             on='Group_index')['name'].astype(str)
 
     return NBS_binned_thres
 
@@ -495,17 +515,3 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
 
 
 
-# Plotting Values and Regression Line
-#max_x = np.max(X) + 100
-#min_x = np.min(X) - 100
-# Calculating line values x and y
-#x = np.linspace(min_x, max_x, 1000)
-#y = c + m * x
-# Ploting Line
-#plt.plot(x, y, color='#58b970', label='Regression Line')
-# Ploting Scatter Points
-#plt.scatter(X, Y, c='#ef5423', label='Scatter Plot')
-#plt.xlabel('logSize')
-#plt.ylabel('logNBSS')
-#plt.legend()
-#plt.show()
