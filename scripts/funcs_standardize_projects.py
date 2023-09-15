@@ -644,9 +644,9 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              df_existing=df[df.Sample.isin(list(df_flags.Sample)) == True]
              df = df[df.Sample.isin(list(df_flags.Sample)) == False]
              if len(df):
-                 print('Existing flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
+                 print('\nExisting flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
              else:
-                 print('Existing flags found at {}, but no additional samples.\nSaving flags summary to {} and skipping project'.format(flag_overrule_path,path_to_project_list))
+                 print('\nExisting flags found at {}, but no additional samples.\nSaving flags summary to {} and skipping project'.format(flag_overrule_path,path_to_project_list))
                  save_flag_summary(df_flagged=pd.merge(df_existing,df_flags ,how='left',on='Sample'),df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
                  sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
                  columns_project_list=dict(map(lambda sheet: (sheet,pd.read_excel(path_to_project_list,sheet_name=sheet).columns.tolist()),sheets_project_list))
@@ -658,7 +658,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                      df_flags_summary=df_flags.assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x:pd.Series({'Number_samples':int(len(df_flags)),'Number_flagged_samples':int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))),'Percentage_flagged_missing':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_missing']==1])/len(df_flags),'Percentage_flagged_GPScoordinatesonland':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland']==1])/len(df_flags),'Percentage_flagged_dubiousGPScoordinates':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates']==1])/len(df_flags),'Percentage_flagged_count':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count']==1])/len(df_flags),'Percentage_flagged_artefact':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts']==1])/len(df_flags),'Percentage_flagged_validation':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation']==1])/len(df_flags) if 'flag_validation' in x.columns else 0,'Percentage_flagged_size':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size']==1])/len(df_flags)})).reset_index()
                      df_project=pd.merge(df_project[['Project_ID']+[column for column in df_project.columns if column not in df_flags_summary.columns]],df_flags_summary,how='left',on='Project_ID').set_index(idx_project)
                      df_projects=pd.concat([df_projects[df_projects.Portal==df_project['Portal'].values[0]].drop(index=df_project.index),df_project],axis=0).sort_values(['PSSdb_access','Instrument','Project_ID'],ascending=[False,False,True])
-                     print('Adding flag summary to project list')
+                     print('\nAdding flag summary to project list')
                      with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                          df_projects[[column for column in columns_project_list.get(df_project['Portal'].values[0]) if column not in df_flags_summary.columns.tolist()[1:]] + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
                          if any(df_flags_summary.columns.isin(df_projects_metadata.Variables)==False):
@@ -712,7 +712,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
 
          #if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
          overrule_name ='project_{}_flags.csv'.format(str(project_id))
-         print('Saving flags to', str(path_to_datafile / overrule_name),'\nSet Overrule to True if you wish to keep samples for further processing', sep=" ")
+         print('\nSaving flags to', str(path_to_datafile / overrule_name),'\nSet Overrule to True if you wish to keep samples for further processing', sep=" ")
          overruled_df = flagged_df[['Sample', 'Sample_URL', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
          overruled_df['Overrule'] = False
          overruled_df = overruled_df.sort_values(by=['Flag'], ascending=False)
@@ -726,7 +726,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          # Update standardizer spreadsheet with flagged samples path and save
          df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
          df_standardizer['Flag_path'][project_id] = str(path_to_datafile / overrule_name).replace(str(Path.home()), '~')
-         print('Updating standardizer spreadsheet with path of flagged samples/profiles ID datafile')
+         print('\nUpdating standardizer spreadsheet with path of flagged samples/profiles ID datafile')
          df_standardizer['Project_ID'] = df_standardizer.index
          df_standardizer = df_standardizer[['Project_ID'] + df_standardizer.columns[:-1].tolist()]
          with pd.ExcelWriter(str(standardizer_path), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
@@ -744,7 +744,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              df_flags_summary = overruled_df.assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(overruled_df)), 'Number_flagged_samples': int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(overruled_df), 'Percentage_flagged_GPScoordinatesonland': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland'] == 1]) / len( overruled_df),'Percentage_flagged_dubiousGPScoordinates': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates'] == 1]) / len(overruled_df), 'Percentage_flagged_count': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count'] == 1]) / len(overruled_df),'Percentage_flagged_artefact': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts'] == 1]) / len(overruled_df),'Percentage_flagged_validation': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation'] == 1]) / len(overruled_df), 'Percentage_flagged_size': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size'] == 1]) / len(overruled_df)})).reset_index()
              df_project = pd.merge(df_project[['Project_ID']+[column for column in df_project.columns if column not in df_flags_summary.columns]], df_flags_summary, how='left', on='Project_ID').set_index(idx_project)
              df_projects = pd.concat([df_projects[df_projects.Portal == df_project['Portal'].values[0]].drop(index=df_project.index),df_project], axis=0).sort_values(['PSSdb_access', 'Instrument', 'Project_ID'], ascending=[False, False, True])
-             print('Adding flag summary to project list')
+             print('\nAdding flag summary to project list')
              with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
                  df_projects[[column for column in columns_project_list.get(df_project['Portal'].values[0]) if column not in df_flags_summary.columns.tolist()[1:]] + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
                  if any(df_flags_summary.columns.isin(df_projects_metadata.Variables) == False):
@@ -916,11 +916,11 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              fig.for_each_xaxis(lambda x: x.update(showgrid=False))
              fig.for_each_yaxis(lambda x: x.update(showgrid=False))
              fig.write_html(path_to_report)
-             print('Saving cruise report to', path_to_report, sep=' ')
+             print('\nSaving cruise report to', path_to_report, sep=' ')
          else:
-             print('No samples left after dropping GPS coordinates and sample ID NAs. Skipping project report')
+             print('\nNo samples left after dropping GPS coordinates and sample ID NAs. Skipping project report')
     else:
-        print('No project datafile found.')
+        print('\nNo project datafile found.')
 
 # Function (4): Perform EcoTaxa export files standardization and harmonization based on standardizer spreadsheets
 #standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_IFCB_standardizer.xlsx',project_id=2248)
@@ -947,10 +947,10 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
     # Control. Standardization only works for IFCB, Zooscan, and UVP projects at the moment
     if project_id not in df_standardizer.index:
-        print('Project ID is not included in standardizer. Quitting')
+        print('\nProject ID is not included in standardizer. Quitting')
         return
     if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','ZooCam','IFCB','UVP','Other','Scanner']:
-        print('Standardization only applies to Zooscan, ZooCam, IFCB, UVP and other scanners projects. Quitting')
+        print('\nStandardization only applies to Zooscan, ZooCam, IFCB, UVP and other scanners projects. Quitting')
         return
 
     # Retrieve fields to standardize in standardizer (indicated by variable_field)
@@ -1008,11 +1008,11 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
             df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
             remaining_standard_samples = df[(df.Sample.isin(list(df_standardized_existing.Sample.unique()))==False) & (df.Sample.isin(flagged_samples)==False)].Sample.astype(str).unique()
             if len(remaining_standard_samples):
-                print('Existing standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))
+                print('\nExisting standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))
                 df=df[df.Sample.astype(str).isin(list(remaining_standard_samples))].reset_index(drop=True)
                 df_method = df_method[df_method.Sample.astype(str).isin(list(remaining_standard_samples))].reset_index(drop=True)
             else:
-                print( 'Existing standardized file(s) found at {}, but no additional samples.\nSkipping project after saving report (if missing)'.format(path_to_standard_dir))
+                print( '\nExisting standardized file(s) found at {}, but no additional samples.\nSkipping project after saving report (if missing)'.format(path_to_standard_dir))
                 if path_to_standard_plot.is_file() == False:
                     #summary_df_standardized = pd.DataFrame({})
                     #for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
@@ -1035,7 +1035,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                         # Using report function defined below
                         fig = standardization_report_func(df_summary=summary_df_standardized, df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=nbss, plot=plot)
                     fig.write_html(path_to_standard_plot)
-                    print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+                    print('\nSaving standardized export plot to', path_to_standard_plot, sep=' ')
 
                 return
         else:
@@ -1045,7 +1045,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         df=df[df['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
         df_method=df_method[df_method['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
         if len(df)==0:
-            print('No samples left after flagging. Skipping project ', project_id, sep='')
+            print('\nNo samples left after flagging. Skipping project ', project_id, sep='')
             return
 
         # Append method description
@@ -1081,7 +1081,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         units_of_interest =  dict(zip(units,df_standardizer.loc[project_id][units].values.flatten().tolist()))
         # Test whether all units are defined:                             [re.sub(r'^-?[0-9]_times_10power-?[0-9]_','',str(unit)) for unit in list(units_of_interest.values())]
         if any([unit not in ureg for unit in list(units_of_interest.values()) if str(unit)!='nan']):
-            print('Quitting. Please fill out standardizer with units from the list below or define your custom unit in {} using known units:\n'.format(path_to_data.parent.parent.parent /'Scripts'/'units_def.txt'),full_list_units, sep='')
+            print('\nQuitting. Please fill out standardizer with units from the list below or define your custom unit in {} using known units:\n'.format(path_to_data.parent.parent.parent /'Scripts'/'units_def.txt'),full_list_units, sep='')
             return
 
         # Convert pixel_to_size ratio in units pixel per millimeter
@@ -1199,7 +1199,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
         df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
                                     'ROI','ROI_number', 'Annotation','Category', 'Minor_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
-        print('Saving standardized datafile to', path_to_standard_dir, sep=' ')
+        print('\nSaving standardized datafile to', path_to_standard_dir, sep=' ')
         df.groupby(['File_path']).apply( lambda x: df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[ 0].stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( x.File_path.unique()[ 0].stem))].replace( '_features', '')), sep=",", index=False))
         # with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
         # df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
@@ -1242,11 +1242,11 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
             # Using report function defined below
             fig = standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
             fig.write_html(path_to_standard_plot)
-            print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
+            print('\nSaving standardized export plot to', path_to_standard_plot, sep=' ')
 
         else:
-            print('No samples left after dropping samples NAs. Skipping standardization report')
-    else: print('Export file for project {} not found. Please run 1.export_projects.py to export file automatically or export manually'.format(str(project_id)))
+            print('\nNo samples left after dropping samples NAs. Skipping standardization report')
+    else: print('\nExport file for project {} not found. Please run 1.export_projects.py to export file automatically or export manually'.format(str(project_id)))
 
 def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversity'):
 

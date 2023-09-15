@@ -470,7 +470,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
            print('Current consolidation only works for Ecotaxa projects')
            return
    else:
-       print('Project not found in {} or corresponding Ecopart project not found. Skipping project, please check on Ecotaxa/Ecopart'.format(str(path_to_standardizer)))
+       print('\nProject {} not found in {} or corresponding Ecopart project not found. Skipping project, please check on Ecotaxa/Ecopart'.format(project_id,str(path_to_standardizer)))
        return
 
 def intersect_size_conversion(aa,exp,pixel):

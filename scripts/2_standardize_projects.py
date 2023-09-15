@@ -9,6 +9,9 @@ from pathlib import Path
 import os
 import yaml
 import sys
+# Progress bar modules
+#import progressbar # Attention: Use pip install progressbar2 to install
+from tqdm import tqdm
 
 ## Data handling
 import pandas as pd
@@ -70,41 +73,56 @@ else:
 # Attention: This is a workaround to pyimageJ that requires less memory since it is based on python code only. However, you still need an access to the server and the native UVP project folders should be clean (no compressed sub-directories, no profiles renamed with _old versions saved)!
 # For disorganized UVP native projects, non-matching vignettes will be assign a size equivalent to object_area
 
-print('Consolidating UVP particle sizes (Ecotaxa: Large particles + Ecopart: Small particles), please wait')
+print('Consolidating UVP particle sizes (Ecotaxa: Large particles + Ecopart: Small particles), please wait\n')
 standardizer=[standardizer for standardizer in standardizer_files if 'UVP' in str(standardizer.stem)][0]
-df_standardizer = pd.read_excel(standardizer, index_col=0)
-for project in list(df_standardizer.index):
-    df_standardizer = pd.read_excel(standardizer, index_col=0) # Standardizer should be updated for each loop iteration
-    if len(list(Path(df_standardizer.at[project,'Project_localpath']).expanduser().glob('ecotaxa_export_{}_*.tsv'.format(str(project))))):
-        print('Consolidated files found. Skipping project {}'.format(str(project)))
-    else:
-        try:
-            print('Consolidating project: {}'.format(str(project)))
-            consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa',run_matchup=False, run_macro=False, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
-        except Exception as e:
-            print('Skipping consolidation of project ', str(project), '\n', e, sep='')
+df_standardizer = pd.read_excel(standardizer, index_col=0,sheet_name='ecotaxa')
+with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+    for project in list(df_standardizer.index):
+        df_standardizer = pd.read_excel(standardizer, index_col=0,sheet_name='ecotaxa') # Standardizer should be updated for each loop iteration
+        percent = np.round(100 * (bar.n / len(list(df_standardizer.index)[-11:])), 1)
+        bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
+
+        if len(list(Path(df_standardizer.at[project,'Project_localpath']).expanduser().glob('ecotaxa_export_{}_*.tsv'.format(str(project))))):
+            continue
+        else:
+
+            try:
+                consolidate_ecotaxa_project(project_id=project, standardizer=df_standardizer, sheetname='ecotaxa',run_matchup=False, run_macro=False, upload_metadata=False,localpath_metadata=Path(cfg['raw_dir']).expanduser() / cfg['UVP_consolidation_subdir'])
+
+            except Exception as e:
+                print('\nSkipping consolidation of project ', str(project), '\n', e, sep='')
+        ok = bar.update(n=1)
 
 #3) Flag samples and generate a report using the filling_standardizer_flag_func function in funcs_standardize_projects.py
-print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPScoordinatesonland: GPS coordinates on land\nFlag_dubiousGPScoordinates: Dubious GPS coordinates\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_validation: Low percentage of taxonomic annotations validation (<95%). Only for Zooscan and UVP\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(1:flagged, 0:no flag)')
+print('Performing project control quality check based on the following criteria, please wait:\nFlag_missing: Missing data/metadata\nFlag_GPScoordinatesonland: GPS coordinates on land\nFlag_dubiousGPScoordinates: Dubious GPS coordinates\nFlag_count: Low ROI counts (yielding uncertainties>5%)\nFlag_validation: Low percentage of taxonomic annotations validation (<95%). Only for Zooscan and UVP\nFlag_artefacts: High percentage of artefacts (>20%)\nFlag_size: Multiple size calibration factors\n(1:flagged, 0:no flag)\n')
 for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
-    for project in list(df_standardizer.index):
-        # Flagging project
-        report_file='report_project_'+str(project)+'.html'
-        report_path=path_to_standardizer.parent / cfg['report_subdir']
-        try:
-            print('Flagging project: {}'.format(str(project)))
-            filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path,validation_threshold=0.95)
-        except Exception as e:
-            print('Skipping flagging of project ',str(project),'\n',e,sep='')
+    with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+        for project in list(df_standardizer.index):
+            percent = np.round(100 * (bar.n / len(list(df_standardizer.index)[-11:])), 1)
+            bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
+
+            # Flagging project
+            report_file='report_project_'+str(project)+'.html'
+            report_path=path_to_standardizer.parent / cfg['report_subdir']
+            try:
+                filling_standardizer_flag_func(standardizer_path=standardizer, project_id=project,report_path=report_path,validation_threshold=0.95)
+            except Exception as e:
+                print('\nSkipping flagging of project ',str(project),'\n',e,sep='')
+            ok = bar.update(n=1)
 
 #4) Standardize project export files using the standardization_func function in funcs_standardize_projects.py
 print('Performing project standardization')
 for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
-    for project in list(df_standardizer.index):
-        try:
-            print('Standardizing project: {}'.format(str(project)))
-            standardization_func(standardizer_path=standardizer, project_id=project,plot='nbss')
-        except Exception as e:
-            print('Skipping standardization of project ', str(project),'\n',e, sep='')
+    with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+        for project in list(df_standardizer.index):
+            percent = np.round(100 * (bar.n / len(list(df_standardizer.index)[-11:])), 1)
+            bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
+
+            try:
+                standardization_func(standardizer_path=standardizer, project_id=project,plot='nbss')
+
+            except Exception as e:
+                print('\nSkipping standardization of project ', str(project),'\n',e, sep='')
+            ok = bar.update(n=1)
