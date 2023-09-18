@@ -34,7 +34,7 @@ from suntime import Sun
 import ephem
 from calendar import month_abbr
 
-def daynight(df_standardized):
+def daynight_M(df_standardized):
     """
     Objective: Determine the period of sampling (day or night) according to sampling time and sampling position
     :param df_standardized: a STANDARDIZED dataframe that contains sample date (Sampling_date), time (Sampling_time). latitude (Latitude), longtiude (Longitude)
@@ -59,6 +59,32 @@ def daynight(df_standardized):
                 return 'Day'
     else:
         return ''
+
+def daynight(date_time, Latitude, Longitude):
+    """
+    Objective: Determine the period of sampling (day or night) according to sampling time and sampling position
+    :param df_standardized: a STANDARDIZED dataframe that contains sample date (Sampling_date), time (Sampling_time). latitude (Latitude), longtiude (Longitude)
+    :return: a string Day or Night, or Empty if required columns are missing
+    """
+
+    try:
+        if (pd.to_datetime(date_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime() >= Sun(Latitude,Longitude).get_sunrise_time(pd.to_datetime(date_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime())) \
+                & (pd.to_datetime(date_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime() <= Sun(Latitude,Longitude).get_sunset_time(pd.to_datetime(date_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime())):
+            light_cond = 'Day'
+        else:
+            light_cond = 'Night'
+    except: # Required as high latitudes result in error
+        o=ephem.Observer()
+        o.lat, o.long, o.date = str(Latitude), str(Longitude),pd.to_datetime(date_time, format="%Y%m%d %H%M%S", utc=True)
+        sun = ephem.Sun(o)
+        try :
+            next_sunset = o.next_setting(sun, start=o.date)
+        except ephem.NeverUpError as error:
+            light_cond =  'Night'
+        except ephem.AlwaysUpError as error:
+            light_cond = 'Day'
+
+    return light_cond
 
 # NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
 #get biovolume
@@ -216,7 +242,16 @@ def biovol_func(df, instrument, keep_cat='none'):
                 df = df.reset_index(drop=True)
             except:
                 pass
-    df['Biovolume'] = df['Area'].apply(lambda x: (4/3)* m.pi * (m.sqrt((x/m.pi)) **3) ) # convert area to ESD, then calculate biovolume
+    df['Biovolume_area'] = df['Area'].apply(lambda x: (4/3)* m.pi * (m.sqrt((x/m.pi)) **3)) # convert area to ESD, then calculate biovolume
+    if 'Minor_axis' in df.columns:
+        df['Biovolume_ellipsoid'] = df.apply(lambda row: ((2/3)*row['Area']*row['Minor_axis']), axis =1)
+    else:
+        None
+    if 'Biovolume' in df.columns:
+        df = df.rename(columns={'Biovolume': 'Biovolume_orig'}).reset_index()
+    else:
+        None
+
     df = df.drop(columns=['Cat_remove']).reset_index(drop=True)
 
 
@@ -311,7 +346,7 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
     grid_list_unique = ['N_' + s for s in grid_list_unique]
     return grid_list_unique
 
-def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
+def date_binning_func(df, group_by= 'yyyymm', daynight = False): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year. Also create a column that assigns a 'day' or 'night' category to each ROI
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -323,28 +358,15 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
     :param group_by: range of time to bin the data, options are: 'year', 'month' and 'year_month'
     :return:
     """
-
-    # we also need to define timezone based on lat/lon. See https://www.geeksforgeeks.org/get-time-zone-of-a-given-location-using-python/
-    from timezonefinder import TimezoneFinder # run pip install timezonefinder
-    obj = TimezoneFinder()
-    df = df.dropna(subset=['Latitude', 'Longitude']).reset_index(drop=True)
     df['Sampling_time']=df['Sampling_time'].astype(str)
+    df['Sampling_date'] = df['Sampling_date'].astype(str)
     df['Sampling_time'] = df['Sampling_time'].apply(lambda x: x.ljust(6, '0'))
+
     date = df['Sampling_date'].astype(str)
-
-    #time = df['Sampling_time'].astype(str).apply(lambda x: ('0' + x) if len(x) < 6 else x)
-    time = df['Sampling_time'].astype(str)
-    lat = df['Latitude']
-    lon = df['Longitude']
     date_bin = pd.to_datetime(date, format='%Y%m%d')
-    year = np.char.array(pd.DatetimeIndex(date_bin).year.values)
-    month = np.char.array(pd.DatetimeIndex(date_bin).month.values).zfill(2)
-    week_of_year = np.char.array(pd.DatetimeIndex(date_bin).isocalendar().week.values).zfill(2) #zfill(2).
-
     df['year'] = pd.DatetimeIndex(date_bin).year.values
     df['month'] = pd.DatetimeIndex(date_bin).month.values
     df['week'] = pd.DatetimeIndex(date_bin).isocalendar().week.values
-
     dict_week = df.groupby(['week']).apply(lambda x: pd.Series({ 'week': x.week.unique()[0],
                                                                'month': np.round(x.month.mean())})).set_index('week')['month'].to_dict()
     df['month'] = df['week'].map(dict_week)
@@ -361,73 +383,12 @@ def date_binning_func(df, group_by= 'yyyymm',day_night=False): # , ignore_high_l
         df['date_bin'] == str(date_bin)
 
     df['date_grouping'] = df['year'].astype(str) + '-' + df['month'].astype(int).astype(str).str.zfill(2)
-
-    if day_night == True:
-        time_bin = pd.to_datetime(time, format='%H%M%S')
-        day = np.char.array(pd.DatetimeIndex(date_bin).day.values).zfill(2)
-        hour = np.char.array(pd.DatetimeIndex(time_bin).hour.values).zfill(2)  # zfill(2).
-        minute = np.char.array(pd.DatetimeIndex(time_bin).minute.values).zfill(2)
-        second = np.char.array(pd.DatetimeIndex(time_bin).second.values).zfill(2)
-
-        df['dateTime'] = (year + month + day + hour + minute + second).astype(str)
-        df['dateTime']= df['dateTime'].apply(lambda x: pd.to_datetime(x, format='%Y%m%d%H%M%S'))
-        #df['date_new'] = df['dateTime'].dt.strftime('%Y/%m/%d')
-        df['date_new'] = pd.to_datetime(df['dateTime']).dt.date
-        df['time_new'] = pd.to_datetime(df['dateTime']).dt.time
-        light_cond=[]
-        for i in range(0, len(df)):
-            light_cond.append(d_n_calc(df.loc[i, 'date_new'], df.loc[i, 'time_new'], df.loc[i, 'Latitude'], df.loc[i, 'Longitude']))
-        df['light_cond'] = light_cond
-        df = df.drop(columns=['date_new', 'time_new']).reset_index(drop=True)
-
     df = df.drop(columns=['year', 'month', 'week']).reset_index(drop=True)
 
+    if daynight == True:
+        df['Sampling_time_full'] = pd.to_datetime(df['Sampling_date'] + " " + df['Sampling_time'], format="%Y%m%d %H%M%S", utc=True)
+        df['light_cond'] = df.apply(lambda row: daynight(row['Sampling_time_full'], row['Latitude'], row['Longitude']), axis = 1)
     return df
-        # section below deprecated (5/9/2023)
-        # dateTime= pd.to_datetime(all_time_info, format='%Y%m%d%H%M%S')
-        #light_cond = []
-
-        #create a merged timestamp with date and time, useful for getting day and night info, which is done in lines 189-217
-       # if ignore_high_lat==False:
-            #for n, t in enumerate(dateTime):
-                #try:
-                    #utc = pytz.UTC #this and next two lines: set the time info to UTC format. Necessary to compare it with the sunrise/sunset information
-                    #t=t.replace(tzinfo=utc)
-                    #l = LocationInfo()
-                    #l.name = 'station'
-                    #l.region = 'region'
-                    #l.timezone = obj.timezone_at(lng=lon[n], lat=lat[n])
-                    #l.latitude = lat[n]
-                    #l.longitude = lon[n]
-                    #use the created l object to get times of sunrise and sunset for that location
-                    #try:
-                        #s = sun(l.observer, date=t)
-                        #sunrise = s['sunrise']
-                        #sunset = s['sunset']
-                        #if sunrise <= t <= sunset:
-                            #light_cond.append('day')
-                        #else:
-                            #light_cond.append('night')
-                    #except ValueError as e: # this is necessary because at high latitudes we might have issues defining day/night i.e Tara polar oceans: ValueError: Sun never reaches 6 degrees below the horizon, at this location.
-                        #if e == 'Sun never reaches 6 degrees below the horizon, at this location':
-                            #light_cond.append('high_lat')
-                #except:
-                    #print('error assigning day/night, check row' + str(n))
-                    #light_cond.append(float('nan'))
-        # an alternative way to get this info without worrying about Astral's error for polar latitudes is to use suncalc
-        #else:
-            #for n, t in enumerate(dateTime):
-                #try:
-                    #daylight_dict = get_times(t, lon[n], lat[n])
-                    #if daylight_dict['sunrise'] <= t <= daylight_dict['sunset']:
-                        #light_cond.append('day')
-                    #else:
-                        #light_cond.append('night')
-                #except:
-                    #light_cond.append(float('nan'))
-
-        #df['light_cond']= light_cond
-
-    #return df
 
 
+#daynight(date_time, Latitude, Longitude):
