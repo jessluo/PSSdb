@@ -65,9 +65,24 @@ import geopandas as gpd
 # This dataset includes EEZ, using GOAS shapefile instead
 #path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent / 'ne_10m_admin_0_countries.zip'
 path_to_zip = Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent /'GOaS_v1_20211214.zip'# 'ne_10m_land.zip'
+path_to_longhurst=Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent /'longhurst_v4_2010.zip'
+
 # Download high resolution countries/oceans shapefile
 import requests
 import shutil
+
+if path_to_longhurst.with_suffix('').is_dir()==False:
+     with requests.Session() as sess:
+        url ='https://www.marineregions.org/download_file.php?name=longhurst_v4_2010.zip'
+        params={'name':'NOAA','organisation':'NOAA','email':cfg_pw['ecotaxa_user'],'country':'United States','user_category':'academia','purpose_category':'Research','agree':"1",'submit':'Download'}
+        rsp=sess.post(url,data=params, headers={'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'})
+        with open(path_to_longhurst, "wb") as fd:
+            for a_chunk in rsp.iter_content():  # Loop over content, i.e. eventual HTTP chunks
+                # rsp.raise_for_status()
+                fd.write(a_chunk)
+        shutil.unpack_archive(path_to_longhurst, path_to_longhurst.with_suffix(''))  # Unzip export file
+        path_to_longhurst.unlink(missing_ok=True)
+
 if path_to_zip.with_suffix('').is_dir()==False:
   with requests.Session() as sess:
     url = 'https://www.marineregions.org/download_file.php?name=GOaS_v1_20211214.zip'#'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
@@ -999,7 +1014,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         # Check for existing standardized file(s):
         path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
-        path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}*.csv'.format(str(project_id))))
+        path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}_*.csv'.format(str(project_id))))
         path_to_standard_plot = path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[ 0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1233,12 +1248,15 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         if ((plot=='diversity') and len(summary_df_standardized)>0):
             path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
             # Using report function defined below
-            fig=standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
+            fig=standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.dropna(subset=['ROI']).assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
             fig.write_html(path_to_standard_plot)
             print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
         elif ((plot=='nbss') and len(summary_df_standardized)>0):
             path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
-            nbss=process_nbss_standardized_files(path=None,df=df_standardized,category=[],depth_selection=False)[2]
+            nbss=process_nbss_standardized_files(path=None,df=df_standardized.assign(type_particles=np.where(df_standardized.ROI.isna(),'all','vignettes')),category=['type_particles'],depth_selection=False)[2]
+            group=['Instrument', 'Project_ID', 'Station', 'Sample', 'Date_bin', 'Latitude', 'Longitude', 'Min_obs_depth', 'Max_obs_depth','type_particles']
+            nbss=pd.merge(nbss.drop(columns=['Group_index']), nbss.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename( {'index': 'Group_index'}, axis='columns'), how='left', on=group)
+
             # Using report function defined below
             fig = standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
             fig.write_html(path_to_standard_plot)
@@ -1300,14 +1318,16 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
         for i, sample in enumerate(np.sort(df_nbss.Sample.unique())):
             subset_nbss = df_nbss[df_nbss['Sample'] == sample]  # nbss#
             for v in subset_nbss.Group_index.unique():  # subset_nbss.Volume_imaged.unique():
-                subset_nbss = subset_nbss[subset_nbss['Group_index'] == v].sort_values(['size_class_mid']).dropna()  # subset_nbss[subset_nbss['Volume_imaged'] == v].sort_values(['bin_gmean']).dropna()
-                fig.add_trace(go.Scatter(y=subset_nbss.NBSS, x=subset_nbss.size_class_mid,
+                nbss = subset_nbss[subset_nbss['Group_index'] == v].sort_values(['size_class_mid']).dropna()  # subset_nbss[subset_nbss['Volume_imaged'] == v].sort_values(['bin_gmean']).dropna()
+                show = True if v == subset_nbss.Group_index.unique()[0] else False
+
+                fig.add_trace(go.Scatter(y=nbss.NBSS, x=nbss.size_class_mid,
                          line=dict(color=colors[i]),
                          name=str(sample),
-                         hovertext='Sample ID: ' + subset_nbss.Sample + '<br>Size bin: ' + np.round( subset_nbss['size_class_mid'], 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( subset_nbss['NBSS'], 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
+                         hovertext='Sample ID: ' + nbss.Sample + '<br>Size bin: ' + np.round( nbss['size_class_mid'], 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( nbss['NBSS'], 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
                          hoverinfo="text",
-                         legendrank=i,
-                         mode='lines', showlegend=True, visible=True), row=2, col=2)
+                         legendrank=i,legendgroup=str(sample),
+                         mode='lines', showlegend=show, visible=True), row=2, col=2)
 
     # Scatterplot 2, bottom-right panel
     if plot == 'diversity':

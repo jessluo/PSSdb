@@ -24,7 +24,41 @@ try:
 except:
     from scripts.funcs_read import *
 
+# Module astral for day/night determination:
+import astral
+from astral.sun import sun # Use pip3 install astral
+from timezonefinder import TimezoneFinder
+tf = TimezoneFinder()
+import datetime
+from suntime import Sun
+import ephem
+from calendar import month_abbr
 
+def daynight(df_standardized):
+    """
+    Objective: Determine the period of sampling (day or night) according to sampling time and sampling position
+    :param df_standardized: a STANDARDIZED dataframe that contains sample date (Sampling_date), time (Sampling_time). latitude (Latitude), longtiude (Longitude)
+    :return: a string Day or Night, or Empty if required columns are missing
+    """
+    if ('Sampling_date' in df_standardized.index) and ('Sampling_time' in df_standardized.index):
+        df_standardized['Sampling_date'] = str(df_standardized['Sampling_date']).zfill(6)
+        df_standardized['Sampling_time'] = str(df_standardized['Sampling_time']).zfill(6)
+        df_standardized['Sampling_time'] = pd.to_datetime(df_standardized['Sampling_date']+" "+df_standardized['Sampling_time'],format="%Y%m%d %H%M%S", utc=True)
+
+        try:
+             return 'Day' if (pd.to_datetime(df_standardized.Sampling_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime() >= Sun(df_standardized.Latitude, df_standardized.Longitude).get_sunrise_time(pd.to_datetime(df_standardized.Sampling_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime())) &  (pd.to_datetime(df_standardized.Sampling_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime() <= Sun(df_standardized.Latitude, df_standardized.Longitude).get_sunset_time(pd.to_datetime(df_standardized.Sampling_time, format="%Y%m%d %H%M%S", utc=True).to_pydatetime())) else 'Night'
+        except: # Required as high latitudes result in error
+            o=ephem.Observer()
+            o.lat, o.long, o.date = str(df_standardized.Latitude), str(df_standardized.Longitude),pd.to_datetime(df_standardized.Sampling_time, format="%Y%m%d %H%M%S", utc=True)
+            sun = ephem.Sun(o)
+            try :
+                next_sunset = o.next_setting(sun, start=o.date)
+            except ephem.NeverUpError as error:
+                return 'Night'
+            except ephem.AlwaysUpError as error:
+                return 'Day'
+    else:
+        return ''
 
 # NOTE:  biovol_func_old deprecated as of 1/11/2023. This function allowed the user to choose which type of area estimation to use to
 #get biovolume
