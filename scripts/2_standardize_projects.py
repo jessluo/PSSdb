@@ -79,7 +79,7 @@ df_standardizer = pd.read_excel(standardizer, index_col=0,sheet_name='ecotaxa')
 with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
     for project in list(df_standardizer.index):
         df_standardizer = pd.read_excel(standardizer, index_col=0,sheet_name='ecotaxa') # Standardizer should be updated for each loop iteration
-        percent = np.round(100 * (bar.n / len(list(df_standardizer.index)[-11:])), 1)
+        percent = np.round(100 * (bar.n / len(list(df_standardizer.index))), 1)
         bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
 
         if len(list(Path(df_standardizer.at[project,'Project_localpath']).expanduser().glob('ecotaxa_export_{}_*.tsv'.format(str(project))))):
@@ -99,7 +99,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
     with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
         for project in list(df_standardizer.index):
-            percent = np.round(100 * (bar.n / len(list(df_standardizer.index)[-11:])), 1)
+            percent = np.round(100 * (bar.n / len(list(df_standardizer.index))), 1)
             bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
 
             # Flagging project
@@ -117,7 +117,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
     df_standardizer = pd.read_excel(standardizer, index_col=0)
     with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
         for project in list(df_standardizer.index):
-            percent = np.round(100 * (bar.n / len(list(df_standardizer.index)[-11:])), 1)
+            percent = np.round(100 * (bar.n / len(list(df_standardizer.index))), 1)
             bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
 
             try:
