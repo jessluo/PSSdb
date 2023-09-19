@@ -346,7 +346,7 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
     grid_list_unique = ['N_' + s for s in grid_list_unique]
     return grid_list_unique
 
-def date_binning_func(df, group_by= 'yyyymm', daynight = False): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
+def date_binning_func(df, group_by= 'yyyymm', daynight = 'N'): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year. Also create a column that assigns a 'day' or 'night' category to each ROI
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -360,7 +360,7 @@ def date_binning_func(df, group_by= 'yyyymm', daynight = False): # , ignore_high
     """
     df['Sampling_time']=df['Sampling_time'].astype(str)
     df['Sampling_date'] = df['Sampling_date'].astype(str)
-    df['Sampling_time'] = df['Sampling_time'].apply(lambda x: x.ljust(6, '0'))
+    df['Sampling_time'] = df['Sampling_time'].apply(lambda x: x.zfill(6)) #x.ljust(6, '0')
 
     date = df['Sampling_date'].astype(str)
     date_bin = pd.to_datetime(date, format='%Y%m%d')
@@ -385,8 +385,8 @@ def date_binning_func(df, group_by= 'yyyymm', daynight = False): # , ignore_high
     df['date_grouping'] = df['year'].astype(str) + '-' + df['month'].astype(int).astype(str).str.zfill(2)
     df = df.drop(columns=['year', 'month', 'week']).reset_index(drop=True)
 
-    if daynight == True:
-        df['Sampling_time_full'] = pd.to_datetime(df['Sampling_date'] + " " + df['Sampling_time'], format="%Y%m%d %H%M%S", utc=True)
+    if daynight =='Y':
+        df['Sampling_time_full'] = pd.to_datetime(df['Sampling_date'].astype(str) + " " + df['Sampling_time'].astype(str), format="%Y%m%d %H%M%S", utc=True)
         df['light_cond'] = df.apply(lambda row: daynight(row['Sampling_time_full'], row['Latitude'], row['Longitude']), axis = 1)
     return df
 
