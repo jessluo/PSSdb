@@ -244,7 +244,7 @@ def biovol_func(df, instrument, keep_cat='none'):
                 pass
     df['Biovolume_area'] = df['Area'].apply(lambda x: (4/3)* m.pi * (m.sqrt((x/m.pi)) **3)) # convert area to ESD, then calculate biovolume
     if 'Minor_axis' in df.columns:
-        df['Biovolume_ellipsoid'] = df.apply(lambda row: ((2/3)*row['Area']*row['Minor_axis']), axis =1)
+        df['Biovolume_ellipsoid'] = df.apply(lambda x: ((2/3)*x['Area']*x['Minor_axis']), axis =1)
     else:
         None
     if 'Biovolume' in df.columns:
@@ -387,7 +387,7 @@ def date_binning_func(df, group_by= 'yyyymm', daynight = 'N'): # , ignore_high_l
 
     if daynight =='Y':
         df['Sampling_time_full'] = pd.to_datetime(df['Sampling_date'].astype(str) + " " + df['Sampling_time'].astype(str), format="%Y%m%d %H%M%S", utc=True)
-        df['light_cond'] = df.apply(lambda row: daynight(row['Sampling_time_full'], row['Latitude'], row['Longitude']), axis = 1)
+        df['light_cond'] = df.apply(lambda x: daynight(x['Sampling_time_full'], x['Latitude'], x['Longitude']), axis = 1)
     return df
 
 
