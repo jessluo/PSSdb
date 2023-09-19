@@ -631,8 +631,10 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
              # Set missing values to NA
              na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
-             # Replace NA ROI or annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
+             # Replace NA ROI/mino/annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
              df.ROI = np.where(df.ROI.isna(), '', df.ROI)
+             if 'Minor_axis' in df.columns:
+                 df.Minor_axis = np.where(df.Minor_axis.isna(), '', df.Minor_axis)
              if 'Category' not in df.columns:
                  df['Category'] = ''
                  df['Annotation'] = 'unclassified'
