@@ -108,10 +108,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                 for st in list(set(df_gridded['Station_location'])):
                     # print(st)
                     df_st_subset = df_gridded[df_gridded['Station_location'] == st].reset_index(drop=True)
-                    if day_night == 'Y':
-                        df_st_subset = date_binning_func(df_st_subset, group_by=date_group, daynight = 'Y')
-                    elif day_night == 'N':
-                        df_st_subset = date_binning_func(df_st_subset, group_by=date_group, daynight = 'N')
+                    df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night_parse=day_night)
                     if len(df)==0:
                         print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
                         n_del_files += 1
@@ -206,10 +203,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             for st in list(set(df_gridded['Station_location'])):
                 # print(st)
                 df_st_subset = df_gridded[df_gridded['Station_location'] == st].reset_index(drop=True)
-                if day_night == 'Y':
-                    df_st_subset = date_binning_func(df_st_subset, group_by=date_group, daynight = 'Y')
-                elif day_night == 'N':
-                    df_st_subset = date_binning_func(df_st_subset, group_by=date_group, daynight = 'N')
+                df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night_parse = day_night)
                 if len(df) == 0:
                     print('no data left after removing data without proper time stamp in ' + filename)  # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
                     n_del_files += 1
