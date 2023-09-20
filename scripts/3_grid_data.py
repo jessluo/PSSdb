@@ -128,29 +128,44 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
         if depth_binning == False:
             metadata_bins = pd.DataFrame(
-                    {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
+                    {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_orig' 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id', 'date_bin', 'date_grouping', 'light_cond'],
                      # 'light_cond',
-                     'Variable_types': ['float64', 'int64', 'object', 'float64', 'float64'],  # 'str',
+                     'Variable_types': ['float64','float64','float64', 'int64', 'object', 'float64', 'float64','object','object','object','object','object','object'],  # 'str',
                      'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree'],  # '',
                      'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
+                                     'Biovolume calculated as an ellipsoid following Dubois (2022)  in cubic micrometers',
+                                     'Biovolume from IFCB dashboard, from ifcb-analysis  in cubic micrometers',
                                      'binned date information',
-                                     # 'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
                                      'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
-                                     'latitude of the center point of the 1x1 degree cell',
-                                     'longitude of the center point of the 1x1 degree cell']})
+                                     'latitude of the center point of the 0.5x0.5 degree cell',
+                                     'longitude of the center point of the 0.5x0.5 degree cell',
+                                     'latitude label used to group data when binning by date',
+                                     'longitude label used to group data when binning by date'
+                                     'grid label used to group data when binning by date',
+                                     'label used to group data by date',
+                                     'label used to read data in chunks during step4',
+                                     'label used to group data by day or night']})
         elif depth_binning == True:
             df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
             metadata_bins = pd.DataFrame(
-                    {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin','midLonBin', 'midDepthBin'],  # 'light_cond',
-                     'Variable_types': ['float64', 'int64', 'object', 'float64', 'float64', 'float64'], # 'str',
-                     'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree', 'meters'], # '',
-                     'Description': ['Biovolume calculated as a spherical projection of of Area in cubic micrometers',
+                    {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_orig' 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id', 'date_bin', 'date_grouping', 'light_cond', 'midDepthBin'],
+                     # 'light_cond',
+                     'Variable_types': ['float64','float64','float64', 'int64', 'object', 'float64', 'float64','object','object','object','object','object','object', 'float64'],  # 'str',
+                     'Units/Values/Timezone': ['cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree'],  # '',
+                     'Description': ['Biovolume calculated as a spherical projection of Area in cubic micrometers',
+                                     'Biovolume calculated as an ellipsoid following Dubois (2022)  in cubic micrometers',
+                                     'Biovolume from IFCB dashboard, from ifcb-analysis  in cubic micrometers',
                                      'binned date information',
-                                     # 'sampling occured during daylight or nightime. Considers time zone and geopgraphical information',
-                                    'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
-                                    'latitude of the center point of the 1x1 degree cell',
-                                    'longitude of the center point of the 1x1 degree cell',
-                                    'middle point within a depth bin']})
+                                     'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
+                                     'latitude of the center point of the 0.5x0.5 degree cell',
+                                     'longitude of the center point of the 0.5x0.5 degree cell',
+                                     'latitude label used to group data when binning by date',
+                                     'longitude label used to group data when binning by date'
+                                     'grid label used to group data when binning by date',
+                                     'label used to group data by date',
+                                     'label used to read data in chunks during step4',
+                                     'label used to group data by day or night',
+                                     'mid depth in a depth bin']})
         metadata_bins.to_csv(str(dirpath) + '/' + instrument + '_' + 'metadata_gridded.csv', index=False)
     elif replace == 'N':
         print('previously gridded files will be kept')
