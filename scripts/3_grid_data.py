@@ -33,7 +33,7 @@ elif cats == 'N':
 st_increment = float(cfg['st_increment'])
 date_group = cfg['date_group']
 depth_binning = cfg['depth_binning']
-if depth_binning == 'Y':
+if depth_binning == True:
     depth_bins = cfg['depth_bins']
 
 ## processing starts here
@@ -126,7 +126,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
 
 
         print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
-        if depth_binning == 'N':
+        if depth_binning == False:
             metadata_bins = pd.DataFrame(
                     {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin'],
                      # 'light_cond',
@@ -138,7 +138,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                                      'string that serves as an identifier of a single cell of a  1x1 degree spatial grid',
                                      'latitude of the center point of the 1x1 degree cell',
                                      'longitude of the center point of the 1x1 degree cell']})
-        elif depth_binning == 'Y':
+        elif depth_binning == True:
             df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
             metadata_bins = pd.DataFrame(
                     {'Variables': ['Biovolume', 'date_bin', 'Station_location', 'midLatBin','midLonBin', 'midDepthBin'],  # 'light_cond',
