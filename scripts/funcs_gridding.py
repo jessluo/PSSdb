@@ -242,9 +242,9 @@ def biovol_func(df, instrument, keep_cat='none'):
                 df = df.reset_index(drop=True)
             except:
                 pass
-    df['Biovolume_area'] = df['Area'].apply(lambda x: (4/3)* m.pi * (m.sqrt((x/m.pi)) **3)) # convert area to ESD, then calculate biovolume
+    df['Biovolume_area'] = (4/3)* m.pi * (((df['Area']/m.pi)**0.5) **3) # convert area to ESD, then calculate biovolume
     if 'Minor_axis' in df.columns:
-        df['Biovolume_ellipsoid'] = df.apply(lambda x: ((2/3)*x['Area']*x['Minor_axis']), axis =1)
+        df['Biovolume_ellipsoid'] = (4/3)*df['Area']*df['Minor_axis']
     else:
         None
     if 'Biovolume' in df.columns:
@@ -346,7 +346,7 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
     grid_list_unique = ['N_' + s for s in grid_list_unique]
     return grid_list_unique
 
-def date_binning_func(df, group_by= 'yyyymm', day_night_parse = 'N'): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
+def date_binning_func(df, group_by= 'yyyymm'): # , ignore_high_lat=True, consider adding a day/night column, this will have to consider latitude and month
     """
     Objective: reduce the date information, so that the data can be binned by month, year, or month and year. Also create a column that assigns a 'day' or 'night' category to each ROI
     :param date: column of a  standardized dataframe containing date information ('Sampling_date' in standardized ecotaxa projects)
@@ -383,11 +383,10 @@ def date_binning_func(df, group_by= 'yyyymm', day_night_parse = 'N'): # , ignore
         df['date_bin'] == str(date_bin)
 
     df['date_grouping'] = df['year'].astype(str) + '-' + df['month'].astype(int).astype(str).str.zfill(2)
-    df = df.drop(columns=['year', 'month', 'week']).reset_index(drop=True)
 
-    if day_night_parse =='Y':
-        df['time_full'] = pd.to_datetime(df['Sampling_date'].astype(str) + " " + df['Sampling_time'].astype(str), format="%Y%m%d %H%M%S", utc=True)
-        df['light_cond'] = df.apply(lambda x: daynight(x['time_full'], x['Latitude'], x['Longitude']), axis = 1)
+    df['time_full'] = pd.to_datetime(df['Sampling_date'].astype(str) + " " + df['Sampling_time'].astype(str), format="%Y%m%d %H%M%S", utc=True)
+    df['light_cond'] = df.apply(lambda x: daynight(x['time_full'], x['Latitude'], x['Longitude']), axis = 1)
+    df = df.drop(columns=['year', 'month', 'week', 'time_full']).reset_index(drop=True)
     return df
 
 
