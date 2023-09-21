@@ -207,4 +207,4 @@ dependencies:
       - xarray==2023.2.0
       - xlsxwriter==3.0.3
       - zipp==3.11.0
-prefix: /Users/mc4214/opt/anaconda3/envs/PSSdb_env_test
+prefix: ~/opt/anaconda3/envs/PSSdb
