@@ -18,6 +18,7 @@ import os
 from tqdm import tqdm
 from operator import attrgetter
 import geopandas as gpd
+
 oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
 
 
@@ -87,7 +88,7 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
     import numpy as np
     import pandas as pd
     if sensitivity == True:
-        df_binned = df_binned.dropna(subset=['Category']).reset_index()
+        df_binned = df_binned.dropna(subset=['Category']).reset_index(drop =True)
     if depth_parsing == True:
         # create a dataframe with summary statistics for each station, depth bin and size class
         # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
@@ -168,7 +169,6 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
             # depth intergrated OR weighted sum
             NBS_biovol_df3 = NBS_biovol_df2.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses', 'size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD']).apply(lambda x: pd.Series({
                                                                                                                         'Biovolume_mean': x.Biovolume_mean.mean(),
-
                                                                                                                         # in micrometers
                                                                                                                         'ROI_number_sum': np.nansum(x.ROI_number_sum),
                                                                                                                         'ROI_abundance_mean': np.nansum(x.ROI_abundance * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1), # also need to integrate
@@ -195,12 +195,6 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
     # now fill the columns of date, station, lat/lon, project ID and volume
     for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']:
         binned_NBS[i] = binned_NBS[i].unique()[1]
-        #try:
-            #if (np.isnan(NBS_biovol_df_3[i].unique()).any()) == True:
-                #val =np.unique(NBS_biovol_df_3[i][~np.isnan(NBS_biovol_df_3[i])])[0]
-        #except TypeError:
-            #val = NBS_biovol_df_3[i].unique()[0]
-        #binned_NBS[i] = binned_NBS[i].fillna(val)
     # let's do the thresholding here:
     if thresholding==True:
         NBS_binned_thres = threshold_func(binned_NBS)
@@ -208,45 +202,55 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
         NBS_binned_thres = binned_NBS
 
     NBS_binned_thres = NBS_binned_thres.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD'], [float] * 6)))
-    NBS_binned_thres = pd.merge(NBS_binned_thres.astype(dict(zip(['midLonBin', 'midLatBin'], [str] * 2))),
-                  NBS_binned_thres.astype(dict(zip(['midLonBin', 'midLatBin'], [str] * 2))).drop_duplicates(
-                      subset=['midLonBin', 'midLatBin'], ignore_index=True)[
-                      ['midLonBin', 'midLatBin']].reset_index().rename({'index': 'Group_index'}, axis='columns'),
-                  how='left', on=['midLonBin', 'midLatBin']).astype(dict(zip(['midLonBin', 'midLatBin'], [float] * 2)))
-    gdf = gpd.GeoDataFrame(NBS_binned_thres[['Group_index', 'midLonBin', 'midLatBin']].drop_duplicates().dropna(),
-                           geometry=gpd.points_from_xy(
-                               NBS_binned_thres[['Group_index', 'midLonBin', 'midLatBin']].drop_duplicates().dropna().midLonBin,
-                               NBS_binned_thres[['Group_index', 'midLonBin', 'midLatBin']].drop_duplicates().dropna().midLatBin))
-    NBS_binned_thres['ocean'] = \
-    pd.merge(NBS_binned_thres, gpd.tools.sjoin_nearest(gdf, oceans, how='left')[['Group_index', 'name']], how='left',
-             on='Group_index')['name'].astype(str)
 
     return NBS_binned_thres
+
+## assing ocean label using gdp
+def ocean_label_func(df, Lon, Lat):
+    df.columns = [c.replace(' ', '_') for c in df.columns]
+    df = pd.merge(df.astype(dict(zip([Lon, Lat], [str] * 2))),df.astype(
+                                    dict(zip([Lon, Lat], [str] * 2))).drop_duplicates(subset=[Lon, Lat], ignore_index=True)[
+                                    [Lon, Lat]].reset_index().rename({'index': 'Group_index'},axis='columns'),
+                                how='left', on=[Lon, Lat]).astype(dict(zip([Lon, Lat], [float] * 2)))
+    gdf = gpd.GeoDataFrame(df[['Group_index', Lon, Lat]].drop_duplicates().dropna(),
+                           geometry=gpd.points_from_xy(df[['Group_index', Lon, Lat]].drop_duplicates().dropna()[Lon],
+                               df[['Group_index', Lon, Lat]].drop_duplicates().dropna()[Lat]))
+    df['ocean'] = pd.merge(df, gpd.tools.sjoin_nearest(gdf, oceans, how='left')[['Group_index', 'name']], how='left',on='Group_index')['name'].astype(str)
+    ocean = df.pop('ocean')
+    df.insert(4, ocean.name, ocean)
+    df = df.drop(columns=['Group_index'])
+    return df
 
 # 7)  create a function to remove data based on JO's comments and Haentjens THIS IS WORK IN PROGRESS:
 # low threshold will be filtered because they are smaller than the next standardized size spectrum
 # high threshold: obtain the highest size class, then iterate from highest to lowest and remove the large size bins
 # that have less than an (instrument specific) threshold
 # imputs: the data frame, and the column that contains the NBSS
-def threshold_func(binned_data):
+def threshold_func(binned_data, empty_bins = 3):
     """
     Objective: remove size bins based on Fabien's approach: (lower limit: max NBSS, upper limit: 3 NBSS with Nans)
     :param df: a binned dataframe with NBSS already calculated
     :return: a dataset without the bins that contain inaccurate NBSS
     """
-    import numpy as np
-    import pandas as pd
 
-    #upper threshold based on max NBSS
-    list_max_NBSS = binned_data.NB.tolist()
-    binned_data_filt = binned_data.loc[list_max_NBSS.index(np.nanmax(list_max_NBSS)):len(binned_data)].reset_index(drop=True)#a ask if its better to just remove all data
-    binned_data_filt = binned_data_filt.reset_index(drop=True)
+    #upper threshold based on max NB
+    binned_data_filt = binned_data.loc[binned_data.NB.tolist().index(np.nanmax(binned_data.NB.tolist())):len(binned_data)].reset_index(drop=True)#a ask if its better to just remove all data
+
+    binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
+
+    empty_SC = binned_data_filt['NB'].isnull()  # get row indices with empty size bins
+    sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
+    cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
+    if empty_bins in cum_empty.to_numpy():
+        binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty.isnull() == False].index.to_numpy())-1)]
+    else:
+        binned_data_filt = binned_data_filt
 
     #lower threshold based on three consecutive size bins with nans
-    for n, i in enumerate(np.isnan(binned_data_filt['NB'])):
-        if (i == True) and (np.isnan(binned_data_filt.loc[n+1, 'NB']) == True) and (np.isnan(binned_data_filt.loc[n+2, 'NB']) == True): #edited to test thresholding
-            binned_data_filt = binned_data_filt.loc[0:n-1]
-            break
+    #for n, i in enumerate(np.isnan(binned_data_filt['NB'])):
+        #if (i == True) and (np.isnan(binned_data_filt.loc[n+1, 'NB']) == True) and (np.isnan(binned_data_filt.loc[n+2, 'NB']) == True): #edited to test thresholding
+            #binned_data_filt = binned_data_filt.loc[0:n-1]
+            #break
 
     return binned_data_filt
 
