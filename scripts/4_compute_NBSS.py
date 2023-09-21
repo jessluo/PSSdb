@@ -46,6 +46,8 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
     if not os.path.exists(NBSSpath):
         os.mkdir(NBSSpath)
+        if sensitivity == True:
+            os.mkdir((NBSSpath / 'Sensitivity_analysis'))
 
     currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
     currentYear = str(datetime.datetime.now().year)
@@ -71,12 +73,12 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             df['NB_Sample_ID'] = df.date_bin.astype(str) + df.Station_location.astype(str)
             contains_sample= pd.Series(df.NB_Sample_ID.unique()).isin(Sample_NB_ID)
             Sample_NB_ID = pd.concat([Sample_NB_ID, pd.Series(df.NB_Sample_ID.unique())])
-            if contains_sample.any()==True:
-                print ('Warning! during 15 degree gridding, duplicate datasets were generated')
-                print('grid' +i + 'files in more than one 15 degree cell')
-                print([f for f in file_subset])
-                print(Sample_NB_ID[Sample_NB_ID.duplicated()==True])
-                break
+            #if contains_sample.any()==True:
+                #print ('Warning! during 15 degree gridding, duplicate datasets were generated')
+                #print('grid' +i + 'files in more than one 15 degree cell')
+                #print([f for f in file_subset])
+                #print(Sample_NB_ID[Sample_NB_ID.duplicated()==True])
+                #break
             #df = df.dropna(subset=['Biovolume']).reset_index(drop=True) # project 5785 from Zooscan is completely empty
             if len(df) == 0:
                 print('no data left after removing empty biovolumes in grid cell' + i)
@@ -90,16 +92,24 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             NBSS_1a_raw_full = pd.concat([NBSS_1a_raw_full, NBSS_1a_raw])
             NBSS_1a_full = pd.concat([NBSS_1a_full, NBSS_1a])
             lin_fit_1b_full = pd.concat([lin_fit_1b_full, lin_fit_1b])
+
+        NBSS_full_var_full = ocean_label_func(NBSS_full_var_full, 'midLonBin', 'midLatBin')
+        NBSS_1a_raw_full = ocean_label_func(NBSS_1a_raw_full, 'longitude', 'latitude')
+
         # Save NBSS results and sorting
         NBSS_1a_full['month_int'] = NBSS_1a_full['month'].astype(int)
         NBSS_1a_full['year_int'] = NBSS_1a_full['year'].astype(int)
         NBSS_1a_full = NBSS_1a_full.sort_values(by=['year_int', 'month_int'])
         NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
+        NBSS_1a_full = ocean_label_func(NBSS_1a_full, 'longitude', 'latitude')
+
 
         lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
         lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
         lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
         lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
+        lin_fit_1b_full = ocean_label_func(lin_fit_1b_full, 'longitude', 'latitude')
+
         if sensitivity == True:
             NBSS_full_var_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_'+biovol+'-by-Size_all_var'+currentYear+'-'+currentMonth+'.csv', index=False)
             NBSS_1a_raw_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument +'_'+biovol+'-by-Size_raw_v'+currentYear+'-'+currentMonth+'.csv', index=False)
