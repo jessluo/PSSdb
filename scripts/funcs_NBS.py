@@ -7,6 +7,7 @@ from wcmatch.pathlib import Path # Handling of path object
 import pandas as pd
 import yaml
 import math as m
+import shutil
 try:
     from funcs_read import *
     from funcs_gridding import *
@@ -18,6 +19,17 @@ import os
 from tqdm import tqdm
 from operator import attrgetter
 import geopandas as gpd
+
+# line 23-32: adds the oceans shape file needed to assing ocean basin to the dataset. See https://www.marineregions.org/. https://doi.org/
+if len(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))) == 0:
+    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
+    # open the metadata of the standardized files
+    with open(path_to_config, 'r') as config_file:
+        cfg = yaml.safe_load(config_file)
+    path_to_oceans = str(Path(cfg['git_dir']).expanduser() / cfg['ancillary_subdir'] /  cfg['oceans_subdir'])
+    path_to_geopandas = str(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent / cfg['oceans_subdir'])
+    shutil.copytree(path_to_oceans, path_to_geopandas)
+#'~/anaconda3/envs/PSSdb/lib/python3.11/site-packages/geopandas/datasets'
 
 oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
 
