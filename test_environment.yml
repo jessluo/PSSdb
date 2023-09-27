@@ -127,14 +127,14 @@ dependencies:
       - colorama==0.4.6
       - colorlog==6.7.0
       - colormap==1.0.4
-      - colorspace==0.4.0
+      - git+https://github.com/retostauffer/python-colorspace.git
       - contourpy==1.0.6
       - cssselect==1.2.0
       - cycler==0.11.0
       - cython==0.29.33
       - dill==0.3.6
       - easydev==0.12.0
-      - ecotaxa-py-client==1.0.22
+      - git+https://github.com/ecotaxa/ecotaxa_py_client.git
       - ephem==4.1.4
       - et-xmlfile==1.1.0
       - fake-useragent==1.1.1
