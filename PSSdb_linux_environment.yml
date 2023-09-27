@@ -148,7 +148,6 @@ dependencies:
       - joblib==1.2.0
       - kiwisolver==1.4.4
       - labeling==0.1.13
-      - libgfortran==3.0.0
       - lxml==4.9.2
       - matplotlib==3.6.2
       - mizani==0.8.1
