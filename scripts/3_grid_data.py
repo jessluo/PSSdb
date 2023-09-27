@@ -125,7 +125,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             os.remove(file)
 
 
-        print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for UVP')
+        print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for ' +instrument)
         if depth_binning == False:
             metadata_bins = pd.DataFrame(
                     {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_orig', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id',  'date_grouping', 'light_cond'],
