@@ -55,7 +55,6 @@ dependencies:
   - libedit=3.1.20221030
   - libev=4.33
   - libffi=3.4.4
-  - libgfortran=5.0.0
   - libgfortran5=11.3.0
   - liblapack=3.9.0
   - libnghttp2=1.47.0
@@ -149,6 +148,7 @@ dependencies:
       - joblib==1.2.0
       - kiwisolver==1.4.4
       - labeling==0.1.13
+      - libgfortran=5.0.0
       - lxml==4.9.2
       - matplotlib==3.6.2
       - mizani==0.8.1
