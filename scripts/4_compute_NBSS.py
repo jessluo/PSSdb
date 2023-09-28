@@ -38,7 +38,7 @@ sensitivity = cfg['sensitivity']
 # processing starts here
 for instrument in ['Scanner', 'UVP', 'IFCB']:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
-    grid_list = group_gridded_files_func(instrument, already_gridded='Y')
+    grid_list = [re.search('N_(.+?).csv', file) for file in file_list]#group_gridded_files_func(instrument, already_gridded='Y')
 
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
@@ -58,16 +58,28 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     else:
         biovol_list = ['Biovolume_area']
 
-    NBSS_full_var_full = pd.DataFrame()
-    NBSS_1a_raw_full = pd.DataFrame()
-    NBSS_1a_full = pd.DataFrame()
-    lin_fit_1b_full = pd.DataFrame()
-    Sample_NB_ID = pd.Series()
+        NBSS_full_var_full = pd.DataFrame()
+        NBSS_1a_raw_full = pd.DataFrame()
+        NBSS_1a_full = pd.DataFrame()
+        lin_fit_1b_full = pd.DataFrame()
+        Sample_NB_ID = pd.Series()
+        
     for biovol in biovol_list:
         print ('generating PSSdb products for ' +instrument+' based on ' + biovol)
+        NBSS_binned_all = pd.DataFrame()  # NBSS dataset
+        lin_fit_data = pd.DataFrame()
+        for i in tqdm(file_list):
+            print ('grouping data and calculating NBSS for cell number ' + re.search('N_(.+?).csv', i).group(1))
+            df_binned, df_bins = size_binning_func(i, biovol)  # create size bins
+            NBS_biovol_df, NBSS_1a_raw = NB_SS_func(df_binned, df_bins, biovol_estimate=biovol, sensitivity=sensitivity)
+            lin_fit = linear_fit_func(NBS_biovol_df)
+            NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
+            lin_fit_data = pd.concat([lin_fit_data, lin_fit])
+ # CONTINUE REESTRUCTURING STEP 4 from here
+
         for i in tqdm(grid_list):
             #print('grouping data and calculating NBSS for cell number ' + i)
-            file_subset = [file for file in file_list if i  in file]
+            file_subset = [file for file in file_list if i in file]
             df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
             #rows 66-74 contain routine to detect duplicates in the data
             df['NB_Sample_ID'] = df.date_bin.astype(str) + df.Station_location.astype(str)
