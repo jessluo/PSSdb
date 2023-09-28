@@ -96,7 +96,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             df['Instrument']= instrument # necessary to set the same instrument name for all scanner types
             filename = filename.replace("standardized", "gridded")
             df.to_csv(str(dirpath) + '/' + instrument + '_' + filename, index=False)
-        grid_list = group_gridded_files_func(instrument, already_gridded='N') # saving files in 15x15  lat/lon cells to facilitate computation
+        grid_list = group_gridded_files_func(instrument) # saving files in 15x15  lat/lon cells to facilitate computation
 
         # Temporal binning function starts here: since we consider sample size to assign time bins, data needs to be aggregated by each cell
         file_list = proj_id_list_func(instrument, data_status='gridded', big_grid=True)
@@ -117,8 +117,8 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                 df_st_subset['date_bin'] = df_st_subset['date_bin'].astype(str)
                 df_gridded_temp_binned = pd.concat([df_gridded_temp_binned, df_st_subset])
                 # separate data into months of year and save to avoid the creation of large files
-                for m in list(set(df_gridded_temp_binned['date_grouping'])):
-                    df_st_t_subset = df_gridded_temp_binned[df_gridded_temp_binned['date_grouping'] == m].reset_index(drop=True)
+                for m in list(set(df_gridded_temp_binned['date_bin'])):
+                    df_st_t_subset = df_gridded_temp_binned[df_gridded_temp_binned['date_bin'] == m].reset_index(drop=True)
                     df_st_t_subset.to_csv(str(dirpath) +'/'+ instrument + '_gridded_' + cell +'_temp_binned_'+m+'.csv', index=False)
 
         for file in glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/grid_N*' + instrument + '*.csv', recursive=True):
