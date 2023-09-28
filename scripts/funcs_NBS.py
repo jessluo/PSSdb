@@ -8,6 +8,7 @@ import pandas as pd
 import yaml
 import math as m
 import shutil
+import tarfile
 try:
     from funcs_read import *
     from funcs_gridding import *
@@ -26,15 +27,10 @@ if len(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().pare
     # open the metadata of the standardized files
     with open(path_to_config, 'r') as config_file:
         cfg = yaml.safe_load(config_file)
-    path_to_oceans = str(Path(cfg['git_dir']).expanduser() / cfg['ancillary_subdir'] /  cfg['oceans_subdir'])
-    path_to_geopandas = str(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent / cfg['oceans_subdir'])
-    shutil.copytree(path_to_oceans, path_to_geopandas)
-#'~/anaconda3/envs/PSSdb/lib/python3.11/site-packages/geopandas/datasets'
+    with tarfile.open(str(Path(cfg['git_dir']).expanduser() / cfg['ancillary_subdir'] /  cfg['oceans_subdir_tar']), 'r') as tar:
+        tar.extractall(str(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent))
 
 oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
-
-
-
   #6.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
     #returns two lists : the sizeClasses bins (categorical) and range_size_bins (float)
 def size_binning_func(df_subset, biovol_estimate):
