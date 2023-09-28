@@ -210,8 +210,15 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
         NBS_binned_thres = binned_NBS
 
     NBS_binned_thres = NBS_binned_thres.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD'], [float] * 6)))
-
-    return NBS_binned_thres
+    NBS_binned_thres = NBS_binned_thres.filter(
+        ['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mean', 'NB', 'PSD', 'Min_obs_depth',
+         'Max_obs_depth'], axis=1)
+    NBSS_1a_raw = NBS_binned_thres.rename(
+        columns={'date_bin': 'date_year_month_week', 'midLatBin': 'latitude', 'midLonBin': 'longitude',
+                 'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
+                 'NB': 'normalized_biovolume', 'ECD_mean': 'equivalent_circular_diameter_mean',
+                 'PSD': 'normalized_abundance', 'Min_obs_depth': 'min_depth', 'Max_obs_depth': 'max_depth'})
+    return NBS_binned_thres, NBSS_1a_raw
 
 ## assing ocean label using gdp
 def ocean_label_func(df, Lon, Lat):
@@ -509,13 +516,13 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     if light_parsing ==True:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin', 'light_condition']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin':'first', 'min_depth': 'first', 'max_depth':'first',
-             'slope_NB': ['count', 'mean', 'std'], 'intercept_NB': ['count', 'mean', 'std'], 'r2_NB': ['count', 'mean', 'std'],
-             'slope_PSD': ['count', 'mean', 'std'], 'intercept_PSD': ['count', 'mean', 'std'], 'r2_PSD': ['count', 'mean', 'std']}).reset_index()
+             'NBSS_slope': ['count', 'mean', 'std'], 'NBSS_intercept': ['count', 'mean', 'std'], 'NBSS_r2': ['count', 'mean', 'std'],
+             'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std']}).reset_index()
     else:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'min_depth': 'first','max_depth': 'first',
-             'slope_NB': ['count', 'mean', 'std'], 'intercept_NB': ['count', 'mean', 'std'], 'r2_NB': ['count', 'mean', 'std'],
-             'slope_PSD': ['count', 'mean', 'std'], 'intercept_PSD': ['count', 'mean', 'std'], 'r2_PSD': ['count', 'mean', 'std']}).reset_index()
+             'NB_slope': ['count', 'mean', 'std'], 'NB_intercept': ['count', 'mean', 'std'], 'NB_r2': ['count', 'mean', 'std'],
+             'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std']}).reset_index()
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
