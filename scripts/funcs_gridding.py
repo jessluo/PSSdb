@@ -338,7 +338,8 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
         df_subgrouped = [x for _, x in df.groupby('grid_id')]
         for s in df_subgrouped:
             grid_list.append(str(s['grid_id'].unique()[0]))
-            s.to_csv(str(dirpath) + 'grid_N_'+str(s['grid_id'].unique()[0]) + '_'+ filename, index=False)
+            if already_gridded == 'N':
+                s.to_csv(str(dirpath) + 'grid_N_'+str(s['grid_id'].unique()[0]) + '_'+ filename, index=False)
             #os.remove(i)
     grid_list_unique = [*set(grid_list)]
     grid_list_unique = ['N_' + s for s in grid_list_unique]
