@@ -306,12 +306,14 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
     the creation of a huge file
     """
     #first, create series of numbers that break the globe into 15x15 degree cells:
-    lat_left = np.arange(-90, 90+15, 15, dtype=int)
-    lat_right = np.arange(-75,105 + 15, 15, dtype=int)
-    lat_int = pd.IntervalIndex.from_arrays(lat_left, lat_right, closed='both')
-    lon_left = np.arange(-180, 180+15, 15, dtype=int)
-    lon_right = np.arange(-165, 195+15, 15, dtype=int)
-    lon_int = pd.IntervalIndex.from_arrays(lon_left, lon_right, closed='both')
+    #lat_left = np.arange(-90, 90+15, 1, dtype=int)
+    #lat_right = np.arange(-75,105 + 15, 1, dtype=int)
+    #lat_int = pd.IntervalIndex.from_arrays(lat_left, lat_right, closed='both')
+    #lon_left = np.arange(-180, 180+15, 1, dtype=int)
+    #lon_right = np.arange(-165, 195+15, 1, dtype=int)
+    #lon_int = pd.IntervalIndex.from_arrays(lon_left, lon_right, closed='both')
+    lat_int = pd.interval_range(start=-90, end=90, closed='both')
+    lon_int = pd.interval_range(start=-180, end=180, closed='both')
     grid_list = []
     # create a dictionary that has unique keys for each grid interval
     #grid_dict = {}
@@ -321,10 +323,7 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
     # try now to assing lat & lon grid numbers to the dataframe directly
     file_list = proj_id_list_func(instrument, data_status='gridded')
     for i in tqdm(file_list):
-        if already_gridded == 'N':
-            print('generating subsets of data for 15 degree grids from ' + i)
-        else:
-            print('extracting big grid labels for subsetting from ' + i)
+        print('generating subsets of data for 1 degree grids from ' + i)
         filename = i.split('/')[-1]
         dirpath = i.replace(filename, '')
         df = pd.read_csv(i, header = 0)
@@ -339,8 +338,7 @@ def group_gridded_files_func(instrument, already_gridded= 'N'):
         df_subgrouped = [x for _, x in df.groupby('grid_id')]
         for s in df_subgrouped:
             grid_list.append(str(s['grid_id'].unique()[0]))
-            if already_gridded == 'N':
-                s.to_csv(str(dirpath) + 'grid_N_'+str(s['grid_id'].unique()[0]) + '_'+ filename, index=False)
+            s.to_csv(str(dirpath) + 'grid_N_'+str(s['grid_id'].unique()[0]) + '_'+ filename, index=False)
             #os.remove(i)
     grid_list_unique = [*set(grid_list)]
     grid_list_unique = ['N_' + s for s in grid_list_unique]
@@ -382,7 +380,7 @@ def date_binning_func(df, group_by= 'yyyymm'): # , ignore_high_lat=True, conside
     elif group_by == 'None':
         df['date_bin'] == str(date_bin)
 
-    df['date_grouping'] = df['year'].astype(str) + '-' + df['month'].astype(int).astype(str).str.zfill(2)
+    #df['date_grouping'] = df['year'].astype(str) + '-' + df['month'].astype(int).astype(str).str.zfill(2)
 
     df['time_full'] = pd.to_datetime(df['Sampling_date'].astype(str) + " " + df['Sampling_time'].astype(str), format="%Y%m%d %H%M%S", utc=True)
     df['light_cond'] = df.apply(lambda x: daynight(x['time_full'], x['Latitude'], x['Longitude']), axis = 1)
