@@ -20,8 +20,8 @@ report_subdir : 'reports'
 # Ancillary storage sub-directory
 ancillary_subdir : 'ancillary'
 
-# directory of oceans shapes
-oceans_subdir : 'GOaS_v1_20211214'
+# directory of oceans shapes, zipped and unzipped
+oceans_subdir_tar : 'GOaS.tar.gz'
 
 #raw subdirectory: contains all data required for PSSdb including the list of imaging datasets, standardizers spreadsheets, raw data from imaging data streams, gridded and final NBSS products
 raw_dir : '~/GIT/PSSdb/raw/'
