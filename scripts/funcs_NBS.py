@@ -210,10 +210,11 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
         NBS_binned_thres = binned_NBS
 
     NBS_binned_thres = NBS_binned_thres.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD'], [float] * 6)))
-    NBS_binned_thres = NBS_binned_thres.filter(
-        ['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mean', 'NB', 'PSD', 'Min_obs_depth',
+
+    NBSS_1a_raw  = NBS_binned_thres.filter(
+        ['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mean', 'NB', 'PSD', 'logNB' , 'logSize', 'logPSD', 'logECD',  'Min_obs_depth',
          'Max_obs_depth'], axis=1)
-    NBSS_1a_raw = NBS_binned_thres.rename(
+    NBSS_1a_raw = NBSS_1a_raw .rename(
         columns={'date_bin': 'date_year_month_week', 'midLatBin': 'latitude', 'midLonBin': 'longitude',
                  'light_cond': 'light_condition', 'size_class_mid': 'biovolume_size_class',
                  'NB': 'normalized_biovolume', 'ECD_mean': 'equivalent_circular_diameter_mean',
@@ -340,15 +341,15 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     lin_fit.loc[0, 'min_depth'] = df1.loc[0, 'Min_obs_depth']
     lin_fit.loc[0, 'max_depth'] = df1.loc[0, 'Max_obs_depth']
 
-    lin_fit.loc[0, 'slope_NB'] = m_NB
-    lin_fit.loc[0, 'intercept_NB'] = b_NB
-    lin_fit.loc[0, 'rmse_NB'] = rmse_NB
-    lin_fit.loc[0, 'r2_NB'] = R2_NB
+    lin_fit.loc[0, 'NBSS_slope'] = m_NB
+    lin_fit.loc[0, 'NBSS_intercept'] = b_NB
+    lin_fit.loc[0, 'NBSS_rmse'] = rmse_NB
+    lin_fit.loc[0, 'NBSS_r2'] = R2_NB
 
-    lin_fit.loc[0, 'slope_PSD'] = m_PSD
-    lin_fit.loc[0, 'intercept_PSD'] = b_PSD
-    lin_fit.loc[0, 'rmse_PSD'] = rmse_PSD
-    lin_fit.loc[0, 'r2_PSD'] = R2_PSD
+    lin_fit.loc[0, 'PSD_slope'] = m_PSD
+    lin_fit.loc[0, 'PSD_intercept'] = b_PSD
+    lin_fit.loc[0, 'PSD_rmse'] = rmse_PSD
+    lin_fit.loc[0, 'PSD_r2'] = R2_PSD
 
 
     return (lin_fit)
@@ -441,7 +442,7 @@ def NBSS_stats_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm')
     """
 
     """
-    from funcs_gridding import gridding_func
+
     import numpy as np
     df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(bin_loc, df['midLatBin'], df['midLonBin'])
     date_df = df['date_bin'].str.split("_", expand=True)
@@ -478,7 +479,6 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     Objective: create summary statistics for the linear fit dataframes
     param df: a dataframe containing the results of the linear fits for each station, time and depth for a given imaging instrument
     """
-    from funcs_gridding import gridding_func
     import numpy as np
     #bin_loc =input('Group data by location? \n Enter Y/N ') commented out query since new method of parsing data added 3/2/2023 makes this a nuisance, will be asked in step4
     #if bin_loc == 'Y':
@@ -521,7 +521,7 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     else:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'min_depth': 'first','max_depth': 'first',
-             'NB_slope': ['count', 'mean', 'std'], 'NB_intercept': ['count', 'mean', 'std'], 'NB_r2': ['count', 'mean', 'std'],
+             'NBSS_slope': ['count', 'mean', 'std'], 'NBSS_intercept': ['count', 'mean', 'std'], 'NBSS_r2': ['count', 'mean', 'std'],
              'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std']}).reset_index()
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
