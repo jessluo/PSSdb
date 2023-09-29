@@ -38,6 +38,7 @@ if depth_binning == True:
 
 ## processing starts here
 for instrument in ['Scanner', 'UVP', 'IFCB']:
+    files_subset_df_list = pd.DataFrame()
     files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
     test_1 = cfg['N_test']
     if test_1 == 0:
@@ -119,7 +120,12 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                 # separate data into months of year and save to avoid the creation of large files
                 for m in list(set(df_gridded_temp_binned['date_bin'])):
                     df_st_t_subset = df_gridded_temp_binned[df_gridded_temp_binned['date_bin'] == m].reset_index(drop=True)
+                    df_project_list_bins = [{'gridded_file_ID':cell +'_temp_binned_'+m, 'Project_ID_list': df_st_t_subset.Project_ID.unique().tolist(), 'Sample_list': df_st_t_subset.Sample.unique().tolist()}]
+                    df_project_list_bins = pd.DataFrame(df_project_list_bins)
+                    files_subset_df_list = pd.concat([files_subset_df_list, df_project_list_bins])
                     df_st_t_subset.to_csv(str(dirpath) +'/'+ instrument + '_gridded_' + cell +'_temp_binned_'+m+'.csv', index=False)
+
+        files_subset_df_list .to_csv(str(dirpath) + '/' + instrument + '_' + 'Project_Sample_list_gridded.csv', index=False)
 
         for file in glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/grid_N*' + instrument + '*.csv', recursive=True):
             os.remove(file)
