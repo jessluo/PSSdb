@@ -363,9 +363,13 @@ def date_binning_func(df, group_by= 'yyyymm'): # , ignore_high_lat=True, conside
 
     date = df['Sampling_date'].astype(str)
     date_bin = pd.to_datetime(date, format='%Y%m%d')
-    df['year'] = pd.DatetimeIndex(date_bin).year.values
-    df['month'] = pd.DatetimeIndex(date_bin).month.values
-    df['week'] = pd.DatetimeIndex(date_bin).isocalendar().week.values
+    #df['year'] = pd.DatetimeIndex(date_bin).year.values
+    #df['month'] = pd.DatetimeIndex(date_bin).month.values
+    #df['week'] = pd.DatetimeIndex(date_bin).isocalendar().week.values
+    df['week'] = date_bin.dt.strftime('%U').astype(int)
+    df.loc[df['week'] == 0, 'week'] = 1
+    df['month'] = date_bin.dt.strftime('%m').astype(float)
+    df['year'] = date_bin.dt.strftime('%Y').astype(int)
     dict_week = df.groupby(['week']).apply(lambda x: pd.Series({ 'week': x.week.unique()[0],
                                                                'month': np.round(x.month.mean())})).set_index('week')['month'].to_dict()
     df['month'] = df['week'].map(dict_week)
