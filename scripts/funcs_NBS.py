@@ -90,22 +90,22 @@ def biovolume_metric(df_binned):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=True): #, niter=0
+def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=True): #, niter=0
     """
     """
     import numpy as np
     import pandas as pd
     if sensitivity == True:
-        df_binned = df_binned.dropna(subset=['Category']).reset_index(drop =True)
+        NBS_biovol_df = NBS_biovol_df.dropna(subset=['Category']).reset_index(drop =True)
     if depth_parsing == True:
         # create a dataframe with summary statistics for each station, depth bin and size class
         # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
         # group data by bins
-        df_binned[biovol_estimate] = df_binned[biovol_estimate] * df_binned['ROI_number']
-        df_vol = df_binned.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
-        df_binned['cumulative_vol'] = pd.merge(df_binned, df_vol, how='left', on=['date_bin', 'Station_location'])['cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
+        NBS_biovol_df[biovol_estimate] = NBS_biovol_df[biovol_estimate] * NBS_biovol_df['ROI_number']
+        df_vol = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Min_obs_depth', 'Max_obs_depth','Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
+        NBS_biovol_df['cumulative_vol'] = pd.merge(NBS_biovol_df, df_vol, how='left', on=['date_bin', 'Station_location'])['cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
 
-        NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location', 'sizeClasses', 'light_cond', 'midDepthBin']).apply(lambda x: pd.Series({'Sample': x.Sample.unique()[0],
+        NBS_biovol_df = NBS_biovol_df.groupby(['date_bin', 'Station_location', 'sizeClasses', 'light_cond', 'midDepthBin']).apply(lambda x: pd.Series({'Sample': x.Sample.unique()[0],
                                                                                                                                     'size_class_mid': x.size_class_mid.unique()[0],
                                                                                                                                     'midLatBin': x.midLatBin.unique()[0],
                                                                                                                                     'midLonBin': x.midLonBin.unique()[0],
@@ -116,14 +116,14 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
 
     else:
         if light_parsing == True:
-            df_binned[biovol_estimate] = df_binned[biovol_estimate] * df_binned['ROI_number']
-            df_vol = df_binned.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_vol': x[
+            NBS_biovol_df[biovol_estimate] = NBS_biovol_df[biovol_estimate] * NBS_biovol_df['ROI_number']
+            df_vol = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: pd.Series({'cumulative_vol': x[
                 ['Sample', 'Min_obs_depth', 'Max_obs_depth',
                  'Volume_imaged']].drop_duplicates().Volume_imaged.sum()})).reset_index()
-            df_binned['cumulative_vol'] = pd.merge(df_binned, df_vol, how='left', on=['date_bin', 'Station_location'])[
+            NBS_biovol_df['cumulative_vol'] = pd.merge(NBS_biovol_df, df_vol, how='left', on=['date_bin', 'Station_location'])[
                 'cumulative_vol']  # df_vol.loc[0, 'cumulative_volume']
 
-            NBS_biovol_df = df_binned.groupby(['date_bin', 'Station_location', 'sizeClasses', 'light_cond']).apply(lambda x: pd.Series({'Sample': x.Sample.unique()[0],
+            NBS_biovol_df = NBS_biovol_df.groupby(['date_bin', 'Station_location', 'sizeClasses', 'light_cond']).apply(lambda x: pd.Series({'Sample': x.Sample.unique()[0],
                                                                                                                                         'size_class_mid': x.size_class_mid.unique()[0],
                                                                                                                                         'midLatBin': x.midLatBin.unique()[0],
                                                                                                                                         'midLonBin': x.midLonBin.unique()[0],
@@ -133,14 +133,14 @@ def NB_SS_func(df_binned, df_bins, biovol_estimate = 'Biovolume_area',sensitivit
                                                                                                                                         'NB': (x[biovol_estimate].sum() / x.cumulative_vol / x.range_size_bin).unique()[0]})).reset_index()  # , 'ROI_number':x['ROI_number'].sum()}))
 
         else:
-            df_binned[biovol_estimate] = df_binned[biovol_estimate] * df_binned['ROI_number']
-            grouping = ['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin','Depth_min', 'Depth_max', 'Min_obs_depth', 'Max_obs_depth'] if df_binned.Instrument.unique()[0] == 'Scanner' else ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth'] # , 'size_class_mid', 'range_size_bin', 'ECD_mean', 'size_range_ECD'
-            df_vol = df_binned.groupby(grouping, dropna=False).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Depth_min', 'Depth_max','Volume_imaged']].drop_duplicates().Volume_imaged.sum(),
+            NBS_biovol_df[biovol_estimate] = NBS_biovol_df[biovol_estimate] * NBS_biovol_df['ROI_number']
+            grouping = ['Sample', 'Sampling_lower_size', 'Sampling_upper_size', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin','Depth_min', 'Depth_max', 'Min_obs_depth', 'Max_obs_depth'] if NBS_biovol_df.Instrument.unique()[0] == 'Scanner' else ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth'] # , 'size_class_mid', 'range_size_bin', 'ECD_mean', 'size_range_ECD'
+            df_vol = NBS_biovol_df.groupby(grouping, dropna=False).apply(lambda x: pd.Series({'cumulative_vol': x[['Sample', 'Depth_min', 'Depth_max','Volume_imaged']].drop_duplicates().Volume_imaged.sum(),
                                                                                           'Depth_range_min':x.Depth_min.astype(float).min(),
                                                                                           'Depth_range_max':x.Depth_max.astype(float).max(),})).reset_index()
-            df_binned= pd.merge(df_binned, df_vol, how='left', on=grouping )  # df_vol.loc[0, 'cumulative_volume']
+            NBS_biovol_df= pd.merge(NBS_biovol_df, df_vol, how='left', on=grouping )  # df_vol.loc[0, 'cumulative_volume']
             #computing NBSS for individual size fractions in each samples. Required for zooscan projects, since a single net tow is fractionated by sieves
-            NBS_biovol_df = df_binned.astype(dict(zip(grouping,[str]*len(grouping)))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
+            NBS_biovol_df = NBS_biovol_df.astype(dict(zip(grouping,[str]*len(grouping)))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
                                                                                                    'Biovolume_mean': x[biovol_estimate].sum() / x.ROI_number.sum(),
                                                                                                    'Biovolume_sum': x[biovol_estimate].sum(),
                                                                                                    'ROI_number_sum': x.ROI_number.sum(),
