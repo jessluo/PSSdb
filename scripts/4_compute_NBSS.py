@@ -56,11 +56,6 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     else:
         biovol_list = ['Biovolume_area']
 
-        NBSS_full_var_full = pd.DataFrame()
-        NBSS_1a_raw_full = pd.DataFrame()
-        NBSS_1a_full = pd.DataFrame()
-        lin_fit_1b_full = pd.DataFrame()
-        Sample_NB_ID = pd.Series()
 
     for biovol in biovol_list:
         print ('generating PSSdb products for ' +instrument+' based on ' + biovol)
@@ -77,7 +72,9 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             lin_fit = linear_fit_func(NBS_biovol_df)
             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
+            print(lin_fit_data[lin_fit_data.columns[0]].count())
             NBSS_1a_raw_all = pd.concat([NBSS_1a_raw_all, NBSS_1a_raw])
+            print(NBSS_1a_raw_all[NBSS_1a_raw_all.columns[0]].count())
         NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mean', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth'], axis=1)
         if light_parsing == True:
             NBSS_1a_full = NBSS_stats_func(NBSS_raw, light_parsing=True, bin_loc=bin_loc, group_by=group_by)
