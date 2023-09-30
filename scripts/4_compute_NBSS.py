@@ -60,21 +60,19 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     for biovol in biovol_list:
         print ('generating PSSdb products for ' +instrument+' based on ' + biovol)
         NBSS_binned_all = pd.DataFrame()  # NBSS dataset
-        NBSS_1a_raw_all = pd.DataFrame()
         lin_fit_data = pd.DataFrame()
         for i in tqdm(grid_list):
             i = i.group(1)
             print ('grouping data and calculating NBSS for cell number ' + i)
             file_subset = [file for file in file_list if i in file]
-            df = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
-            df_binned, df_bins = size_binning_func(df, biovol)  # create size bins
-            NBS_biovol_df, NBSS_1a_raw = NB_SS_func(df_binned, df_bins, biovol_estimate=biovol, sensitivity=sensitivity)
+            NBS_biovol_df= pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
+            NBS_biovol_df, df_bins = size_binning_func(NBS_biovol_df, biovol)  # create size bins
+            NBS_biovol_df = NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate=biovol, sensitivity=sensitivity)
             lin_fit = linear_fit_func(NBS_biovol_df)
             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             print(lin_fit_data[lin_fit_data.columns[0]].count())
-            NBSS_1a_raw_all = pd.concat([NBSS_1a_raw_all, NBSS_1a_raw])
-            print(NBSS_1a_raw_all[NBSS_1a_raw_all.columns[0]].count())
+            print(NBSS_binned_all[NBSS_binned_all.columns[0]].count())
         NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mean', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth'], axis=1)
         if light_parsing == True:
             NBSS_1a_full = NBSS_stats_func(NBSS_raw, light_parsing=True, bin_loc=bin_loc, group_by=group_by)
@@ -97,12 +95,11 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
 
         if sensitivity == True:
             NBSS_binned_all.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_' + biovol + '-by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
-            NBSS_1a_raw_all.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_' + biovol + '-by-Size_raw_v' + currentYear + '-' + currentMonth + '.csv',index=False)
             NBSS_1a_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1a_' + biovol + '-by-Size_v' + currentYear + '-' + currentMonth + '.csv',index=False)
             lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '-NBSS-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
         else:
             NBSS_binned_all.to_csv(str(NBSSpath) + '/' + instrument + '_Biovolume-by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
-            NBSS_1a_raw_all.to_csv(str(NBSSpath) + '/' + instrument + '_Biovolume-by-Size_raw_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+
             NBSS_1a_full.to_csv(str(NBSSpath) + '/' + instrument + '_1a_Biovolume-by-Size_v' + currentYear + '-' + currentMonth + '.csv',index=False)
             lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_NBSS-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
 
