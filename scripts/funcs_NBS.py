@@ -96,7 +96,7 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
     import numpy as np
     import pandas as pd
     if sensitivity == True:
-        NBS_biovol_df = NBS_biovol_df.dropna(subset=['Category']).reset_index(drop =True)
+        NBS_biovol_df = NBS_biovol_df.dropna(subset=['Minor_axis']).reset_index(drop =True)
     if depth_parsing == True:
         # create a dataframe with summary statistics for each station, depth bin and size class
         # these column names should all be the same, since the input is a dataframe from the 'binning' and 'biovol' functions
