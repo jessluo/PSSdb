@@ -44,7 +44,8 @@ for instrument in [ 'UVP', 'IFCB']:
     NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
     if not os.path.exists(NBSSpath):
         os.mkdir(NBSSpath)
-        if sensitivity == True:
+    if sensitivity == True:
+        if not os.path.exists((NBSSpath / 'Sensitivity_analysis')):
             os.mkdir((NBSSpath / 'Sensitivity_analysis'))
 
     currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
