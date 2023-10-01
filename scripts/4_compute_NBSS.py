@@ -36,7 +36,7 @@ bin_loc = cfg['st_increment_avg']
 group_by= cfg['date_group_avg']
 sensitivity = cfg['sensitivity']
 # processing starts here
-for instrument in ['Scanner', 'UVP', 'IFCB']:
+for instrument in [ 'UVP', 'IFCB']:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
