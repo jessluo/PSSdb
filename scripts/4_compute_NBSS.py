@@ -93,11 +93,11 @@ for instrument in [ 'UVP', 'IFCB']:
         lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
         lin_fit_1b_full = lin_fit_1b_full.drop(['year_int', 'month_int'], axis=1)
         lin_fit_1b_full = ocean_label_func(lin_fit_1b_full, 'longitude', 'latitude')
-
+        biovol = biovol.replace('_', '-')
         if sensitivity == True:
-            NBSS_binned_all.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_' + biovol + '-by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
-            NBSS_1a_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1a_' + biovol + '-by-Size_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-            lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '-NBSS-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_binned_all.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_' + biovol + '_by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_1a_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1a_' + biovol + '_by-Size_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '_NBSS-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
         else:
             NBSS_binned_all.to_csv(str(NBSSpath) + '/' + instrument + '_Biovolume-by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
 
