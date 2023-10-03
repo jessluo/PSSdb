@@ -165,9 +165,11 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
 
                                                                                                    'NB': (x[biovol_estimate].sum() /x.cumulative_vol.unique()[0] / x.range_size_bin.astype(float).unique()[0])})).reset_index()#, 'ROI_number':x['ROI_number'].sum()}))
 
-            NBS_biovol_df.sizeClasses = pd.Categorical(NBS_biovol_df.sizeClasses, df_bins.sizeClasses.astype(str),ordered=True)
+            #df_bins['sizeClasses']=df_bins.sizeClasses.astype(str)
+            #NBS_biovol_df = pd.merge(NBS_biovol_df, df_bins[['sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mean', 'size_range_ECD']].drop_duplicates(),how='left', on='sizeClasses')
+            NBS_biovol_df.sizeClasses = pd.Categorical(NBS_biovol_df.sizeClasses, df_bins.sizeClasses.astype(str),ordered=True) # this generates a categorical index for the column, this index can have a different lenght that the actual number of unique values, especially here since the categories come from df_bins
             NBS_biovol_df = pd.merge(NBS_biovol_df, NBS_biovol_df.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
-            multiindex = pd.MultiIndex.from_product([list(NBS_biovol_df.astype({column: 'category' for column in ['Group_index', 'sizeClasses']})[ column].cat.categories) for column in ['Group_index', 'sizeClasses']],names=['Group_index', 'sizeClasses'])
+            multiindex = pd.MultiIndex.from_product([list(NBS_biovol_df.astype({column: 'category' for column in ['Group_index', 'sizeClasses']})[column].cat.categories) for column in ['Group_index', 'sizeClasses']],names=['Group_index', 'sizeClasses'])
             NBS_biovol_df =  pd.merge(NBS_biovol_df.drop_duplicates(['Group_index'])[grouping + ['Sample_id','Depth_range_min', 'Depth_range_max','Group_index','Total_volume']],NBS_biovol_df.set_index(['Group_index', 'sizeClasses']).reindex(multiindex,fill_value=pd.NA).reset_index().drop(columns=grouping+['Sample_id','Depth_range_min', 'Depth_range_max','Total_volume']), how='right', on=['Group_index']).sort_values(['Group_index']).reset_index(drop=True)
 
 
@@ -223,13 +225,13 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
     df_bins=df_bins.astype(dict(zip(['range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'], [float] * 5)))
     NBS_biovol_df = NBS_biovol_df.astype(dict(zip([ 'range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean', 'logSize'], [float] * 5)))
 
-    NBS_biovol_df= pd.merge(df_bins, NBS_biovol_df, how='left', on=['sizeClasses','range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'])
+    #NBS_biovol_df2= pd.merge(df_bins, NBS_biovol_df, how='left', on=['sizeClasses','range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'])
     # now fill the columns of date, station, lat/lon, project ID and volume
-    for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']:
-        NBS_biovol_df[i] = NBS_biovol_df[i].unique()[1]
+    #for i in ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']:
+        #NBS_biovol_df[i] = NBS_biovol_df[i].unique()[1]
     # let's do the thresholding here:
     if thresholding==True:
-        NBS_biovol_df = threshold_func(NBS_biovol_df)
+        NBS_biovol_df2 = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: threshold_func(x))
     else:
         NBS_biovol_df= NBS_biovol_df
 
@@ -265,11 +267,11 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     :param df: a binned dataframe with NBSS already calculated
     :return: a dataset without the bins that contain inaccurate NBSS
     """
-
+    binned_data= binned_data.reset_index(drop=True)
     #upper threshold based on max NB
-    binned_data_filt = binned_data.loc[binned_data.NB.tolist().index(np.nanmax(binned_data.NB.tolist())):len(binned_data)].reset_index(drop=True)#a ask if its better to just remove all data
+    binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
 
-    binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
+    #binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
 
     empty_SC = binned_data_filt['NB'].isnull()  # get row indices with empty size bins
     sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
