@@ -20,6 +20,8 @@ import os
 from tqdm import tqdm
 from operator import attrgetter
 import geopandas as gpd
+from scipy.stats import poisson,norm,lognorm # Estimate uncertainties assuming count detection follows a Poisson distribution and size a normal distribution
+from itertools import compress
 
 # line 23-32: adds the oceans shape file needed to assing ocean basin to the dataset. See https://www.marineregions.org/. https://doi.org/
 if len(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))) == 0:
@@ -160,6 +162,7 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
                                                                                                                      'Depth_range_max': x.Depth_range_max.unique()[0],
                                                                                                                      'Biovolume_mean': x.Biovolume_sum.sum() / x.ROI_number_sum.sum(),
                                                                                                                      'Biovolume_sum': x.Biovolume_sum.sum(),
+                                                                                                                     'Pixel_mean':np.nanmean(x.Pixel * 1e-03 * x.ECD_mean),
                                                                                                                      'ROI_number_sum': x.ROI_number_sum.sum(),
                                                                                                                      'ROI_abundance': np.nansum(x.ROI_number_sum/ x.Total_volume),
                                                                                                                      #'NB_std': np.sqrt(sum(x.NB_std ** 2)),
@@ -174,17 +177,20 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
 
             NBS_biovol_df = pd.merge(NBS_biovol_df, nbss_depths, how='left', on=['date_bin','midLatBin', 'midLonBin','Station_location'])
 
-            # depth intergrated OR weighted sum
+            # depth integration OR weighted sum
             NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses', 'size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD']).apply(lambda x: pd.Series({
-                                                                                                                        'Biovolume_mean': x.Biovolume_mean.mean(),
-                                                                                                                        # in micrometers
+                                                                                                                        'Biovolume_mean': x.Biovolume_mean.mean(),# in cubic micrometers
+                                                                                                                        'size_class_pixel': x.Pixel_mean.mean(),# Number of pixels
                                                                                                                         'ROI_number_sum': np.nansum(x.ROI_number_sum),
                                                                                                                         'ROI_abundance_mean': np.nansum(x.ROI_abundance * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1), # also need to integrate
+
                                                                                                                         #'NB_std': np.sqrt(sum((((x.NB_std) ** 2) * ((np.where((x.Max_obs_depth.astype(float) - x.Min_obs_depth.astype(float)).values > 1,(x.Max_obs_depth.astype(float) - x.Min_obs_depth.astype(float)).values, 1) / np.where((x.Depth_range_max.astype(float).unique()[0] - x.Depth_range_min.astype(float).unique()[0]) > 1,(x.Depth_range_max.astype(float).unique()[0] - x.Depth_range_min.astype(float).unique()[0]),1)) ** 2)))),
                                                                                                                         'NB': np.nansum(x.NB * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1),
                                                                                                                         'PSD': np.nansum(x.PSD * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1)})).reset_index()
 
             NBS_biovol_df= NBS_biovol_df.astype({'ECD_mean':float}).sort_values(['date_bin','midLatBin', 'midLonBin','Station_location','ECD_mean']).reset_index(drop=True)
+            NBS_biovol_df=NBS_biovol_df.assign(count_uncertainty=poisson.pmf(k=NBS_biovol_df['ROI_number_sum'], mu=NBS_biovol_df['ROI_number_sum']),
+                                 size_uncertainty=NBS_biovol_df.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth']).size_class_pixel.astype(float).transform(lambda x: norm.pdf((1/3)*np.pi*x**3,loc=(1/3)*np.pi*x.min()**3,scale=(1/3)*1*np.pi)).values.tolist())
 
     # create three more columns with the parameters of particle size distribution and normalized size spectra,:
     NBS_biovol_df['logNB'] = np.log10(NBS_biovol_df['NB'])
@@ -235,7 +241,7 @@ def ocean_label_func(df, Lon, Lat):
 # high threshold: obtain the highest size class, then iterate from highest to lowest and remove the large size bins
 # that have less than an (instrument specific) threshold
 # imputs: the data frame, and the column that contains the NBSS
-def threshold_func(binned_data, empty_bins = 3):
+def threshold_func(binned_data, empty_bins = 1,threshold_count=0.2,threshold_size=0.2):
     """
     Objective: remove size bins based on Fabien's approach: (lower limit: max NBSS, upper limit: 3 NBSS with Nans)
     :param df: a binned dataframe with NBSS already calculated

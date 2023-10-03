@@ -244,7 +244,7 @@ def biovol_func(df, instrument, keep_cat='none'):
                 pass
     df['Biovolume_area'] = (4/3)* m.pi * (((df['Area']/m.pi)**0.5) **3) # convert area to ESD, then calculate biovolume
     if 'Minor_axis' in df.columns:
-        df['Biovolume_ellipsoid'] = (4/3)*df['Area']*df['Minor_axis']
+        df['Biovolume_ellipsoid'] = (4/3)*m.pi*(df['Major_axis']/2)*(df['Minor_axis']/2)**2#(4/3)*df['Area']*(df['Minor_axis']/2)
     else:
         None
     if 'Biovolume' in df.columns:
