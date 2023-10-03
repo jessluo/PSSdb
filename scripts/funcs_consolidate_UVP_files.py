@@ -240,7 +240,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
            df_ecopart=pd.merge(df_ecopart,df_metadata[list(set(fields_from_ecopart.values()))].drop_duplicates(),how='left',on='profileid')
            df_ecopart['object_volume_bin']=df_ecopart.acq_volimage*df_ecopart.object_imgcount_bin
            df_ecopart['datetime']=df_ecopart['datetime'] if 'datetime' in df_ecopart.columns else pd.to_datetime(df_ecopart[fields_from_ecopart['Sampling_time']],format=df_standardizer_ecopart.loc[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';')),'Sampling_time_format'].values[0]).dt.strftime('%Y%m%d%H%M%S')
-           df_ecopart['sampledate'] = np.where(df_ecopart.organizedbydepth == False, pd.to_datetime(df_ecopart['datetime'],format='%Y%m%d%H%M%S').dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecopart['profileid'],df_metadata[['profileid','sampledate']],how='left')['sampledate'])
+           df_ecopart['sampledate'] = np.where(df_ecopart.organizedbydepth == False, pd.to_datetime(df_ecopart['datetime'],format='%Y%m%d%H%M%S').dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecopart['profileid'],df_metadata[['profileid','sampledate']].drop_duplicates(),how='left')['sampledate'])
 
            if Path(path_to_export).is_file() and len(df_ecopart) and len(df_metadata):
               df_ecotaxa_columns=pd.read_table(path_to_export,nrows=0).columns
