@@ -1037,10 +1037,10 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                     #summary_df_standardized = pd.DataFrame({})
                     #for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
                         #subset_df_standardized = df_standardized_existing[df_standardized_existing.Sample == profile]
-                    summary_subset_df = df_standardized_existing[(df_standardized_existing.Longitude <= 180) & (df_standardized_existing.Longitude >= -180) & ( df_standardized_existing.Latitude <= 90) & ( df_standardized_existing.Latitude >= -90)].groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI_number.sum(), 'Abundance': x.ROI_number.sum() / (x.Volume_imaged.unique()[0]),# individuals per liter
-                             'Average_diameter': np.nanmean(2 * np.power(np.repeat(x.Area ,x.ROI_number)/ np.pi, 0.5)) if 'Area' in df_standardized_existing.columns else np.nanmean( np.repeat(x.ESD,x.ROI_number())),  # micrometer
-                             'Std_diameter': np.nanstd( 2 * np.power(np.repeat(x.Area ,x.ROI_number) / np.pi, 0.5)) if 'Area' in df_standardized_existing.columns else np.nanstd(np.repeat(x.ESD,x.ROI_number()))})).reset_index()
-                    summary_subset_df = summary_df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
+                    summary_subset_df = df_standardized_existing[(df_standardized_existing.Longitude <= 180) & (df_standardized_existing.Longitude >= -180) & ( df_standardized_existing.Latitude <= 90) & ( df_standardized_existing.Latitude >= -90)].astype(dict(zip(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max'],[str]*8))).groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI_number.astype(float).sum(), 'Abundance': x.ROI_number.astype(float).sum() / (x.Volume_imaged.astype(float).unique()[0]),# individuals per liter
+                             'Average_diameter': np.nanmean(2 * np.power(np.repeat(x.Area.astype(float) ,x.ROI_number.astype(float))/ np.pi, 0.5)) if 'Area' in df_standardized_existing.columns else np.nanmean( np.repeat(x.ESD.astype(float),x.ROI_number.astype(float)())),  # micrometer
+                             'Std_diameter': np.nanstd( 2 * np.power(np.repeat(x.Area.astype(float) ,x.ROI_number.astype(float)) / np.pi, 0.5)) if 'Area' in df_standardized_existing.columns else np.nanstd(np.repeat(x.ESD.astype(float),x.ROI_number.astype(float)()))})).reset_index()
+                    summary_subset_df = summary_subset_df.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
                                                  'Average_diameter': np.nanmean(x.Average_diameter),  # micrometer
                                                  'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
 
@@ -1049,11 +1049,21 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
                     if ( (plot == 'diversity') and len(summary_df_standardized) > 0):
                         # Using report function defined below
-                        fig = standardization_report_func(df_summary=summary_df_standardized, df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=None, plot=plot)
+                        fig = standardization_report_func(df_summary=summary_subset_df , df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=None, plot=plot)
                     elif ((plot == 'nbss') and len(summary_df_standardized) > 0):
-                        nbss = process_nbss_standardized_files(path=None, df=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), category=[],depth_selection=False)[2]
+                        if (df_standardized_existing.Instrument.unique()[0] == 'IFCB') & len(path_to_standard_file) > 1:  # Use multi-processing to compute IFCB dashboard nbss
+                            nbss = pd.DataFrame({})
+                            chunk = 1000
+                            with ThreadPool() as pool:
+                                # for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                                for result in pool.map(lambda sample: process_nbss_standardized_files(path=None,df=df_standardized_existing.query('Sample=="{}"'.format(sample)).assign(Project_source=df_standardizer['Project_source'][project_id],type_particles=lambda x: np.where( x.ROI.isna(), 'all', 'vignettes')), category=['type_particles'],depth_selection=False)[2], df_standardized_existing.Sample.unique(), chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                                    nbss = pd.concat([nbss, result], axis=0)
+                            nbss = nbss.reset_index(drop=True)
+
+                        else:
+                            nbss = process_nbss_standardized_files(path=None, df=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), category=[],depth_selection=False)[2]
                         # Using report function defined below
-                        fig = standardization_report_func(df_summary=summary_df_standardized, df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=nbss, plot=plot)
+                        fig = standardization_report_func(df_summary=summary_subset_df , df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=nbss, plot=plot)
                     fig.write_html(path_to_standard_plot)
                     print('\nSaving standardized export plot to', path_to_standard_plot, sep=' ')
 
@@ -1154,19 +1164,23 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
             df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit']) if instrument !='Zooscan' else (2*(((camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2))/np.pi)**0.5)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
 
 
-        # Update taxonomic annotations standards (df_taxonomy) with new annotations
+        # Update taxonomic annotations lookup table (df_taxonomy) with new annotations
         if 'Category' in df.columns:
             new_categories =df.dropna(subset='Category').Category[df.dropna(subset='Category').Category.isin(list(df_taxonomy.Category))==False].unique()
             if len(new_categories):
-                df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace(" ",'>').replace("_"," ")).assign(Category=hierarchy), new_categories))
-                df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
-                df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
-                df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
-                df_taxonomy = pd.concat([df_taxonomy.reset_index(drop=True), df_taxonomy_new[[column for column in df_taxonomy.columns if column in df_taxonomy_new.columns]].reset_index(drop=True)],axis=0, ignore_index=True)
-                df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
-                print('New taxonomic annotations found in the project. Updating the taxonomic annotations lookup table')
-                with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                    df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+                try:
+                    df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace("_"," ")).assign(Category=hierarchy), new_categories))
+                    df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
+                    df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
+                    df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
+                    df_taxonomy = pd.concat([df_taxonomy.reset_index(drop=True), df_taxonomy_new[[column for column in df_taxonomy.columns if column in df_taxonomy_new.columns]].reset_index(drop=True)],axis=0, ignore_index=True)
+                    df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
+                    print('New taxonomic annotations found in the project. Updating the taxonomic annotations lookup table')
+                    with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                        df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+                except:
+                    pass
+
 
         # Use pint units system to convert units in standardizer spreadsheet to standard units
         # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
@@ -1259,7 +1273,17 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
             print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
         elif ((plot=='nbss') and len(summary_df_standardized)>0):
             path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
-            nbss=process_nbss_standardized_files(path=None,df=df_standardized.assign(type_particles=np.where(df_standardized.ROI.isna(),'all','vignettes')),category=['type_particles'],depth_selection=False)[2]
+            if (instrument=='IFCB') & len(path_files_list)>1: # Use multi-processing to compute IFCB dashboard nbss
+                nbss=pd.DataFrame({})
+                chunk = 1000
+                with ThreadPool() as pool:
+                    # for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                    for result in pool.map(lambda sample: process_nbss_standardized_files(path=None,df=df_standardized.query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x:np.where(x.ROI.isna(),'all','vignettes')),category=['type_particles'],depth_selection=False)[2],df_standardized.Sample.unique(),chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                        nbss = pd.concat([nbss, result], axis=0)
+                nbss = nbss.reset_index(drop=True)
+
+            else:
+                nbss=process_nbss_standardized_files(path=None,df=df_standardized.assign(type_particles=np.where(df_standardized.ROI.isna(),'all','vignettes')),category=['type_particles'],depth_selection=False)[2]
             group=['Instrument', 'Project_ID', 'Station', 'Sample', 'Date_bin', 'Latitude', 'Longitude', 'Min_obs_depth', 'Max_obs_depth','type_particles']
             nbss=pd.merge(nbss.drop(columns=['Group_index']), nbss.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename( {'index': 'Group_index'}, axis='columns'), how='left', on=group)
 
