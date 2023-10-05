@@ -83,11 +83,11 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                     continue
             elif instrument == 'IFCB':
                 df = depth_parsing_func(df, instrument)
-                df = df.replace(np.nan, '')
+                df = df.replace(np.nan, '').reset_index(drop = True)
                 sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
-                df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))]
+                df = df[~df.Sampling_type.str.contains('|'.join(sampling_type_to_remove))].reset_index(drop = True)
                 df = df.replace('', np.nan)
-                df = df[df['Sample'].str.contains('D20190603T001443_IFCB115') == False].reset_index()
+                df = df[df['Sample'].str.contains('D20190603T001443_IFCB115') == False].reset_index(drop = True)
                 if len(df) == 0:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     n_del_files += 1
@@ -123,9 +123,10 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                     df_project_list_bins = [{'gridded_file_ID':cell +'_temp_binned_'+m, 'Project_ID_list': df_st_t_subset.Project_ID.unique().tolist(), 'Sample_list': df_st_t_subset.Sample.unique().tolist()}]
                     df_project_list_bins = pd.DataFrame(df_project_list_bins)
                     files_subset_df_list = pd.concat([files_subset_df_list, df_project_list_bins])
+                    files_subset_df_list = files_subset_df_list.reset_index(drop=True)
                     df_st_t_subset.to_csv(str(dirpath) +'/'+ instrument + '_gridded_' + cell +'_temp_binned_'+m+'.csv', index=False)
 
-        files_subset_df_list .to_csv(str(dirpath) + '/' + instrument + '_' + 'Project_Sample_list_gridded.csv', index=False)
+        files_subset_df_list.to_csv(str(dirpath) + '/' + instrument + '_' + 'Project_Sample_list_gridded.csv', index=False)
 
         for file in glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/grid_N*' + instrument + '*.csv', recursive=True):
             os.remove(file)
