@@ -36,7 +36,7 @@ bin_loc = cfg['st_increment_avg']
 group_by= cfg['date_group_avg']
 sensitivity = cfg['sensitivity']
 # processing starts here
-for instrument in [ 'UVP', 'IFCB']:
+for instrument in ['Scanner', 'UVP', 'IFCB']:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
@@ -68,8 +68,7 @@ for instrument in [ 'UVP', 'IFCB']:
             file_subset = [file for file in file_list if i in file]
             NBS_biovol_df= pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
             NBS_biovol_df, df_bins = size_binning_func(NBS_biovol_df, biovol)  # create size bins
-            NBS_biovol_df = NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate=biovol, sensitivity=sensitivity)
-            lin_fit = linear_fit_func(NBS_biovol_df)
+            NBS_biovol_df, lin_fit = NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate=biovol, sensitivity=sensitivity)
             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             print(lin_fit_data[lin_fit_data.columns[0]].count())
@@ -95,13 +94,13 @@ for instrument in [ 'UVP', 'IFCB']:
         lin_fit_1b_full = ocean_label_func(lin_fit_1b_full, 'longitude', 'latitude')
         biovol = biovol.replace('_', '-')
         if sensitivity == True:
-            NBSS_binned_all.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_' + biovol + '_by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
-            NBSS_1a_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1a_' + biovol + '_by-Size_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-            lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '_NBSS-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_binned_all.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_' + biovol + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_1a_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1a_' + biovol + '_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
         else:
-            NBSS_binned_all.to_csv(str(NBSSpath) + '/' + instrument + '_Biovolume-by-Size_all_var' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_binned_all.to_csv(str(NBSSpath) + '/' + instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
 
-            NBSS_1a_full.to_csv(str(NBSSpath) + '/' + instrument + '_1a_Biovolume-by-Size_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-            lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_NBSS-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_1a_full.to_csv(str(NBSSpath) + '/' + instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
 
 
