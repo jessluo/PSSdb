@@ -53,7 +53,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     #set the list of biovolume estimates when doing the sensitivity analysis
     if sensitivity == True:
         print ('NOTE: products for Sensitivity analyses will be generated, this process will take longer')
-        biovol_list = ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_orig'] if instrument == 'IFCB' else ['Biovolume_area', 'Biovolume_ellipsoid']
+        biovol_list = ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_distance_map'] if instrument == 'IFCB' else ['Biovolume_area', 'Biovolume_ellipsoid']
     else:
         biovol_list = ['Biovolume_area']
 
