@@ -248,7 +248,7 @@ def biovol_func(df, instrument, keep_cat='none'):
     else:
         None
     if 'Biovolume' in df.columns:
-        df = df.rename(columns={'Biovolume': 'Biovolume_orig'}).reset_index(drop=True)
+        df = df.rename(columns={'Biovolume': 'Biovolume_distance_map'}).reset_index(drop=True)
     else:
         None
 
