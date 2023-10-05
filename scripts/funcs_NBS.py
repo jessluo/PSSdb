@@ -21,16 +21,6 @@ from tqdm import tqdm
 from operator import attrgetter
 import geopandas as gpd
 from scipy.stats import poisson,norm,lognorm # Estimate uncertainties assuming count detection follows a Poisson distribution and size a normal distribution
-from itertools import compress
-
-# line 23-32: adds the oceans shape file needed to assing ocean basin to the dataset. See https://www.marineregions.org/. https://doi.org/
-if len(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))) == 0:
-    path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
-    # open the metadata of the standardized files
-    with open(path_to_config, 'r') as config_file:
-        cfg = yaml.safe_load(config_file)
-    with tarfile.open(str(Path(cfg['git_dir']).expanduser() / cfg['ancillary_subdir'] /  cfg['oceans_subdir_tar']), 'r') as tar:
-        tar.extractall(str(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent))
 
 oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
   #6.1 by size bins. Inputs: a column of the dataframe with biovolume, and the number of log bins to use.
@@ -210,7 +200,7 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
 
             NBS_biovol_df= NBS_biovol_df.astype({'ECD_mean':float}).sort_values(['date_bin','midLatBin', 'midLonBin','Station_location','ECD_mean']).reset_index(drop=True)
             NBS_biovol_df=NBS_biovol_df.assign(count_uncertainty=poisson.pmf(k=NBS_biovol_df['ROI_number_sum'], mu=NBS_biovol_df['ROI_number_sum']),
-                                 size_uncertainty=NBS_biovol_df.astype({'size_class_pixel':float}).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth']).size_class_pixel.transform(lambda x: norm.pdf((1/6)*np.pi*(2*(x/np.pi)**0.5)**3,loc=(1/3)*np.pi*(2*(x.min()/np.pi)**0.5)**3,scale=(1/6)*1*np.pi)).values.tolist())
+                                 size_uncertainty=NBS_biovol_df.astype({'size_class_pixel':float}).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth']).size_class_pixel.transform(lambda x: norm.pdf((1/3)*np.pi*x**3,loc=(1/3)*np.pi*x.min()**3,scale=(1/3)*1*np.pi)).values.tolist())
 
     # create three more columns with the parameters of particle size distribution and normalized size spectra,:
     NBS_biovol_df['logNB'] = np.log10(NBS_biovol_df['NB'])
@@ -220,9 +210,9 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
     NBS_biovol_df['logECD'] = np.log10(NBS_biovol_df['ECD_mean'].astype(float))
 
     # now calculate the log biovolume for the df_bins dataframe. NOTE updated on 2/23/2023. middle point of the size class
-    df_bins['logSize'] = np.log10(df_bins['size_class_mid'].astype(float))
+    #df_bins['logSize'] = np.log10(df_bins['size_class_mid'].astype(float))
     # merge the two dataframes
-    df_bins=df_bins.astype(dict(zip(['range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'], [float] * 5)))
+    #df_bins=df_bins.astype(dict(zip(['range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'], [float] * 5)))
     NBS_biovol_df = NBS_biovol_df.astype(dict(zip([ 'range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean', 'logSize'], [float] * 5)))
 
     #NBS_biovol_df2= pd.merge(df_bins, NBS_biovol_df, how='left', on=['sizeClasses','range_size_bin', 'size_class_mid', 'size_range_ECD', 'ECD_mean','logSize'])
@@ -231,14 +221,15 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
         #NBS_biovol_df[i] = NBS_biovol_df[i].unique()[1]
     # let's do the thresholding here:
     if thresholding==True:
-        NBS_biovol_df2 = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: threshold_func(x))
+        NBS_biovol_df = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: threshold_func(x)).reset_index(drop=True)
     else:
         NBS_biovol_df= NBS_biovol_df
 
     NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mean', 'size_range_ECD'], [float] * 6)))
 
+    lin_fit = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: linear_fit_func(x)).reset_index(drop=True)
 
-    return NBS_biovol_df
+    return NBS_biovol_df, lin_fit
 
 ## assing ocean label using gdp
 def ocean_label_func(df, Lon, Lat):
@@ -268,8 +259,14 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     :return: a dataset without the bins that contain inaccurate NBSS
     """
     binned_data= binned_data.reset_index(drop=True)
-    #upper threshold based on max NB
+    #drop small size classes that are below the 20% uncertainty in size estimate according to the camera resolution
+
+    binned_data['count_uncertainty'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
+    binned_data['size_uncertainty'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
+    #binned_data = binned_data.loc[~((binned_data['size_uncertainty']>=threshold_size) | (binned_data['count_uncertainty']>=threshold_count))].reset_index(drop=True)
+
     binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
+    binned_data_filt['NB'] = binned_data_filt['NB'].replace(0, np.NaN)
 
     #binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
 
@@ -277,9 +274,9 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
     cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
     if empty_bins in cum_empty.to_numpy():
-        binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty.isnull() == False].index.to_numpy())-1)]
+        binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty.isnull() == False].index.to_numpy())-1)].reset_index(drop=True)
     else:
-        binned_data_filt = binned_data_filt
+        binned_data_filt = binned_data_filt.loc[0:max(empty_SC.index[empty_SC==False])].reset_index(drop=True)
 
     #lower threshold based on three consecutive size bins with nans
     #for n, i in enumerate(np.isnan(binned_data_filt['NB'])):
