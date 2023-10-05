@@ -995,26 +995,12 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
     path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("ecotaxa_export_"+str(project_id)+'_*'))
     path_files_list=[path for path in path_files_list if ('flag' not in str(path)) & ("._" not in str(path))]
+
     if len(path_files_list)>0: # Check for native format datafile
-        # Load export tsv file
         columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))
         columns_dict['object_number'] = 'object_number'  # Adding this column for UVP consolidated projects
         dtypes_dict_all = dict(zip(['Cruise', 'Station', 'Profile', 'Sample', 'Latitude', 'Longitude', 'Depth_min', 'Depth_max', 'Sampling_date', 'Sampling_time', 'Volume_analyzed', 'ROI', 'Area', 'Pixel', 'Minor', 'Biovolume', 'ESD', 'Category', 'Annotation', 'Sampling_type', 'Sampling_lower_size', 'Sampling_upper_size', 'object_number', 'Sampling_description'],[str, str, str, str, float, float, float, float, str, str, float, str, int, float, float, float, float, str, str, str, float, float, int, str]))
         dtypes_dict = {fields_of_interest_series.loc[key]: value for key, value in dtypes_dict_all.items() if key in fields_of_interest_series.index}
-
-        df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path).astype({key:value for key,value in  dtypes_dict_all.items() if key in columns}))[-1],natsorted(path_files_list))).reset_index(drop=True)
-        old_columns = df.columns
-        # Standardize column names
-        #df.columns = [(list(fields_of_interest_series.index)[list(fields_of_interest_series.values).index(value)]) for value in  old_columns.drop('File_path')] + ['File_path'] # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
-        index_duplicated_fields = pd.Series(fields_of_interest.keys()).isin(list(df.columns)) == False
-        if any(index_duplicated_fields):
-            # Append duplicated fields
-            df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist() if columns_dict[item] in df.columns else pd.NA, list(pd.Series( fields_of_interest.values())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
-
-        # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
-        df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],natsorted(path_files_list))).reset_index(drop=True)
-        df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
-        df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
         # Check for existing standardized file(s):
         path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
@@ -1022,15 +1008,12 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}_*.csv'.format(str(project_id))))
         path_to_standard_plot = path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[ 0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
-
         if len(path_to_standard_file):
             dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
             df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
-            remaining_standard_samples = df[(df.Sample.isin(list(df_standardized_existing.Sample.unique()))==False) & (df.Sample.isin(flagged_samples)==False)].Sample.astype(str).unique()
-            if len(remaining_standard_samples):
+            remaining_raw_files =[path for path in path_files_list if not Path(path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(path.stem)[str(path.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( path.stem))].replace( '_features', ''))).exists()]
+            if len(remaining_raw_files):
                 print('\nExisting standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))
-                df=df[df.Sample.astype(str).isin(list(remaining_standard_samples))].reset_index(drop=True)
-                df_method = df_method[df_method.Sample.astype(str).isin(list(remaining_standard_samples))].reset_index(drop=True)
             else:
                 print( '\nExisting standardized file(s) found at {}, but no additional samples.\nSkipping project after saving report (if missing)'.format(path_to_standard_dir))
                 if path_to_standard_plot.is_file() == False:
@@ -1070,176 +1053,198 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 return
         else:
             df_standardized_existing = pd.DataFrame()
+            remaining_raw_files=natsorted(path_files_list)
+        # Load export tsv file
+        df_standardized_new=pd.DataFrame({})
+        format='{desc}{bar}' if len(path_files_list)>1 else '{desc}'
+        print('\nSaving standardized datafile(s) to', path_to_standard_dir, sep=' ')
+        with tqdm(desc='', total=len(path_files_list), bar_format=format, position=0, leave=True) as bar:
+            for file in natsorted(remaining_raw_files):
+                df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path).astype({key:value for key,value in  dtypes_dict_all.items() if key in columns}))[-1],[file])).reset_index(drop=True)
+                old_columns = df.columns
+                # Standardize column names
+                #df.columns = [(list(fields_of_interest_series.index)[list(fields_of_interest_series.values).index(value)]) for value in  old_columns.drop('File_path')] + ['File_path'] # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
+                index_duplicated_fields = pd.Series(fields_of_interest.keys()).isin(list(df.columns)) == False
+                if any(index_duplicated_fields):
+                     # Append duplicated fields
+                     df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist() if columns_dict[item] in df.columns else pd.NA, list(pd.Series( fields_of_interest.values())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
 
-        # Remove flagged samples/profiles
-        df=df[df['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
-        df_method=df_method[df_method['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
-        if len(df)==0:
-            print('\nNo samples left after flagging. Skipping project ', project_id, sep='')
-            return
-
-        # Append method description
-        additional_description =' '.join([':'.join([additional_key,columns_for_description[additional_key]]) for additional_key in columns_for_description.keys() if additional_key not in fields_for_description.index]) if type(columns_for_description)==dict else []
-        if (len(fields_for_description.index)>0) or (len(additional_description) > 0):
-            df=df.assign(Sampling_description=additional_description+' ' + df_method[fields_for_description.index].apply(' '.join, axis=1) if len(additional_description) > 0 else df_method[fields_for_description.index].apply(' '.join, axis=1) )
-        else:
-            df=df.assign(Sampling_description=columns_for_description)
-
-        # Set missing values to NA
-        na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
-        # Convert known data types to ensure masking of missing values is correct
-        df=df.astype({key:value for key,value in dict(zip(['Sample','Latitude','Longitude','Volume_analyzed','Pixel'],[str,float,float,float,float])).items() if key in df.columns})
-        # Convert NAs
-        df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
-        columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'Major_axis', 'ESD', 'Biovolume']]
-        df[columns_to_convert] =  df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
-
-        # Convert datetime and longitude format
-        if 'Sampling_date' in df.columns:
-            if is_float(df.at[0, 'Sampling_date']):
-                df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
-                df = df.loc[df['Sampling_date'].astype(float).isna() == False]
-        if 'Sampling_time' in df.columns:
-            if is_float(df.at[0, 'Sampling_time']):
-                df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
-
-        df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'], utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6), format=df_standardizer.at[project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
-        df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
-
-        # Transform variables based on field units
-        units=[string for string in list(df_standardizer.columns) if "_unit" in string]
-        units_of_interest =  dict(zip(units,df_standardizer.loc[project_id][units].values.flatten().tolist()))
-        # Test whether all units are defined:                             [re.sub(r'^-?[0-9]_times_10power-?[0-9]_','',str(unit)) for unit in list(units_of_interest.values())]
-        if any([unit not in ureg for unit in list(units_of_interest.values()) if str(unit)!='nan']):
-            print('\nQuitting. Please fill out standardizer with units from the list below or define your custom unit in {} using known units:\n'.format(path_to_data.parent.parent.parent /'Scripts'/'units_def.txt'),full_list_units, sep='')
-            return
-
-        # Convert pixel_to_size ratio in units pixel per millimeter
-        if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='pixel':
-            pixel_size_ratio =  PQ(list(df.Pixel/ureg(units_of_interest['Pixel_unit'].split('_per_')[1]).to('millimeter')), 'pixel/millimeter')
-        if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='meter':
-            pixel_size_ratio = PQ(list(1/(df.Pixel*ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to('millimeter'))), 'pixel/millimeter')
-
-        image_resize_factor = np.where(df_method['image_resize_factor'].isna(),8,df_method['image_resize_factor'].isna()) if 'image_resize_factor' in df_method.columns else 8
-        blob_x_grow = np.where(df_method['blob_x_grow'].isna(),20,df_method['blob_x_grow']) if 'blob_x_grow' in df_method.columns else 20
-        blob_y_grow = np.where(df_method['blob_y_grow'].isna(),5,df_method['blob_y_grow']) if 'blob_y_grow' in df_method.columns else 5
-        min_blob_area = np.where(df['Sampling_lower_size'].isna(),2000,df['Sampling_lower_size']) if 'Sampling_lower_size' in df.columns else 2000
-
-        # Convert pixel to millimeter for upper/lower size
-        if units_of_interest['Sampling_upper_size_unit'] == 'pixel':
-                df['Sampling_upper_size'] = df['Sampling_upper_size'] / (pixel_size_ratio.magnitude)
-                units_of_interest['Sampling_upper_size_unit'] = 'millimeter'
-        if units_of_interest['Sampling_lower_size_unit'] == 'pixel':
-                df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
-                units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
-        # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
-        if (df_standardizer.loc[project_id]['Instrument']=='IFCB') and (Path(df_standardizer.loc[project_id]['Project_localpath']).stem==cfg['IFCB_dir']):
-            df['Sampling_lower_size'] = np.nan
-            units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
-
-        camera_resolution = {'IFCB': {'Sampling_lower_size': image_resize_factor* min_blob_area, 'Sampling_upper_size':1360}, # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
-                             'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
-                             'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
-                             'UVP6': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2464},
-                             'Zooscan': {'Sampling_lower_size': 631, 'Sampling_upper_size': 22640}}
-
-        if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
-            with ecotaxa_py_client.ApiClient(configuration) as api_client:
-                api_instance = projects_api.ProjectsApi(api_client)
-                api_response = api_instance.project_query(project_id)
-            instrument = api_response['instrument']
-        else:
-            instrument = df_standardizer['Instrument'][project_id]
-
-        if 'Sampling_upper_size' not in df.columns:
-            df['Sampling_upper_size'] = np.nan
-            units_of_interest['Sampling_upper_size_unit'] = 'micrometer'
-        if 'Sampling_lower_size' not in df.columns:
-            df['Sampling_lower_size'] = np.nan
-            units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
-
-        if (len(df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])])>0) and (instrument in camera_resolution.keys()):
-            df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])] = (camera_resolution[instrument]['Sampling_upper_size']/pixel_size_ratio.magnitude[0])*ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit'])
-        if (len(df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])])>0) and (instrument in camera_resolution.keys()):
-            df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit']) if instrument !='Zooscan' else (2*(((camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2))/np.pi)**0.5)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
+                # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
+                df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],[file])).drop_duplicates().reset_index(drop=True)
+                df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
+                df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
 
 
-        # Update taxonomic annotations lookup table (df_taxonomy) with new annotations
-        if 'Category' in df.columns:
-            new_categories =df.dropna(subset='Category').Category[df.dropna(subset='Category').Category.isin(list(df_taxonomy.Category))==False].unique()
-            if len(new_categories):
-                try:
-                    df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace("_"," ")).assign(Category=hierarchy), new_categories))
-                    df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
-                    df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
-                    df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
-                    df_taxonomy = pd.concat([df_taxonomy.reset_index(drop=True), df_taxonomy_new[[column for column in df_taxonomy.columns if column in df_taxonomy_new.columns]].reset_index(drop=True)],axis=0, ignore_index=True)
-                    df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
-                    print('New taxonomic annotations found in the project. Updating the taxonomic annotations lookup table')
-                    with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                        df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
-                except:
-                    pass
+
+                # Remove flagged samples/profiles
+                df=df[df['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
+                df_method=df_method[df_method['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
+                if len(df)==0:
+                    continue
+
+                # Append method description
+                additional_description =' '.join([':'.join([additional_key,columns_for_description[additional_key]]) for additional_key in columns_for_description.keys() if additional_key not in fields_for_description.index]) if type(columns_for_description)==dict else []
+                if (len(fields_for_description.index)>0) or (len(additional_description) > 0):
+                    df_method=pd.merge(df_method,df[['Sample']],how='left',on=['Sample'])
+                    df=df.assign(Sampling_description=additional_description+' ' + df_method[fields_for_description.index].apply(' '.join, axis=1) if len(additional_description) > 0 else df_method[fields_for_description.index].apply(' '.join, axis=1) )
+                else:
+                    df=df.assign(Sampling_description=columns_for_description)
+
+                # Set missing values to NA
+                na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
+                # Convert known data types to ensure masking of missing values is correct
+                df=df.astype({key:value for key,value in dict(zip(['Sample','Latitude','Longitude','Volume_analyzed','Pixel'],[str,float,float,float,float])).items() if key in df.columns})
+                # Convert NAs
+                df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
+                columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'Major_axis', 'ESD', 'Biovolume']]
+                df[columns_to_convert] =  df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
+
+                # Convert datetime and longitude format
+                if 'Sampling_date' in df.columns:
+                    if is_float(df.at[0, 'Sampling_date']):
+                        df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
+                        df = df.loc[df['Sampling_date'].astype(float).isna() == False]
+                if 'Sampling_time' in df.columns:
+                    if is_float(df.at[0, 'Sampling_time']):
+                        df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
+
+                df['datetime'] = pd.to_datetime(df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime(df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'], utc=True) if 'Sampling_date' in df.columns else pd.to_datetime(df['Sampling_time'].astype(str).str.zfill(6), format=df_standardizer.at[project_id, 'Sampling_time_format'],utc=True) if 'Sampling_time' in df.columns else pd.NaT
+                df['Longitude'] = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
+
+                # Transform variables based on field units
+                units=[string for string in list(df_standardizer.columns) if "_unit" in string]
+                units_of_interest =  dict(zip(units,df_standardizer.loc[project_id][units].values.flatten().tolist()))
+                # Test whether all units are defined:                             [re.sub(r'^-?[0-9]_times_10power-?[0-9]_','',str(unit)) for unit in list(units_of_interest.values())]
+                if any([unit not in ureg for unit in list(units_of_interest.values()) if str(unit)!='nan']):
+                    print('\nQuitting. Please fill out standardizer with units from the list below or define your custom unit in {} using known units:\n'.format(path_to_data.parent.parent.parent /'Scripts'/'units_def.txt'),full_list_units, sep='')
+                    continue
+
+                # Convert pixel_to_size ratio in units pixel per millimeter
+                if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='pixel':
+                    pixel_size_ratio =  PQ(list(df.Pixel/ureg(units_of_interest['Pixel_unit'].split('_per_')[1]).to('millimeter')), 'pixel/millimeter')
+                if str(ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to_base_units().units)=='meter':
+                    pixel_size_ratio = PQ(list(1/(df.Pixel*ureg(units_of_interest['Pixel_unit'].split('_per_')[0]).to('millimeter'))), 'pixel/millimeter')
+
+                image_resize_factor = np.where(df_method['image_resize_factor'].isna(),8,df_method['image_resize_factor'].isna()) if 'image_resize_factor' in df_method.columns else 8
+                blob_x_grow = np.where(df_method['blob_x_grow'].isna(),20,df_method['blob_x_grow']) if 'blob_x_grow' in df_method.columns else 20
+                blob_y_grow = np.where(df_method['blob_y_grow'].isna(),5,df_method['blob_y_grow']) if 'blob_y_grow' in df_method.columns else 5
+                min_blob_area = np.where(df['Sampling_lower_size'].isna(),2000,df['Sampling_lower_size']) if 'Sampling_lower_size' in df.columns else 2000
+
+                # Convert pixel to millimeter for upper/lower size
+                if units_of_interest['Sampling_upper_size_unit'] == 'pixel':
+                        df['Sampling_upper_size'] = df['Sampling_upper_size'] / (pixel_size_ratio.magnitude)
+                        units_of_interest['Sampling_upper_size_unit'] = 'millimeter'
+                if units_of_interest['Sampling_lower_size_unit'] == 'pixel':
+                        df['Sampling_lower_size'] = df['Sampling_lower_size'] / (pixel_size_ratio.magnitude ** 2)
+                        units_of_interest['Sampling_lower_size_unit'] = 'millimeter'
+                # Set lower and upper size imaging threshold based on camera resolution and settings if missing (in pixels). # Upper threshold based on longest camera pixel dimension / Lower threshold is based on area
+                if (df_standardizer.loc[project_id]['Instrument']=='IFCB') and (Path(df_standardizer.loc[project_id]['Project_localpath']).stem==cfg['IFCB_dir']):
+                    df['Sampling_lower_size'] = np.nan
+                    units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
+
+                camera_resolution = {'IFCB': {'Sampling_lower_size': image_resize_factor* min_blob_area, 'Sampling_upper_size':1360}, # Equivalent to minimumBlobArea/(blobXgrowAmount x blobYgrowAmount). Info stored in hdr file. See IFCB user group post: https://groups.google.com/g/ifcb-user-group/c/JYEoiyWNnLU/m/nt3FplR8BQAJ
+                                     'UVP5HD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2048},
+                                     'UVP5SD': {'Sampling_lower_size': 30, 'Sampling_upper_size': 1280},
+                                     'UVP6': {'Sampling_lower_size': 30, 'Sampling_upper_size': 2464},
+                                     'Zooscan': {'Sampling_lower_size': 631, 'Sampling_upper_size': 22640}}
+
+                if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
+                    with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                        api_instance = projects_api.ProjectsApi(api_client)
+                        api_response = api_instance.project_query(project_id)
+                    instrument = api_response['instrument']
+                else:
+                    instrument = df_standardizer['Instrument'][project_id]
+
+                if 'Sampling_upper_size' not in df.columns:
+                    df['Sampling_upper_size'] = np.nan
+                    units_of_interest['Sampling_upper_size_unit'] = 'micrometer'
+                if 'Sampling_lower_size' not in df.columns:
+                    df['Sampling_lower_size'] = np.nan
+                    units_of_interest['Sampling_lower_size_unit'] = 'micrometer'
+
+                if (len(df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])])>0) and (instrument in camera_resolution.keys()):
+                    df['Sampling_upper_size'].loc[np.isnan(df['Sampling_upper_size'])] = (camera_resolution[instrument]['Sampling_upper_size']/pixel_size_ratio.magnitude[0])*ureg('millimeter').to(units_of_interest['Sampling_upper_size_unit'])
+                if (len(df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])])>0) and (instrument in camera_resolution.keys()):
+                    df['Sampling_lower_size'].loc[np.isnan(df['Sampling_lower_size'])] = (camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit']) if instrument !='Zooscan' else (2*(((camera_resolution[instrument]['Sampling_lower_size'] / (pixel_size_ratio.magnitude[0]**2))/np.pi)**0.5)) * ureg('millimeter').to(units_of_interest['Sampling_lower_size_unit'])
 
 
-        # Use pint units system to convert units in standardizer spreadsheet to standard units
-        # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
-
-        df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
-                       Cruise=df.Cruise if 'Cruise' in df.columns else pd.NA,
-                       Station=df.Station if 'Station' in df.columns else pd.NA,
-                       Profile=df.Profile if 'Profile' in df.columns else pd.NA,
-                       Sample=df.Sample if 'Sample' in df.columns else pd.NA,
-                       Sampling_date=df.datetime.dt.strftime('%Y%m%d') if all(np.isnan(df.datetime)==False) else pd.NA,
-                       Sampling_time=df.datetime.dt.strftime('%H%M%S') if all(np.isnan(df.datetime)==False) else pd.NA,
-                       Pixel=pixel_size_ratio.magnitude[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
-                       Volume_analyzed=1000*(list(df.Volume_analyzed)*ureg(units_of_interest['Volume_analyzed_unit']).to(ureg.cubic_meter))if 'Volume_analyzed' in df.columns else pd.NA, # cubic decimeter
-                       Latitude=list(df.Latitude)*ureg(units_of_interest['Latitude_unit']).to(ureg.degree) if 'Latitude' in df.columns else pd.NA, # degree decimal
-                       Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
-                       Depth_min=list(df.Depth_min) * ureg(units_of_interest['Depth_min_unit']).to(ureg.meter) if 'Depth_min' in df.columns else pd.NA,  # meter
-                       Depth_max=list(df.Depth_max) * ureg(units_of_interest['Depth_max_unit']).to(ureg.meter) if 'Depth_max' in df.columns else pd.NA,  # meter
-                       Annotation=np.where(df.Annotation.apply(lambda x:'' if str(x)=='nan' else x).astype(str).str.len()>0,df.Annotation,'unclassified') if 'Annotation' in df.columns else 'predicted' if ('Annotation' not in df.columns) and ('Category' in df.columns) else 'unclassified',
-                       Category=df.Category.astype(str).apply(lambda x:'' if str(x)=='nan' else x) if 'Category' in df.columns else '',
-                       Area=1e06*((df.Area*[1*ureg(units_of_interest['Area_unit']).to(ureg.square_pixel).magnitude for ntimes in range(df[['Area']].shape[1])])/((np.vstack([pixel_size_ratio**2 for ntimes in range(df[['Area']].shape[1])]).T)[0,:])) if all(pd.Series(['Area','Pixel']).isin(df.columns)) else pd.NA, # square micrometers
-                       Biovolume=1e09*(df.Biovolume*[1*ureg(units_of_interest['Biovolume_unit']).to(ureg.cubic_pixel).magnitude for ntimes in range(df[['Biovolume']].shape[1])]/((np.vstack([pixel_size_ratio**3 for ntimes in range(df[['Biovolume']].shape[1])]).T)[0,:])) if all(pd.Series(['Biovolume','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
-                       Minor_axis=1e03*(df.Minor_axis*[1*ureg(units_of_interest['Minor_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Minor_axis']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['Minor_axis']].shape[1])]).T)[0,:])) if all(pd.Series(['Minor_axis','Pixel']).isin(df.columns)) else pd.NA, #  micrometers
-                       Major_axis=1e03 * (df.Major_axis * [1 * ureg(units_of_interest['Major_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Major_axis']].shape[1])] / ((np.vstack([pixel_size_ratio for ntimes in range(df[['Major_axis']].shape[1])]).T)[0,:])) if all( pd.Series(['Major_axis', 'Pixel']).isin(df.columns)) else pd.NA, # micrometers
-                       ESD=1e03*(df.ESD*[1*ureg(units_of_interest['ESD_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['ESD']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['ESD']].shape[1])]).T)[0,:])) if all(pd.Series(['ESD','Pixel']).isin(df.columns)) else pd.NA, # micrometers
-                       Sampling_type=df.Sampling_type if 'Sampling_type' in df.columns else pd.NA,
-                       Sampling_lower_size=list(df.Sampling_lower_size)*ureg(units_of_interest['Sampling_lower_size_unit']).to(ureg.micrometer) if 'Sampling_lower_size' in df.columns else pd.NA, # micrometer
-                       Sampling_upper_size=list(df.Sampling_upper_size)*ureg(units_of_interest['Sampling_upper_size_unit']).to(ureg.micrometer) if 'Sampling_upper_size' in df.columns else pd.NA # micrometer
-                       )
+                # Update taxonomic annotations lookup table (df_taxonomy) with new annotations
+                if 'Category' in df.columns:
+                    new_categories =df.dropna(subset='Category').Category[df.dropna(subset='Category').Category.isin(list(df_taxonomy.Category))==False].unique()
+                    if len(new_categories):
+                        try:
+                            df_taxonomy_new = pd.concat( map(lambda hierarchy: annotation_in_WORMS(hierarchy.replace("_"," ")).assign(Category=hierarchy), new_categories))
+                            df_taxonomy_new['URL'] = df_taxonomy_new.WORMS_ID.apply( lambda id: 'https://www.marinespecies.org/aphia.php?p=taxdetails&id={}'.format( id.replace('urn:lsid:marinespecies.org:taxname:', '')) if len(id) else '')
+                            df_taxonomy_new['Life_stage'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ast.literal_eval(dict)['Life stage'] for dict in group.split(';') if len(group) > 0 and 'Life stage' in ast.literal_eval(dict).keys()]))
+                            df_taxonomy_new['functional_group'] = df_taxonomy_new.Functional_group.apply(lambda group: ';'.join([ dict.replace('{', '').replace(', ', ' (').replace( '}', ')').replace( "'", "") if len( group) > 0 and len( ast.literal_eval( dict)) > 1 else dict.replace( '{', '').replace( ', ', ' (').replace( '}', '').replace( "'", "") if len( group) > 0 and len( ast.literal_eval(dict)) == 1 else ''  for dict  in group.split( ';')]))
+                            df_taxonomy = pd.concat([df_taxonomy.reset_index(drop=True), df_taxonomy_new[[column for column in df_taxonomy.columns if column in df_taxonomy_new.columns]].reset_index(drop=True)],axis=0, ignore_index=True)
+                            df_taxonomy = df_taxonomy.sort_values(['Type', 'Category'], ascending=[False, True]).reset_index( drop=True)
+                            print('New taxonomic annotations found in the project. Updating the taxonomic annotations lookup table')
+                            with pd.ExcelWriter(str(path_to_taxonomy), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
+                                df_taxonomy.to_excel(writer, sheet_name='Data', index=False)
+                        except:
+                            pass
 
 
-        # Set volume analyzed to 5 mL for IFCB projects
-        if (df_standardizer.loc[project_id]['Instrument'] in ['IFCB']) and all(df_standardized['Volume_analyzed'].isna()):
-            df_standardized['Volume_analyzed']=PQ(5*ureg('milliliter').to('liter')).magnitude
+                # Use pint units system to convert units in standardizer spreadsheet to standard units
+                # (degree for latitude/longitude, meter for depth, multiple of micrometer for plankton size)
 
-        # Convert volume analyzed to volume imaged to account for samples dilution or fractionation
-        if 'Dilution' in df.columns:
-            dilution_factor = df.Dilution#np.where(df.Dilution > 1, df.Dilution, 1 / df.Dilution)
-            dilution_factor[pd.Series(dilution_factor).isna()] = 1  # Replace NA values with 1
-        else:
-            dilution_factor=1
+                df_standardized = df.assign(Instrument=df_standardizer.loc[project_id,'Instrument'],Project_ID=project_id,
+                               Cruise=df.Cruise if 'Cruise' in df.columns else pd.NA,
+                               Station=df.Station if 'Station' in df.columns else pd.NA,
+                               Profile=df.Profile if 'Profile' in df.columns else pd.NA,
+                               Sample=df.Sample if 'Sample' in df.columns else pd.NA,
+                               Sampling_date=df.datetime.dt.strftime('%Y%m%d') if all(np.isnan(df.datetime)==False) else pd.NA,
+                               Sampling_time=df.datetime.dt.strftime('%H%M%S') if all(np.isnan(df.datetime)==False) else pd.NA,
+                               Pixel=pixel_size_ratio.magnitude[0] if 'Pixel' in df.columns else pd.NA, # in pixels per millimeter
+                               Volume_analyzed=1000*(list(df.Volume_analyzed)*ureg(units_of_interest['Volume_analyzed_unit']).to(ureg.cubic_meter))if 'Volume_analyzed' in df.columns else pd.NA, # cubic decimeter
+                               Latitude=list(df.Latitude)*ureg(units_of_interest['Latitude_unit']).to(ureg.degree) if 'Latitude' in df.columns else pd.NA, # degree decimal
+                               Longitude=list(df.Longitude) * ureg(units_of_interest['Longitude_unit']).to(ureg.degree) if 'Longitude' in df.columns else pd.NA,  # degree decimal
+                               Depth_min=list(df.Depth_min) * ureg(units_of_interest['Depth_min_unit']).to(ureg.meter) if 'Depth_min' in df.columns else pd.NA,  # meter
+                               Depth_max=list(df.Depth_max) * ureg(units_of_interest['Depth_max_unit']).to(ureg.meter) if 'Depth_max' in df.columns else pd.NA,  # meter
+                               Annotation=np.where(df.Annotation.apply(lambda x:'' if str(x)=='nan' else x).astype(str).str.len()>0,df.Annotation,'unclassified') if 'Annotation' in df.columns else 'predicted' if ('Annotation' not in df.columns) and ('Category' in df.columns) else 'unclassified',
+                               Category=df.Category.astype(str).apply(lambda x:'' if str(x)=='nan' else x) if 'Category' in df.columns else '',
+                               Area=1e06*((df.Area*[1*ureg(units_of_interest['Area_unit']).to(ureg.square_pixel).magnitude for ntimes in range(df[['Area']].shape[1])])/((np.vstack([pixel_size_ratio**2 for ntimes in range(df[['Area']].shape[1])]).T)[0,:])) if all(pd.Series(['Area','Pixel']).isin(df.columns)) else pd.NA, # square micrometers
+                               Biovolume=1e09*(df.Biovolume*[1*ureg(units_of_interest['Biovolume_unit']).to(ureg.cubic_pixel).magnitude for ntimes in range(df[['Biovolume']].shape[1])]/((np.vstack([pixel_size_ratio**3 for ntimes in range(df[['Biovolume']].shape[1])]).T)[0,:])) if all(pd.Series(['Biovolume','Pixel']).isin(df.columns)) else pd.NA, # cubic micrometers
+                               Minor_axis=1e03*(df.Minor_axis*[1*ureg(units_of_interest['Minor_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Minor_axis']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['Minor_axis']].shape[1])]).T)[0,:])) if all(pd.Series(['Minor_axis','Pixel']).isin(df.columns)) else pd.NA, #  micrometers
+                               Major_axis=1e03 * (df.Major_axis * [1 * ureg(units_of_interest['Major_axis_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['Major_axis']].shape[1])] / ((np.vstack([pixel_size_ratio for ntimes in range(df[['Major_axis']].shape[1])]).T)[0,:])) if all( pd.Series(['Major_axis', 'Pixel']).isin(df.columns)) else pd.NA, # micrometers
+                               ESD=1e03*(df.ESD*[1*ureg(units_of_interest['ESD_unit']).to(ureg.pixel).magnitude for ntimes in range(df[['ESD']].shape[1])]/((np.vstack([pixel_size_ratio for ntimes in range(df[['ESD']].shape[1])]).T)[0,:])) if all(pd.Series(['ESD','Pixel']).isin(df.columns)) else pd.NA, # micrometers
+                               Sampling_type=df.Sampling_type if 'Sampling_type' in df.columns else pd.NA,
+                               Sampling_lower_size=list(df.Sampling_lower_size)*ureg(units_of_interest['Sampling_lower_size_unit']).to(ureg.micrometer) if 'Sampling_lower_size' in df.columns else pd.NA, # micrometer
+                               Sampling_upper_size=list(df.Sampling_upper_size)*ureg(units_of_interest['Sampling_upper_size_unit']).to(ureg.micrometer) if 'Sampling_upper_size' in df.columns else pd.NA # micrometer
+                               )
 
-        df_standardized = df_standardized.assign(Volume_imaged=df_standardized.Volume_analyzed/dilution_factor) # cubic decimeters
 
-        # Save data and metadata sheet
-        path_dict = df[['File_path', 'Sample']].drop_duplicates().groupby(['File_path'])['Sample'].apply(list).to_dict()
+                # Set volume analyzed to 5 mL for IFCB projects
+                if (df_standardizer.loc[project_id]['Instrument'] in ['IFCB']) and all(df_standardized['Volume_analyzed'].isna()):
+                    df_standardized['Volume_analyzed']=PQ(5*ureg('milliliter').to('liter')).magnitude
 
-        # Split small/large particles from consolidated UVP projects and use object_number column to add corresponding ROI
-        df_standardized =df_standardized.astype({key:value for key,value in dict(zip(['Sample','Profile','Cruise','Station','Sampling_date','Sampling_time', 'Category', 'Annotation'],8*[str])).items() if key in df_standardized.columns})
+                # Convert volume analyzed to volume imaged to account for samples dilution or fractionation
+                if 'Dilution' in df.columns:
+                    dilution_factor = df.Dilution#np.where(df.Dilution > 1, df.Dilution, 1 / df.Dilution)
+                    dilution_factor[pd.Series(dilution_factor).isna()] = 1  # Replace NA values with 1
+                else:
+                    dilution_factor=1
 
-        df_standardized['object_number']=df_standardized['object_number'] if 'object_number' in df_standardized.columns else np.repeat(1,len(df_standardized))
-        df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
-        df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged',
-                                    'ROI','ROI_number', 'Annotation','Category', 'Minor_axis', 'Major_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
-        print('\nSaving standardized datafile to', path_to_standard_dir, sep=' ')
-        df.groupby(['File_path']).apply( lambda x: df_standardized[df_standardized.Sample.isin(path_dict.get(x.File_path.unique()[0]))].to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(x.File_path.unique()[0].stem)[str(x.File_path.unique()[ 0].stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( x.File_path.unique()[ 0].stem))].replace( '_features', '')), sep=",", index=False))
+                df_standardized = df_standardized.assign(Volume_imaged=df_standardized.Volume_analyzed/dilution_factor) # cubic decimeters
+
+                # Save data and metadata sheet
+                df_standardized=pd.merge(df_standardized,df[['File_path', 'Sample']].drop_duplicates(),how='left',on='Sample')
+                df_standardized =df_standardized.astype({key:value for key,value in dict(zip(['Sample','Profile','Cruise','Station','Sampling_date','Sampling_time', 'Category', 'Annotation'],8*[str])).items() if key in df_standardized.columns})
+
+                df_standardized['object_number']=df_standardized['object_number'] if 'object_number' in df_standardized.columns else np.repeat(1,len(df_standardized))
+                df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
+                df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged', 'ROI','ROI_number', 'Annotation','Category', 'Minor_axis', 'Major_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
+                df_standardized.to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(file.stem)[str(file.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( file.stem))].replace( '_features', '')), sep=",", index=False)
+                bar.set_description('Saving standardized datafile(s)', refresh=True)
+                ok = bar.update(n=1)
+                df_standardized_new=pd.concat([df_standardized_new,df_standardized],axis=0)
+
         # with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
         # df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
         # df_standardized_metadata.to_csv(path_to_metadata_standard, sep="\t",index=False)  # to_excel(writer, sheet_name='Metadata',index=False)
-        df_standardized = pd.concat([df_standardized_existing.reset_index(drop=True), df_standardized.reset_index(drop=True)], axis=0,ignore_index=True)
+        df_standardized = pd.concat([df_standardized_existing.reset_index(drop=True), df_standardized_new.reset_index(drop=True)], axis=0,ignore_index=True)
 
         df_standardized=df_standardized[(df_standardized.Longitude<=180) & (df_standardized.Longitude>=-180) & (df_standardized.Latitude<=90) & (df_standardized.Latitude>=-90)]
         #df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
