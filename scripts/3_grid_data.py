@@ -135,7 +135,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         print(str(n_del_files) + ' files were not gridded due to missing Lat/Lon, deep water sample, time information or validation status < 95% for ' +instrument)
         if depth_binning == False:
             metadata_bins = pd.DataFrame(
-                    {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_orig', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id',  'date_grouping', 'light_cond'],
+                    {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_distance_map', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id',  'date_grouping', 'light_cond'],
                      # 'light_cond',
                      'Variable_types': ['float64','float64','float64', 'int64', 'object', 'float64', 'float64','object','object','object','object','object'],  # 'str',
                      'Units/Values/Timezone': ['cubic_micrometer','cubic_micrometer','cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree','lat-lat','lon-lon','lat-lat_lon-lon', 'month-year', ''],  # '',
@@ -154,7 +154,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         elif depth_binning == True:
             df['midDepthBin'] = depth_binning_func(df['Depth_max'], depth_bins=depth_bins)
             metadata_bins = pd.DataFrame(
-                    {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_orig', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id',  'date_grouping', 'light_cond', 'midDepthBin'],
+                    {'Variables': ['Biovolume_area', 'Biovolume_ellipsoid', 'Biovolume_distance_map', 'date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'lat_grid', 'lon_grid', 'grid_id',  'date_grouping', 'light_cond', 'midDepthBin'],
                      # 'light_cond',
                      'Variable_types': ['float64','float64','float64', 'int64', 'object', 'float64', 'float64','object','object','object','object','object', 'float64'],  # 'str',
                      'Units/Values/Timezone': ['cubic_micrometer','cubic_micrometer','cubic_micrometer', date_group, 'lat_lon', 'degree', 'degree','lat-lat','lon-lon','lat-lat_lon-lon', 'month-year', '', 'meters'],  # '',
