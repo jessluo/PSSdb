@@ -7,11 +7,11 @@
 #  Running function (4) is required after project export in order to reduce (i.e. select only the raw columns necessary for further processing), harmonize (all the PSSdb projects now have similar columns, regardless of specific instrumentation and image acquisition/processing routines), and standardize (All columns follow standardized notations and units according to international database, including taxonomic annotations) project export files
 
 ## Requirements: Change path on
-# l.69: configuration file with username/password information (Ecotaxa_API_pw.yaml)
+# l.46: configuration file with username/password information (configuration_masterfile_pw.yaml)
 # l.93: custom units definition file (units_def.txt)
 # l.106: plankton taxonomic information (plankton_annotated_taxonomy.xlsx). File created/updated below
 
-## TO DO: Perform standardization on other imaging sensor projects (at the moment function 3 only works for Zooscan, IFCB, and UVP)
+## TO DO: Perform standardization on other imaging sensor projects (at the moment function has been tested on ZooCAM, generic scanner, Zooscan, IFCB, and UVP)
 
 
 ## Python modules
@@ -36,7 +36,7 @@ from ecotaxa_py_client.api import objects_api
 from ecotaxa_py_client.model.project_filters import ProjectFilters
 from ecotaxa_py_client.api import taxonomy_tree_api
 from ecotaxa_py_client.model.taxon_model import TaxonModel
-
+from collections import ChainMap
 path_to_config=Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
 with open(path_to_config ,'r') as config_file:
     cfg = yaml.safe_load(config_file)
@@ -500,7 +500,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         dataframe['Flag_dubiousGPScoordinates'] = np.where(dataframe['Sample'].isin(gdf.get('Sample')[list(map(lambda x: x.contains(Point(0, 0)), gdf.geometry.tolist()))]), 1,dataframe['Flag_dubiousGPScoordinates'])
          # Flag #4 (count), #5 (artefacts), #6(validation, UVP/Zooscan-only)
         # Calculate count uncertainties assuming Poisson distribution. Upper-lower count limit are based on 5% uncertainty
-        summary=dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI) if 'object_number' not in dataframe.columns else x['object_number'].sum(),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)) if 'object_number' not in dataframe.columns else poisson.pmf(k=x['object_number'].sum(),mu=x['object_number'].sum()),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)) if 'object_number' not in dataframe.columns else poisson.ppf((0.05/2), mu=x['object_number'].sum()),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI)) if 'object_number' not in dataframe.columns else poisson.ppf(1-(0.05/2), mu=x['object_number'].sum())})).reset_index()
+        summary=dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI) if 'ROI_number' not in dataframe.columns else x['ROI_number'].sum(),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.pmf(k=x['ROI_number'].sum(),mu=x['ROI_number'].sum()),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.ppf((0.05/2), mu=x['ROI_number'].sum()),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.ppf(1-(0.05/2), mu=x['ROI_number'].sum())})).reset_index()
         # kwargs={'mapping':'x:Sample,y:ROI_count,ymin:Count_lower,ymax:Count_upper','scale_y_log10()':'','theme(axis_text_x=element_blank())':''}
         # ggplot_funcs(dataframe=summary,output_path='~/GIT/PSSdb_LOV_orga/Plots/EcoTaxa_3315_count_uncertainty.png',xlab='Sample ID',ylab='Number of pictures per sample',geom='geom_pointrange',**kwargs)
         dataframe['Flag_count'] = 0
@@ -541,13 +541,7 @@ def save_flag_summary(df_flagged,df_standardizer,project_id,path_to_summary):
     gdf = gpd.GeoDataFrame(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna(),geometry=gpd.points_from_xy(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Longitude,df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
     df_flagged['Study_area'] = pd.merge(df_flagged, gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')[['Sample', 'name']], how='left', on='Sample')['name'].astype(str)
     df_flagged['Longhurst_province'] = pd.merge(df_flagged, gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']], how='left', on='Sample')['ProvDescr'].astype(str)
-    if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
-        with ecotaxa_py_client.ApiClient(configuration) as api_client:
-            api_instance = projects_api.ProjectsApi(api_client)
-            api_response = api_instance.project_query(int(project_id))
-        instrument = api_response['instrument']
-    else:
-        instrument = df_standardizer['Instrument'][project_id]
+    instrument = df_standardizer['Instrument'][project_id]
     df_flagged= df_flagged.assign(Project_ID=project_id, Instrument=instrument)
     df_summary = df_flagged.rename(
         columns={'Flag': 'Sample_flag', 'Sample_URL': 'Sample_url', 'datetime': 'Sample_datetime'}).astype(
@@ -557,20 +551,21 @@ def save_flag_summary(df_flagged,df_standardizer,project_id,path_to_summary):
         ['Project_ID', 'Instrument', 'Sample', 'Sample_url', 'Sample_localpath', 'Sample_flag', 'Longitude', 'Latitude',
          'Study_area', 'Longhurst_province', 'Sample_datetime']).apply(lambda x: pd.Series(
         {'Sampling_depth_min_range': x.Depth_min.min(), 'Sampling_depth_max_range': x.Depth_max.max(),
-         'object_number': len(x) if 'ROI_number' not in df_flagged.columns else x.object_number.sum()})).reset_index()
+         'object_number': len(x) if 'ROI_number' not in df_flagged.columns else x.ROI_number.sum()})).reset_index()
     path_to_summary_file = str(path_to_summary / instrument / 'Summary_project_{}.csv'.format(project_id)) if path_to_summary.stem.lower() == 'ecotaxa' else str(path_to_summary / 'Summary_project_{}.csv'.format(project_id))
     Path(path_to_summary_file).parent.mkdir(parents=True, exist_ok=True)
     df_summary.to_csv(path_to_summary_file, sep=',', index=False)
 
 
-#filling_standardizer_flag_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb/reports')
-def filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[]):
+#quality_control_func(standardizer_path='~/GIT/PSSdb/raw/project_Zooscan_standardizer.xlsx',project_id=4023,report_path='~/GIT/PSSdb/reports')
+def quality_control_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[]):
     """
     Objective: This function adds flags to image samples based on multiple criteria and automatically generate a report for a given project
         :param standardizer_path: Full path of the standardizer spreadsheet containing project ID of interest
         :param project_id: ID of the project to be flagged in the standardizer spreadsheet
         :param report_path: Full path for the storage of the project control quality check interactive report
         :param validation_threshold: Threshold for sample/profile taxonomic annotation validation in percentage [0-1]. UVP and Zooscan projects only. Default is 95%
+        :param project_list: List of project path used to process multiple files using parallel computation. Do not change
     :return: interactive report showing project's flags and update standardizer spreadsheet with flagged samples ID
     """
     sheets = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
@@ -587,30 +582,41 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
 
     # Read project datafile, subsetting variables of interest
     if len(project_list)==0:
-        project_path_list = list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("ecotaxa_export_"+str(project_id)+'_*'))
+        project_path_list = list(Path(df_standardizer['Project_localpath'][project_id].replace(cfg['raw_dir'],cfg['raw_dir']+cfg['standardized_raw_subdir']+'/')).expanduser().rglob("standardized_project_"+str(project_id)+'_*')) #list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().rglob("*_"+str(project_id)+'_*')) if Path(df_standardizer['Project_localpath'][project_id]).expanduser().stem!=cfg['UVP_consolidation_subdir'] else list(Path(df_standardizer['Project_localpath'][project_id]).expanduser().glob("ecotaxa_export_"+str(project_id)+'_*'))
         project_path = natsorted([path for path in project_path_list if ('flag' not in str(path)) & ("._" not in str(path))])
     else:
         project_path=natsorted([path for path in project_list if ('flag' not in str(path)) & ("._" not in str(path))])
 
     if len(project_path)>0:
+
          # Set missing values to NA
          na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
          columns_dict=dict(zip(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().values),list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))))
-         columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
+         #columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
+
+         dtypes_dict_all = dict(zip(['Cruise', 'Station', 'Profile', 'Sample', 'Latitude', 'Longitude', 'Depth_min', 'Depth_max','Sampling_date', 'Sampling_time', 'Volume_analyzed', 'Volume_imaged', 'ROI', 'Area', 'Pixel', 'Minor_axis','Major_axis', 'Biovolume','ESD', 'Category', 'Annotation', 'Sampling_type', 'Sampling_lower_size', 'Sampling_upper_size','ROI_number', 'Sampling_description'],[str, str, str, str, float, float, float, float, str, str, float,float, str, float,float, float, float, float, float, str, str, str, float, float, int, str]))
+         df_samples=list(map(lambda path:{str(path).replace(str(Path.home()),'~'):pd.read_table(path,sep=',',usecols=['Sample']).Sample.unique()},project_path))
          flagged_df = pd.DataFrame()
          if (df_standardizer.loc[project_id]['Instrument']=='IFCB') & (len(project_path)>1):
              # Read all datafiles
-             chunk = 1000
-             with ThreadPool() as pool:
-                 #for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
-                 for result in pool.map(lambda path: filling_standardizer_flag_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path]), project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+             #chunk = 1000
+             with tqdm(desc='', total=len(project_path), bar_format='{desc}{bar}', position=0, leave=True) as bar,ThreadPool() as pool:
+                 for path in project_path:
+             #with ThreadPool() as pool:
+                 #for result in pool.map(lambda path: control_quality_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path]), project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
+                     percent = np.round(100 * ((1+bar.n )/ len(project_path)), 1)
+                     bar.set_description('Flagging sample {} (%s%%)'.format(str(1+bar.n) + "/" + str(len(project_path))) % percent, refresh=True)
+                     result=quality_control_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path])
                      flagged_df = pd.concat([flagged_df, result], axis=0)
+                     ok = bar.update(n=1)
              flagged_df=flagged_df.reset_index(drop=True)
 
          else:
-             df = pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
-
+             df = pd.concat(map(lambda path:  pd.read_table(path,sep=',',usecols=list(set(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))+['Sampling_lower_size','Sampling_upper_size','Sampling_date','Sampling_time','Depth_max','Depth_min','ROI_number'])),dtype=dtypes_dict_all,parse_dates={'datetime':['Sampling_date','Sampling_time']}).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')), project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True#pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
+             if 'ROI_number' not in df.columns:
+                 df['ROI_number']=1
          if len(flagged_df) == 0:
+             '''
              old_columns = df.columns
              #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
              index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
@@ -628,15 +634,17 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
                      df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
 
              df['datetime'] = pd.to_datetime( df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime( df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime( df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[project_id, 'Sampling_time_format'], utc=True) if 'Sampling_time' in df.columns else pd.NaT
+             '''
              df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
-             # Set missing values to NA
-             na = str(df_standardizer.loc[project_id]['NA_value']).split(';')
              # Replace NA ROI/mino/annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
              df.ROI = np.where(df.ROI.isna(), '', df.ROI)
              if 'Minor_axis' in df.columns:
                  df.Minor_axis = np.where(df.Minor_axis.isna(), '', df.Minor_axis)
              if 'Major_axis' in df.columns:
                  df.Major_axis = np.where(df.Major_axis.isna(), '', df.Major_axis)
+             if 'Sampling_type'  in df.columns:
+                 df.Sampling_type=np.where(df.Sampling_type.isna(), '', df.Sampling_type)
+
              if 'Category' not in df.columns:
                  df['Category'] = ''
                  df['Annotation'] = 'unclassified'
@@ -645,12 +653,15 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
              df.Category = np.where((df.Category.isna()) | (df.Category.astype(str)=='nan'),'',df.Category) # Avoid flagging of small particles without annotations for UVP projects
              df.Annotation = np.where((df.Annotation.isna()) | (df.Annotation.astype(str) == 'nan'), 'unclassified',df.Annotation)
              df = df.astype({key:value for key,value in dict(zip(['Sample', 'Latitude', 'Longitude', 'Volume_analyzed', 'Pixel'], [str, float, float, float, float])).items() if key in df.columns})
+             '''
              df = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na) if is_float(value) == False])))
              columns_to_convert = [column for column in df.columns if column not in ['Area', 'Depth_min', 'Depth_max', 'Minor_axis', 'Major_axis', 'ESD', 'Biovolume']]
              df[columns_to_convert] = df.mask(df.apply(lambda x: x.astype(str).isin([convert(value, df.dtypes[x.name]) for value in pd.Series(na)])))[columns_to_convert]
              df.Longitude = (df.Longitude + 180) % 360 - 180  # Converting all longitude to [-180,180] decimal degrees
+             '''
              if 'Cruise' not in df.columns:
                  df['Cruise']='nan'
+
          else:
              df=flagged_df[[column for column in flagged_df.columns if  ('Flag' not in column) &  ('Missing_' not in column)]]
          # Skip existing samples if flag file exists
@@ -659,15 +670,22 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
 
          if (Path(flag_overrule_path).expanduser().is_file()) and len(project_list)==0:
              df_flags = pd.read_csv(flag_overrule_path, sep=',')
-             df_flagged_existing = pd.merge(df[df.Sample.isin(list(df_flags.Sample))], df_flags, how='left',on='Sample')
+             if not 'Sample_localpath' in df_flags.columns:
+                 df_flags['Sample_localpath']=df_flags['Sample'].map(dict(ChainMap(*list(map(lambda dict_path: dict(zip(list(dict_path.values())[0],len(list(dict_path.values())[0])*list(dict_path.keys()))),df_samples)))))
+             df_flagged_existing = pd.merge(df[df.Sample.isin(list(df_flags.Sample))], df_flags, how='left',on=['Sample','Sample_URL','Sample_localpath'])
              df_existing=df[df.Sample.isin(list(df_flags.Sample)) == True]
              df = df[df.Sample.isin(list(df_flags.Sample)) == False]
              if len(df):
                  print('\nExisting flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
              else:
-                 print('\nExisting flags found at {}, but no additional samples.\nSaving flags summary to {} and skipping project'.format(flag_overrule_path,path_to_project_list))
-                 if not (list(path_to_summary.rglob('Summary_project_{}.csv'.format(project_id)))[0]).exists():
-                     save_flag_summary(df_flagged=pd.merge(df_existing,df_flags ,how='left',on='Sample'),df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
+                 print('\nExisting flags found at {}, but no additional samples.\nSaving flags summary to {} (if missing) and skipping project'.format(flag_overrule_path,path_to_project_list))
+                 if not list(path_to_summary.rglob('Summary_project_{}.csv'.format(project_id)))[0].exists():
+                     save_flag_summary(df_flagged=pd.merge(df_existing,df_flags ,how='left',on=['Sample','Sample_URL','Sample_localpath']),df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
+                 else:
+                     df_summary=pd.read_csv(list(path_to_summary.rglob('Summary_project_{}.csv'.format(project_id)))[0])
+                     if not all(pd.merge(df_existing,df_flags ,how='left',on=['Sample','Sample_URL','Sample_localpath']).Sample.isin(df_summary.Sample.unique())):
+                         save_flag_summary(df_flagged=pd.merge(df_existing, df_flags, how='left', on=['Sample', 'Sample_URL', 'Sample_localpath']), df_standardizer=df_standardizer, project_id=project_id,path_to_summary=path_to_summary)
+
                  sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
                  columns_project_list=dict(map(lambda sheet: (sheet,pd.read_excel(path_to_project_list,sheet_name=sheet).columns.tolist()),sheets_project_list))
                  df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
@@ -733,7 +751,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          #if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
          overrule_name ='project_{}_flags.csv'.format(str(project_id))
          print('\nSaving flags to', str(path_to_datafile / overrule_name),'\nSet Overrule to True if you wish to keep samples for further processing', sep=" ")
-         overruled_df = flagged_df[['Sample', 'Sample_URL', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
+         overruled_df = flagged_df[['Sample', 'Sample_URL','Sample_localpath', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
          overruled_df['Overrule'] = False
          overruled_df = overruled_df.sort_values(by=['Flag'], ascending=False)
          pd.concat([df_flags.reset_index(drop=True), overruled_df.reset_index(drop=True)], axis=0).sort_values( by=['Flag', 'Sample'], ascending=[False, True]).to_csv(str(path_to_datafile / overrule_name), sep=',',index=False)
@@ -775,7 +793,7 @@ def filling_standardizer_flag_func(standardizer_path,project_id,report_path,vali
          # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
          flagged_df.Category =np.where((flagged_df.Category == '') | (flagged_df.Category.isna()), pd.NA, df.Category)
          flagged_df_subset = flagged_df.dropna(subset=['Category']) if len(flagged_df.dropna(subset=['Category'])) else flagged_df
-         summary_df = flagged_df_subset.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI.count(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=len(x.ROI)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.astype(str).str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
+         summary_df = flagged_df_subset.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI_number.sum(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=sum(x.ROI_number)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.astype(str).str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
          summary_df['Sample_URL'] =  summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
          subset_summary_df=summary_df.dropna(subset=[ 'Sample','Sample_URL'])
 
@@ -986,12 +1004,14 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     fields_of_interest_series =pd.Series(list(value[1] for value in fields_of_interest_list),list(value[0] for value in fields_of_interest_list))
 
     # Retrieve flagged samples/profiles
+    """
     if str(df_standardizer.loc[project_id]['Flag_path'])!='nan':
           df_flagged=pd.read_table(df_standardizer.loc[project_id]['Flag_path'],sep=',')
           flagged_samples=df_flagged.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Sample'].tolist() if len(df_flagged.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))>0 else ['']
     else:
           flagged_samples =['']
-
+    """
+    flagged_samples = ['']
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
     path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("ecotaxa_export_"+str(project_id)+'_*'))
     path_files_list=[path for path in path_files_list if ('flag' not in str(path)) & ("._" not in str(path))]
@@ -1458,7 +1478,7 @@ def update_summaries(path_to_flags=path_to_git / cfg['dataset_subdir'] / cfg['fl
     remaining_flags = flag_datafiles
     with tqdm(desc='Updating project-specific summary table', total=len(summary_datafiles), bar_format='{desc}{bar}', position=0, leave=True) as bar:
         for path in summary_datafiles:
-            df_summary=pd.read_table(path,sep=",",parse_dates=['Sample_datetime'],date_parser=lambda date: datetime.strptime(date,'%Y-%m-%dT%H%M%SZ'))
+            df_summary=pd.read_table(path,sep=",",parse_dates=['Sample_datetime'],date_parser=lambda date: datetime.datetime.strptime(date,'%Y-%m-%dT%H%M%SZ'))
             percent=np.round(100*bar.n/len(summary_datafiles))
             bar.set_description("Updating project-specific summary table {} ({}%)".format(path.stem.replace('Summary_',''),percent) , refresh=True)
             path_flag=Path(str(path).replace( str(path_to_summaries) + (str(path).replace(str(path_to_summaries), '').replace(path.name, '')),str(path_to_flags) + os.sep+str(str(Path(str(path).replace(str(path_to_summaries),'').replace(path.name,''))).split(os.sep)[1])).replace('Summary_project_', '/project_').replace('.csv', '_flags.csv'))
@@ -1484,7 +1504,7 @@ def update_summaries(path_to_flags=path_to_git / cfg['dataset_subdir'] / cfg['fl
                 percent = np.round(100 * bar.n / len(remaining_flags))
                 bar.set_description( "Generating project-specific summary table {} ({}%)".format(project_id, percent), refresh=True)
                 df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
-                filling_standardizer_flag_func( standardizer_path=path_to_flags.parent / 'project_{}_standardizer.xlsx'.format(re.split(r"\s+|\d+", df_project.Instrument.unique()[0])[0]), project_id=project_id, report_path=path_to_git / 'reports' ,validation_threshold=0.95)
+                quality_control_func( standardizer_path=path_to_flags.parent / 'project_{}_standardizer.xlsx'.format(re.split(r"\s+|\d+", df_project.Instrument.unique()[0])[0]), project_id=project_id, report_path=path_to_git / 'reports' ,validation_threshold=0.95)
                 bar.update(n=1)
 
 
@@ -1525,7 +1545,7 @@ if __name__ == '__main__':
 
     if funcs_args == '3':
         if len(project_args) > 0 and len(standardizerfile_args) > 0:
-             filling_standardizer_flag_func(standardizer_path=standardizerfile_args, project_id=project_args, report_path=path_to_git / 'reports')
+             quality_control_func(standardizer_path=standardizerfile_args, project_id=project_args, report_path=path_to_git / 'reports')
         else:
              print('Missing information. Please run again')
 

@@ -35,7 +35,7 @@ path_to_config_pw = path_to_git / 'scripts' / 'configuration_masterfile_pw.yaml'
 with open(path_to_config_pw, 'r') as config_file:
     cfg_pw = yaml.safe_load(config_file)
 
-path_to_project_list=path_to_git / 'raw' / 'project_list_all.xlsx'
+path_to_project_list=path_to_git / cfg['dataset_subdir'] / 'project_list_all.xlsx'
 # Modules for webpage handling/scraping:
 import urllib3
 import requests
