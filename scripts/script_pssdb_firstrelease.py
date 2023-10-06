@@ -156,9 +156,9 @@ df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.u
 
 
 # Generate maps and heatmap of the spatio-temporal coverage for PSSdb products 1
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_09_2023'
-path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
-path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data'
+path_files= list(set(path_to_datafile.rglob('*_1b_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
+path_files_1a=list(set(path_to_datafile.rglob('*_1a_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
 #df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
 
@@ -262,45 +262,34 @@ plot[0].set_size_inches(6.5,2.8)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 #Fig. 3  Average NBSS and supplemental figure 2 Average PSD
-df_1b_summary = df.groupby(['Instrument']).agg({'slope_NB_mean': ['min', 'max', 'mean', 'median', 'std'],
-                                                'intercept_NB_mean': ['min', 'max', 'mean', 'median', 'std'],
-                                                'r2_NB_mean': ['min', 'max', 'mean', 'median', 'std'],
-                                                'slope_PSD_mean': ['min', 'max', 'mean', 'median', 'std'],
-                                                'intercept_PSD_mean': ['min', 'max', 'mean', 'median', 'std'],
-                                                'r2_PSD_mean': ['min', 'max', 'mean', 'median', 'std']}).reset_index()
+colors = {'IFCB': 'green', 'Scanner': 'red', 'UVP': 'blue'}
+grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
 
-nbss_summary=pd.merge(df_1a.groupby(['Instrument','biovolume_size_class']).apply(lambda x: pd.Series({'NB_5':np.nanquantile(x['normalized_biovolume_mean'],q=0.05),
-                                                                                             'NB_50':np.nanquantile(x['normalized_biovolume_mean'],q=0.5),
-                                                                                             'NB_mean': np.nanmean(x.normalized_biovolume_mean),
-                                                                                             'NB_95':np.nanquantile(x['normalized_biovolume_mean'],q=0.95),
-                                                                                             'NA_5':np.nanquantile(x['normalized_abundance_mean'],q=0.05),
-                                                                                             'NA_50':np.nanquantile(x['normalized_abundance_mean'],q=0.5),
-                                                                                             'NA_mean': np.nanmean(x.normalized_abundance_mean),
-                                                                                             'NA_95':np.nanquantile(x['normalized_abundance_mean'],q=0.95)})).reset_index(),
-                      df_1a[['equivalent_circular_diameter_mean','biovolume_size_class']].round(4).drop_duplicates(),how='left',on=['biovolume_size_class'])
-
-
+df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
 plot = (ggplot(data=df_1a)+
-  geom_ribbon(nbss_summary,aes(x="equivalent_circular_diameter_mean",ymin="NB_5",ymax="NB_95",y='NB_50',fill='Instrument',group='Instrument'),color='#{:02x}{:02x}{:02x}{:02x}'.format(0,0,0,0),alpha=0.4) +
-    geom_line(nbss_summary,aes(x="equivalent_circular_diameter_mean", y='NB_50', color='Instrument', fill='Instrument',group='Instrument'), alpha=1, size = 1.5) +
-    scale_fill_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
- scale_color_manual(values={'IFCB': '#{:02x}{:02x}{:02x}'.format(111, 145, 111),'UVP': '#{:02x}{:02x}{:02x}'.format(147, 167, 172), 'Scanner': '#{:02x}{:02x}{:02x}'.format(95, 141, 211)}) +
- labs(x=r'Equivalent circular diameter ($\mu$m)', y=r'Normalized Biovolume ($\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)') +
-scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
-scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
-theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
-                      panel_grid=element_blank(),
-                      panel_border = element_blank(),
-                      panel_background=element_rect(fill='white'),
-                      legend_title=element_blank(),
-                      legend_text=element_text(family="serif", size=10),
-                      axis_line = element_line(colour = 'black'),
-                      axis_title=element_text(family="serif", size=10),
-                      axis_text_x=element_text(family="serif", size=10),
-                      axis_text_y=element_text(family="serif", size=10, rotation=90),
-                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=True, return_ggplot=True)
-plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_3_NBSS_summary.pdf'.format(str(Path.home())),  dpi=600)
-plt.close()
+        geom_line(df_1a,aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument',group='Group_index'), alpha=0.2, size = 0.1) +
+        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),size = 0.05, alpha=0.1, shape = 'o')+
+        stat_summary(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),geom='line', fun_y=np.nanmean, size = 1)+
+        labs(y=r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
+        scale_color_manual(values = colors)+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,5)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.1_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
+
 
 #supplemental figure 2
 plot = (ggplot(data=df_1a)+
@@ -601,3 +590,79 @@ for ax in axs.flatten():
     [label.set_fontname(fontname) for label in labels]
 plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.3_r2_clim_basins.pdf'.format(str(Path.home())), dpi=600)
 plt.close()
+
+
+## Figures of Sensitivity analysis (Supp figure 3)
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'Sensitivity_analysis'
+path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
+path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name.split('_')[0], Biovol_metric = path.name.split('_')[2]),path_files)).drop_duplicates().reset_index(drop=True)
+colors = {'Biovolume-ellipsoid': 'teal', 'Biovolume-area': 'black', 'Biovolume-orig': 'slateblue'}
+plot = (ggplot(data=df)+
+        geom_violin(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
+        geom_point(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
+        stat_summary(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 10,  position = position_dodge(width=1))+
+        labs(y=r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
+        scale_color_manual(values = colors)+
+        scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,5)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.1_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
+
+plot = (ggplot(data=df)+
+        geom_violin(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
+        geom_point(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
+        stat_summary(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 10,  position = position_dodge(width=1))+
+        labs(y=r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
+        scale_color_manual(values = colors)+
+        scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,5)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.2_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
+
+plot = (ggplot(data=df)+
+        geom_violin(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
+        geom_point(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
+        stat_summary(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 10,  position = position_dodge(width=1))+
+        labs(y=r'Mean R$^{2}$', x='')+
+        scale_color_manual(values = colors)+
+        scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
+        theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              panel_border = element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              #panel_border=element_rect(color='#222222'),
+              legend_title=element_text(family="serif", size=10),
+              legend_position=[0.5, 0.95],
+              legend_text=element_text(family="serif", size=10),
+              axis_title=element_text(family="serif", size=15),
+              axis_text_x=element_text(family="serif", size=12),
+              axis_text_y=element_text(family="serif", size=12, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(5,5)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.3_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
