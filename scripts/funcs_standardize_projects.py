@@ -96,6 +96,8 @@ if path_to_zip.with_suffix('').is_dir()==False:
     shutil.unpack_archive(path_to_zip, path_to_zip.with_suffix(''))  # Unzip export file
     path_to_zip.unlink(missing_ok=True)
 
+oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
+Longhurst = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('Longhurst_world_v4_2010.shp'))[0])
 
 from shapely.geometry import Polygon, mapping, Point, MultiPolygon
 from shapely import wkt
@@ -469,7 +471,7 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         :param count_uncertainty_threshold: threshold used to flag samples with low ROI counts [0-1]
         :param artefacts_threshold: threshold used to flag samples with high percentage of artefacts [0-1]
         :param validation_threshold: threshold used to flag samples with low percentage of taxonomic annotation [0-1]
-        :return: initial dataframe with flags
+        :return: initial dataframe with flags, sample-specific summary
     """
 
     # Replace sample if missing
@@ -481,30 +483,27 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         missing_flag = dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'Sample':x.Sample.unique()[0],'Sample_missing':True if len(pd.isnull(x).any(1).to_numpy().nonzero()[0]) else False,'Missing_field':';'.join(list(pd.isnull(x).any(0).index[pd.isnull(x).any(0).to_numpy().nonzero()[0]])) if len(pd.isnull(x).any(1).to_numpy().nonzero()[0]) else ''})).reset_index(drop=True)# pd.isnull(dataframe).any(1).to_numpy().nonzero()[0]
         dataframe.loc[dataframe.Sample.isin(list(compress(missing_flag.Sample, missing_flag.Sample_missing))), 'Flag_missing'] = 1
         dataframe=pd.merge(dataframe, missing_flag[['Sample','Missing_field']],how='left',on='Sample')
-
+        df_summary=dataframe[['Sample','Missing_field']].drop_duplicates().reset_index(drop=True)
         # Flag #2/3: anomalous GPS location
         dataframe['Flag_GPScoordinatesonland'] = 0
-        #world = gpd.read_file(path_to_zip.with_suffix('') / 'ne_10m_admin_0_countries.shp') #gpd.datasets.get_path("naturalearth_lowres")
-        #world_polygon = unary_union(world.geometry.tolist())
-        oceans=gpd.read_file(path_to_zip.with_suffix('') / 'goas_v01.shp')
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
         point_in_polygons = gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')
+        summary=pd.merge(point_in_polygons[['Sample', 'name']].rename(columns={'name':'Study_area'}),gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']].rename(columns={'ProvDescr':'Longhurst_province'}),how='left',on='Sample')
+        df_summary=pd.merge(df_summary,summary,how='left',on=['Sample'])
         if any(point_in_polygons.index_right.astype(str) == 'nan'):
             gdf['Flag_GPScoordinatesonland'] =point_in_polygons.index_right.astype(str) == 'nan'# point_in_polygons.index_right.astype(str) != 'nan'
         else:
             gdf['Flag_GPScoordinatesonland'] = False
-        # gdf=unary_union(gdf.geometry.tolist())
-        #gdf['Flag_GPScoordinatesonland']=list(map(lambda x:x.within(world_polygon), gdf.geometry.tolist()))
         dataframe['Flag_GPScoordinatesonland'] = np.where(dataframe['Sample'].isin(gdf[gdf['Flag_GPScoordinatesonland'] == True]['Sample'].tolist()), 1, 0)
         dataframe['Flag_dubiousGPScoordinates'] = 0
         dataframe['Flag_dubiousGPScoordinates'] = np.where(dataframe['Sample'].isin(gdf.get('Sample')[list(map(lambda x: x.contains(Point(0, 0)), gdf.geometry.tolist()))]), 1,dataframe['Flag_dubiousGPScoordinates'])
          # Flag #4 (count), #5 (artefacts), #6(validation, UVP/Zooscan-only)
         # Calculate count uncertainties assuming Poisson distribution. Upper-lower count limit are based on 5% uncertainty
-        summary=dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI) if 'ROI_number' not in dataframe.columns else x['ROI_number'].sum(),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.pmf(k=x['ROI_number'].sum(),mu=x['ROI_number'].sum()),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.ppf((0.05/2), mu=x['ROI_number'].sum()),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.ppf(1-(0.05/2), mu=x['ROI_number'].sum())})).reset_index()
+        df_summary=pd.merge(df_summary,dataframe.groupby(['Sample']).apply(lambda x :pd.Series({'ROI_count':len(x.ROI) if 'ROI_number' not in dataframe.columns else x['ROI_number'].sum(),'Count_uncertainty':poisson.pmf(k=len(x.ROI),mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.pmf(k=x['ROI_number'].sum(),mu=x['ROI_number'].sum()),'Count_lower':poisson.ppf((0.05/2), mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.ppf((0.05/2), mu=x['ROI_number'].sum()),'Count_upper':poisson.ppf(1-(0.05/2), mu=len(x.ROI)) if 'ROI_number' not in dataframe.columns else poisson.ppf(1-(0.05/2), mu=x['ROI_number'].sum())})).reset_index(),how='left',on='Sample')
         # kwargs={'mapping':'x:Sample,y:ROI_count,ymin:Count_lower,ymax:Count_upper','scale_y_log10()':'','theme(axis_text_x=element_blank())':''}
         # ggplot_funcs(dataframe=summary,output_path='~/GIT/PSSdb_LOV_orga/Plots/EcoTaxa_3315_count_uncertainty.png',xlab='Sample ID',ylab='Number of pictures per sample',geom='geom_pointrange',**kwargs)
         dataframe['Flag_count'] = 0
-        dataframe['Flag_count'] =np.where(dataframe['Sample'].isin(summary[summary.Count_uncertainty>count_uncertainty_threshold].Sample.tolist()),1,dataframe['Flag_count'])
+        dataframe['Flag_count'] =np.where(dataframe['Sample'].isin(df_summary[df_summary.Count_uncertainty>count_uncertainty_threshold].Sample.tolist()),1,dataframe['Flag_count'])
         # dataframe'0' in dataframe['Flag_count'].astype('str')].Sample.unique()
         # Flag #5: Presence of artefacts (>20% of the total sample ROIs)
         dataframe['Flag_artefacts'] = 0
@@ -514,9 +513,9 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
             dataframe.Category = np.where(dataframe.Category == '', pd.NA, dataframe.Category)
             if len(dataframe.dropna(subset=['Category'])):
                 # Extract number of artefacts per samples
-                summary =dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) if len(x.ROI) else 0,'Artefacts_percentage': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0,'Validation_percentage': len(x[x.Annotation.str.lower().apply(lambda annotation:len(re.findall(r'validated',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0})).reset_index()
-                dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(summary[summary.Artefacts_percentage > artefacts_threshold].Sample.tolist()),1, dataframe['Flag_artefacts'])
-                dataframe['Flag_validation'] =np.where(dataframe['Sample'].isin(summary[summary.Validation_percentage >=validation_threshold].Sample.tolist()),0, dataframe['Flag_validation'])
+                df_summary =pd.merge(df_summary,dataframe.dropna(subset=['Category']).groupby(['Sample']).apply(lambda x: pd.Series({'Artefacts_count': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) if len(x.ROI) else 0,'Artefacts_percentage': len(x[x.Category.str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0,'Validation_percentage': len(x[x.Annotation.str.lower().apply(lambda annotation:len(re.findall(r'validated',annotation))>0)].ROI) / len(x.ROI) if  len(x.ROI) else 0})).reset_index(),how='left',on=['Sample'])
+                dataframe['Flag_artefacts'] = np.where(dataframe['Sample'].isin(df_summary[df_summary.Artefacts_percentage > artefacts_threshold].Sample.tolist()),1, dataframe['Flag_artefacts'])
+                dataframe['Flag_validation'] =np.where(dataframe['Sample'].isin(df_summary[df_summary.Validation_percentage >=validation_threshold].Sample.tolist()),0, dataframe['Flag_validation'])
         if validation_threshold==0:
             dataframe['Flag_validation'] = 0
 
@@ -525,19 +524,19 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         if 'Pixel' in dataframe.columns:
             dataframe['Flag_size']=0
             # Extract pixel size per sample/profile
-            summary=dataframe.astype({'Cruise':str,'Sample':str,'Pixel':float})[['Cruise','Sample','Pixel']].drop_duplicates().groupby(['Cruise','Sample','Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
-            summary=summary.sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False]).reset_index()
-            summary_subset =summary.groupby(by=['Cruise','Sample']).apply(lambda x: pd.Series({'Flag_size':1 if (len(summary[(summary.Cruise==x.Cruise.unique()[0])].Pixel.unique())>1) and (x.Pixel.astype('str').isin((summary[(summary.Cruise==x.Cruise.unique()[0])].groupby(['Cruise','Pixel']).agg({'Profile_percentage':'sum'}).reset_index().sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False])).reset_index(drop=True).loc[1:,'Pixel'].astype('str').to_list()).values[0]) else 0})).reset_index()
+            summary_pixel=dataframe.astype({'Cruise':str,'Sample':str,'Pixel':float})[['Cruise','Sample','Pixel']].drop_duplicates().groupby(['Cruise','Sample','Pixel']).apply(lambda x: pd.Series({'Sample_percentage':len(x.Sample.unique())//len(dataframe.Sample.unique()),'Profile_percentage':len(x.Profile.unique())/len(dataframe.Profile.unique()) if 'Profile' in x.columns else 1})).reset_index()
+            summary_pixel=summary_pixel.sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False]).reset_index()
+            summary_subset =summary_pixel.groupby(by=['Cruise','Sample']).apply(lambda x: pd.Series({'Flag_size':1 if (len(summary_pixel[(summary_pixel.Cruise==x.Cruise.unique()[0])].Pixel.unique())>1) and (x.Pixel.astype('str').isin((summary_pixel[(summary_pixel.Cruise==x.Cruise.unique()[0])].groupby(['Cruise','Pixel']).agg({'Profile_percentage':'sum'}).reset_index().sort_values(by=['Cruise','Profile_percentage'],ascending=[True,False])).reset_index(drop=True).loc[1:,'Pixel'].astype('str').to_list()).values[0]) else 0})).reset_index()
             #pixel_list=summary.loc[1:,'Pixel'].astype('str').to_list() if len(summary.Pixel.values)>1 else ['inf']
             dataframe['Flag_size'] = np.where(dataframe['Sample'].astype('str').isin(list(summary_subset[summary_subset.Flag_size==1].Sample.unique())),1, dataframe['Flag_size']) #np.where(dataframe['Pixel'].astype('str').isin(pixel_list),1, dataframe['Flag_size'])
             # dataframe['0' in dataframe['Flag_size'].astype('str')].Sample.unique()
 
     dataframe['Flag']=np.where(dataframe[[column for column in dataframe.columns if 'Flag_' in column]].sum(axis=1)==0,0,1) # Default is 0, aka no anomaly
-    return dataframe
+    df_summary = pd.merge(df_summary, dataframe[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','datetime','Longitude','Latitude','Depth_min','Depth_max']+[column for column in dataframe.columns if 'Flag' in column]].drop_duplicates().rename(columns={ 'datetime': 'Sample_datetime'}).astype({'Project_ID': str, 'Instrument': str, 'Sample': str, 'Sample_localpath': str,'Flag': str, 'Longitude': str, 'Latitude': str,'Sample_datetime': str}).groupby(['Project_ID', 'Instrument', 'Sample', 'Sample_localpath','Sample_URL', 'Flag', 'Longitude', 'Latitude', 'Sample_datetime']+[column for column in dataframe.columns if 'Flag_' in column]).apply(lambda x: pd.Series({'Sampling_depth_min_range': x.Depth_min.min(), 'Sampling_depth_max_range': x.Depth_max.max()})).reset_index(), how='right',on='Sample')
+
+    return dataframe,df_summary[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','Sample_datetime','Longitude','Latitude', 'Study_area', 'Longhurst_province','ROI_count', 'Count_uncertainty', 'Count_lower', 'Count_upper','Artefacts_count', 'Artefacts_percentage', 'Validation_percentage','Missing_field','Flag_missing', 'Flag_GPScoordinatesonland','Flag_dubiousGPScoordinates', 'Flag_count', 'Flag_artefacts','Flag_validation','Flag_size','Flag']]
 
 def save_flag_summary(df_flagged,df_standardizer,project_id,path_to_summary):
-    oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
-    Longhurst = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('Longhurst_world_v4_2010.shp'))[0])
     gdf = gpd.GeoDataFrame(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna(),geometry=gpd.points_from_xy(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Longitude,df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
     df_flagged['Study_area'] = pd.merge(df_flagged, gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')[['Sample', 'name']], how='left', on='Sample')['name'].astype(str)
     df_flagged['Longhurst_province'] = pd.merge(df_flagged, gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']], how='left', on='Sample')['ProvDescr'].astype(str)
@@ -586,6 +585,33 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
         project_path = natsorted([path for path in project_path_list if ('flag' not in str(path)) & ("._" not in str(path))])
     else:
         project_path=natsorted([path for path in project_list if ('flag' not in str(path)) & ("._" not in str(path))])
+    # Check if samples have been flagged already and generate flags for new samples only.
+    if (Path(flag_overrule_path).expanduser().is_file()) and len(project_list) == 0:
+        df_flags = pd.read_csv(flag_overrule_path, sep=',')
+        project_path=[path for path in project_path if str(path).replace(str(Path.home()),'~') not in df_flags.Sample_localpath.unique()]
+        if len(project_path):
+            print('\nExisting flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
+        else:
+            print('\nExisting flags found at {}, but no additional samples.\nSaving flags summary to {} (if missing) and skipping project'.format(flag_overrule_path, path_to_project_list))
+            sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
+            columns_project_list = dict( map(lambda sheet: (sheet, pd.read_excel(path_to_project_list, sheet_name=sheet).columns.tolist()), sheets_project_list))
+            df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
+            df_projects = pd.concat( map(lambda sheet: pd.read_excel(path_to_project_list, sheet_name=sheet).assign(Portal=sheet), sheets_project_list)).reset_index(drop=True)
+            df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & ( df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
+            idx_project = df_project.index
+            if (len(df_project) == 1):
+                df_flags_summary = df_flags.groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(df_flags)), 'Number_flagged_samples': int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))),'Percentage_flagged_missing': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_missing'] == 1]) / len(df_flags),'Percentage_flagged_GPScoordinatesonland': len( x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland'] == 1]) / len(df_flags),'Percentage_flagged_dubiousGPScoordinates': len( x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates'] == 1]) / len(df_flags),'Percentage_flagged_count': len( x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count'] == 1]) / len(df_flags), 'Percentage_flagged_artefact': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts'] == 1]) / len(df_flags),'Percentage_flagged_validation': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation'] == 1]) / len(df_flags) if 'flag_validation' in x.columns else 0,'Percentage_flagged_size': len( x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[ 'Flag_size'] == 1]) / len(df_flags)})).reset_index()
+                df_project = pd.merge(df_project[['Project_ID'] + [column for column in df_project.columns if column not in df_flags_summary.columns]], df_flags_summary, how='left', on='Project_ID').set_index(idx_project)
+                df_projects = pd.concat([df_projects[df_projects.Portal == df_project['Portal'].values[0]].drop(index=df_project.index),df_project], axis=0).sort_values(['PSSdb_access', 'Instrument', 'Project_ID'],ascending=[False, False, True])
+                print('\nAdding flag summary to project list')
+                with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                    df_projects[[column for column in columns_project_list.get(df_project['Portal'].values[0]) if column not in df_flags_summary.columns.tolist()[1:]] + df_flags_summary.columns.tolist()[1:]].to_excel(writer,sheet_name=df_project['Portal'].values[0],index=False)
+                    if any(df_flags_summary.columns.isin(df_projects_metadata.Variables) == False):
+                        pd.concat([df_projects_metadata, pd.DataFrame({'Variables': df_flags_summary.columns[1:], 'Variable_types': df_flags_summary.dtypes[1:],'Units/Values': ['#', '#'] + ['[0-1]'] * 7,'Description': ['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample', 'Percentage of samples flagged due to high percentage of artefacts', 'Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
+            return
+    else:
+        df_flags = pd.DataFrame()
+        df_flagged_existing = pd.DataFrame()
 
     if len(project_path)>0:
 
@@ -595,8 +621,9 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
          #columns_dict['object_number']='object_number' # Adding this column for UVP consolidated projects
 
          dtypes_dict_all = dict(zip(['Cruise', 'Station', 'Profile', 'Sample', 'Latitude', 'Longitude', 'Depth_min', 'Depth_max','Sampling_date', 'Sampling_time', 'Volume_analyzed', 'Volume_imaged', 'ROI', 'Area', 'Pixel', 'Minor_axis','Major_axis', 'Biovolume','ESD', 'Category', 'Annotation', 'Sampling_type', 'Sampling_lower_size', 'Sampling_upper_size','ROI_number', 'Sampling_description'],[str, str, str, str, float, float, float, float, str, str, float,float, str, float,float, float, float, float, float, str, str, str, float, float, int, str]))
-         df_samples=list(map(lambda path:{str(path).replace(str(Path.home()),'~'):pd.read_table(path,sep=',',usecols=['Sample']).Sample.unique()},project_path))
+         #df_samples=list(map(lambda path:{str(path).replace(str(Path.home()),'~'):pd.read_table(path,sep=',',usecols=['Sample']).Sample.unique()},project_path))
          flagged_df = pd.DataFrame()
+         overruled_df = pd.DataFrame()
          if (df_standardizer.loc[project_id]['Instrument']=='IFCB') & (len(project_path)>1):
              # Read all datafiles
              #chunk = 1000
@@ -605,36 +632,18 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
              #with ThreadPool() as pool:
                  #for result in pool.map(lambda path: control_quality_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path]), project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
                      percent = np.round(100 * ((1+bar.n )/ len(project_path)), 1)
-                     bar.set_description('Flagging sample {} (%s%%)'.format(str(1+bar.n) + "/" + str(len(project_path))) % percent, refresh=True)
+                     bar.set_description('Flagging datafile {} (%s%%)'.format(str(1+bar.n) + "/" + str(len(project_path))) % percent, refresh=True)
                      result=quality_control_func(standardizer_path,project_id,report_path,validation_threshold=0.95,project_list=[path])
-                     flagged_df = pd.concat([flagged_df, result], axis=0)
+                     overruled_df = pd.concat([overruled_df, result], axis=0)
                      ok = bar.update(n=1)
-             flagged_df=flagged_df.reset_index(drop=True)
+             overruled_df=overruled_df.reset_index(drop=True)
+             flagged_df=overruled_df
 
          else:
              df = pd.concat(map(lambda path:  pd.read_table(path,sep=',',usecols=list(set(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace('_field',''))+['Sampling_lower_size','Sampling_upper_size','Sampling_date','Sampling_time','Depth_max','Depth_min','ROI_number'])),dtype=dtypes_dict_all,parse_dates={'datetime':['Sampling_date','Sampling_time']}).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')), project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True#pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
              if 'ROI_number' not in df.columns:
                  df['ROI_number']=1
          if len(flagged_df) == 0:
-             '''
-             old_columns = df.columns
-             #df.columns = [df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna()[ df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna() == column].index[0].replace( '_field', '') for column in df.columns]
-             index_duplicated_fields = df_standardizer.loc[project_id, [column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace( "_field", "").isin(list(df.columns)) == False
-             if any(index_duplicated_fields):
-                 # Append duplicated fields
-                 df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict(zip(list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().index.str.replace("_field","")[index_duplicated_fields]), list( map(lambda item: df.loc[:, columns_dict[item]].values.tolist(),list(df_standardizer.loc[project_id,[column for column in df_standardizer.columns if 'field' in column]].dropna().values[index_duplicated_fields])))))).reset_index( drop=True)], axis=1)
-
-             # Convert datetime format
-             if 'Sampling_date' in df.columns:
-                 if is_float(df.at[0, 'Sampling_date']):
-                     df.loc[df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'] = df.loc[ df['Sampling_date'].astype(float).isna() == False, 'Sampling_date'].astype(float).astype(int).astype(str)
-                     df = df.loc[df['Sampling_date'].astype(float).isna() == False]
-             if 'Sampling_time' in df.columns:
-                 if is_float(df.at[0, 'Sampling_time']):
-                     df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'] = df.loc[df['Sampling_time'].astype(float).isna() == False, 'Sampling_time'].astype(float).astype(int).astype(str)
-
-             df['datetime'] = pd.to_datetime( df['Sampling_date'].astype(str) + ' ' + df['Sampling_time'].astype(str).str.zfill(6),format=' '.join(df_standardizer.loc[project_id][['Sampling_date_format', 'Sampling_time_format']]),utc=True) if all(pd.Series(['Sampling_date', 'Sampling_time']).isin(df.columns)) else pd.to_datetime( df['Sampling_date'].astype(str), format=df_standardizer.at[project_id, 'Sampling_date_format'],utc=True) if 'Sampling_date' in df.columns else pd.to_datetime( df['Sampling_time'].astype(str).str.zfill(6),format=df_standardizer.at[project_id, 'Sampling_time_format'], utc=True) if 'Sampling_time' in df.columns else pd.NaT
-             '''
              df['datetime']=df.datetime.dt.strftime('%Y-%m-%dT%H%M%SZ').astype(str)
              # Replace NA ROI/mino/annotation by '' to avoid flagging project on missing ROI id (e.g small particles in UVP consolidated files )/ annotations (e.g. mixture of predicted,unclassified project)
              df.ROI = np.where(df.ROI.isna(), '', df.ROI)
@@ -662,75 +671,34 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
              if 'Cruise' not in df.columns:
                  df['Cruise']='nan'
 
-         else:
-             df=flagged_df[[column for column in flagged_df.columns if  ('Flag' not in column) &  ('Missing_' not in column)]]
-         # Skip existing samples if flag file exists
-         path_to_summary = path_to_git / cfg['dataset_subdir'] / cfg['summary_subdir']/ Path(df_standardizer['Project_localpath'][project_id]).stem
-         path_to_summary.mkdir(parents=True, exist_ok=True)
+             # Adding URL to check flagged samples
+             # Query EcoTaxa API to retrieve samples ID/URL
+             if (df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id)):
+                 with ecotaxa_py_client.ApiClient(configuration) as api_client:
+                     api_instance = samples_api.SamplesApi(api_client)
+                     samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
+                 df = pd.merge(df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(df.dtypes['Sample'])), 'Sample_ID': list(map(lambda x: x['sampleid'], samples))}), how='left', on='Sample')
+             df = pd.merge(df, df.groupby(['Sample']).apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],str(x.Sample_ID.unique()[0]),project_id) if df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id) else r'{}&bin={}'.format(df_standardizer['Project_source'][ project_id],str(x.Sample.unique()[0])) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''})),how='left', on='Sample')
 
-         if (Path(flag_overrule_path).expanduser().is_file()) and len(project_list)==0:
-             df_flags = pd.read_csv(flag_overrule_path, sep=',')
-             if not 'Sample_localpath' in df_flags.columns:
-                 df_flags['Sample_localpath']=df_flags['Sample'].map(dict(ChainMap(*list(map(lambda dict_path: dict(zip(list(dict_path.values())[0],len(list(dict_path.values())[0])*list(dict_path.keys()))),df_samples)))))
-             df_flagged_existing = pd.merge(df[df.Sample.isin(list(df_flags.Sample))], df_flags, how='left',on=['Sample','Sample_URL','Sample_localpath'])
-             df_existing=df[df.Sample.isin(list(df_flags.Sample)) == True]
-             df = df[df.Sample.isin(list(df_flags.Sample)) == False]
-             if len(df):
-                 print('\nExisting flags found at {}. Updating the file with new samples'.format(flag_overrule_path))
-             else:
-                 print('\nExisting flags found at {}, but no additional samples.\nSaving flags summary to {} (if missing) and skipping project'.format(flag_overrule_path,path_to_project_list))
-                 if not list(path_to_summary.rglob('Summary_project_{}.csv'.format(project_id)))[0].exists():
-                     save_flag_summary(df_flagged=pd.merge(df_existing,df_flags ,how='left',on=['Sample','Sample_URL','Sample_localpath']),df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
-                 else:
-                     df_summary=pd.read_csv(list(path_to_summary.rglob('Summary_project_{}.csv'.format(project_id)))[0])
-                     if not all(pd.merge(df_existing,df_flags ,how='left',on=['Sample','Sample_URL','Sample_localpath']).Sample.isin(df_summary.Sample.unique())):
-                         save_flag_summary(df_flagged=pd.merge(df_existing, df_flags, how='left', on=['Sample', 'Sample_URL', 'Sample_localpath']), df_standardizer=df_standardizer, project_id=project_id,path_to_summary=path_to_summary)
-
-                 sheets_project_list = [sheet for sheet in pd.ExcelFile(path_to_project_list).sheet_names if 'metadata' not in sheet]
-                 columns_project_list=dict(map(lambda sheet: (sheet,pd.read_excel(path_to_project_list,sheet_name=sheet).columns.tolist()),sheets_project_list))
-                 df_projects_metadata = pd.read_excel(path_to_project_list, sheet_name='metadata')
-                 df_projects=pd.concat(map(lambda sheet:pd.read_excel(path_to_project_list,sheet_name=sheet).assign(Portal=sheet),sheets_project_list)).reset_index(drop=True)
-                 df_project=df_projects[(df_projects.Project_ID.astype(str)==str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa','ifcb']))]
-                 idx_project=df_project.index
-                 if (len(df_project)==1):
-                     df_flags_summary=df_flags.assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x:pd.Series({'Number_samples':int(len(df_flags)),'Number_flagged_samples':int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))),'Percentage_flagged_missing':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_missing']==1])/len(df_flags),'Percentage_flagged_GPScoordinatesonland':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland']==1])/len(df_flags),'Percentage_flagged_dubiousGPScoordinates':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates']==1])/len(df_flags),'Percentage_flagged_count':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count']==1])/len(df_flags),'Percentage_flagged_artefact':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts']==1])/len(df_flags),'Percentage_flagged_validation':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation']==1])/len(df_flags) if 'flag_validation' in x.columns else 0,'Percentage_flagged_size':len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size']==1])/len(df_flags)})).reset_index()
-                     df_project=pd.merge(df_project[['Project_ID']+[column for column in df_project.columns if column not in df_flags_summary.columns]],df_flags_summary,how='left',on='Project_ID').set_index(idx_project)
-                     df_projects=pd.concat([df_projects[df_projects.Portal==df_project['Portal'].values[0]].drop(index=df_project.index),df_project],axis=0).sort_values(['PSSdb_access','Instrument','Project_ID'],ascending=[False,False,True])
-                     print('\nAdding flag summary to project list')
-                     with pd.ExcelWriter(str(path_to_project_list), engine="openpyxl", mode="a",if_sheet_exists="replace") as writer:
-                         df_projects[[column for column in columns_project_list.get(df_project['Portal'].values[0]) if column not in df_flags_summary.columns.tolist()[1:]] + df_flags_summary.columns.tolist()[1:]].to_excel(writer, sheet_name=df_project['Portal'].values[0], index=False)
-                         if any(df_flags_summary.columns.isin(df_projects_metadata.Variables)==False):
-                             pd.concat([df_projects_metadata,pd.DataFrame({'Variables':df_flags_summary.columns[1:],'Variable_types':df_flags_summary.dtypes[1:],'Units/Values':['#','#']+['[0-1]']*7,'Description':['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts','Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
-                 return
-         else:
-             df_flags = pd.DataFrame()
-             df_flagged_existing = pd.DataFrame()
 
          if len(flagged_df) == 0:
              # Append flags, Avoid flagging on low validation for IFCB projects by setting validation threshold to 0
              validation_threshold = validation_threshold if df_standardizer.loc[project_id]['Instrument'] != 'IFCB' else 0
-             flagged_df=flag_func(df,validation_threshold=validation_threshold)
+             flagged_df,overruled_df=flag_func(df.assign(Project_ID=project_id,Instrument=df_standardizer['Instrument'][project_id]),validation_threshold=validation_threshold)
              # Override flag_missing for optional variables: Sampling_size, Dilution, Annotation, Category
              flagged_df = pd.merge(flagged_df.drop(columns=['Missing_field']),flagged_df.groupby(['Sample']).apply(lambda x:pd.Series({'Missing_field':'' if all(pd.Series((x['Missing_field'].astype(str).unique()[0]).split(';')).isin(['Sampling_upper_size','Sampling_lower_size','Category','Annotation','Dilution'])) else x['Missing_field'].astype(str).unique()[0]})).reset_index(),how='left',on='Sample')
              #flagged_df['Missing_field'] = flagged_df['Missing_field'].apply(lambda x: '' if pd.Series((field in ['Sampling_upper_size', 'Sampling_lower_size', 'Category', 'Annotation', 'Dilution'] for field in str(x).split(';'))).all() else x)
              flagged_df.loc[flagged_df['Missing_field'] == '', 'Flag_missing'] = 0
              flagged_df['Flag'] = np.where(flagged_df[[column for column in flagged_df.columns if 'Flag_' in column]].sum(axis=1)==0,0,1)
+             overruled_df=pd.merge(overruled_df.drop(columns=['Missing_field','Flag']),flagged_df[['Sample','Missing_field','Flag']].drop_duplicates(),how='left',on='Sample')[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','Sample_datetime','Longitude','Latitude', 'Study_area', 'Longhurst_province','ROI_count', 'Count_uncertainty', 'Count_lower', 'Count_upper','Artefacts_count', 'Artefacts_percentage', 'Validation_percentage','Missing_field','Flag_missing', 'Flag_GPScoordinatesonland','Flag_dubiousGPScoordinates', 'Flag_count', 'Flag_artefacts','Flag_validation','Flag_size','Flag']]
 
-             # Adding URL to check flagged samples
-             # Query EcoTaxa API to retrieve samples ID
-             if (df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id)):
-                 with ecotaxa_py_client.ApiClient(configuration) as api_client:
-                     api_instance = samples_api.SamplesApi(api_client)
-                     samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
-                 flagged_df = pd.merge(flagged_df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(flagged_df.dtypes['Sample'])),'Sample_ID': list(map(lambda x: x['sampleid'], samples))}),how='left', on='Sample')
-             #flagged_df['Sample_URL'] = flagged_df[['Sample', 'Sample_ID']].apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],x.Sample_ID,project_id)}),axis=1) if df_standardizer['Project_source'][project_id]=='https://ecotaxa.obs-vlfr.fr/prj/'+str(project_id) else flagged_df[['Sample']].apply(lambda x: pd.Series({'Sample_URL': r'{}&bin={}'.format(df_standardizer['Project_source'][project_id],x.Sample)}),axis=1) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''
-             flagged_df = pd.merge(flagged_df, flagged_df.groupby(['Sample']).apply(lambda x: pd.Series({ 'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format( df_standardizer['Project_source'][ project_id], str(x.Sample_ID.unique()[0]), project_id) if df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str( project_id) else r'{}&bin={}'.format( df_standardizer['Project_source'][ project_id],str(x.Sample.unique()[0])) if 'ifcb' in df_standardizer['Project_source'][ project_id] else ''})), how='left', on='Sample')
+
 
          if len(project_list) != 0:
-             return flagged_df
+             return overruled_df#flagged_df
 
          # Generating flags overruling datafile that will be read to filter samples out during standardization
-         path_to_datafile = Path(cfg['raw_dir']).expanduser() / 'flags' / Path(df_standardizer['Project_localpath'][project_id]).stem
+         path_to_datafile = Path(cfg['raw_dir']).expanduser() / cfg['flag_subdir'] / Path(df_standardizer['Project_localpath'][project_id]).stem
          path_to_datafile.mkdir(parents=True, exist_ok=True)
          report_path = Path(report_path).expanduser() / Path(df_standardizer['Project_localpath'][project_id]).stem
          report_path.mkdir(parents=True, exist_ok=True)
@@ -740,26 +708,18 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
          # Create readme file for the report and flag folders:
          if not Path(path_to_datafile.parent / 'README.txt').is_file():
              with open(str(Path(path_to_datafile.parent / 'README.txt')), 'w') as file:
-                 file.write("README file for project control quality check (First created on February 10, 2023):\n\nThis directory contains a summary table of project control quality flags.\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nThe overrule boolean factor allows to overrule this flag (reset False to True) if the data owner deemed the sample should be kept for further processing.\nFlagged samples will be discarded during standardization.\nThe flag table will be updated if a project have been updated with additional samples.\nInteractive reports of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(report_path))
+                 file.write("README file for project quality control (First created on February 10, 2023):\n\nThis directory contains a summary table of project control quality flags\nEach table includes individual sample info, such as:\n-Project_ID (native format): Unique ID of the project/cruise/program\n-Instrument (Zooscan, IFCB, UVP, Epson scanner): Project imaging device\n-Sample (native format): Unique sample ID\n-Sample_URL: Link to the images/project files online repository (e.g. Ecotaxa, IFCB dashboard)\n-Sample_localpath: Local path of project datafile storage (identical for Ecotaxa Zooscan/IFCB projects, different for UVP consolidated and IFCB dashboard projects)\n-Sampling datetime (yyyy-mm-ddThh:mm:ssZ, UTC): Sampling time\n-Longitude (decimal degree): Longitudinal coordinate [-180:180]\n-Latitude (decimal degree): Latitudinal coordinate [-90:90]\n-Study_area: Study area according to the Global Oceans and Seas of the standard georeferenced marine regions website (https://www.marineregions.org/)\n-Longhurst_province: Longhurst province of the sample location according to the standard georeferenced marine regions website (https://www.marineregions.org/)\n-Sampling_min_depth_range (meters): Minimum/Shallowest sampling depth\n-Sampling_max_depth_range (meters): Maximum/Deepest sampling depth\n-ROI_count (#): Number of Region Of Interest imaged in the sample.\n-Count_uncertainty (probability [0-1]): Uncertainty of the count according to the Poisson distribution.\n-Artefacts_count (#): Number of artefacts imaged in the sample.\n-Artafacts_percentage (% [0-1]): Percentagr of artefacts in the sample.\n-Validation_percentage (% [0-1]): Percentage of 'validated' annotations in the sample.\n\n\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nThe overrule boolean factor allows to overrule this flag (reset False to True) if the data owner deemed the sample should be kept for further processing.\nFlagged samples will be discarded during standardization.\nThe flag table will be updated if a project have been updated with additional samples.\nInteractive reports of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(report_path.parent))
          if not Path(report_path.parent / 'README.txt').is_file():
              with open(str(Path(report_path.parent / 'README.txt')), 'w') as file:
-                 file.write("README file for project control quality check report (First created on February 10, 2023):\n\nThis directory contains interactive reports of project control quality flags.\nThe bottom table include flagged samples that can be checked by clicking on the URL of the first column.\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nFlagged samples will be discarded during standardization.\nThe flag report will be updated if a project have been updated with additional samples.\nTables of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(path_to_datafile.parent))
-         if not Path(path_to_summary.parent/'README.txt').is_file():
-             with open(str(Path(path_to_summary.parent/'README.txt')), 'w') as file:
-                 file.write("README file for project summary files (First created on February 10, 2023):\n\nThis directory contains a summary of project samples following the control quality check.\nEach table includes individual sample info, such as:\n\n-Project_ID (native format): Unique ID of the project/cruise/program\n\n-Instrument (Zooscan, IFCB, UVP, Epson scanner): Project imaging device\n\n-Sample (native format): Unique sample ID\n\n-Sample_url: Link to the images/project files online repository (e.g. Ecotaxa, IFCB dashboard)\n\n-Sample_localfile: Local path of project datafile storage (identical for Ecotaxa Zooscan/IFCB projects, different for UVP consolidated and IFCB dashboard projects)\n\n-Sample_flag: 0 for no-flag, 1 for flagged samples\n\n-Longitude (decimal degree): Longitudinal coordinate [-180:180]\n\n-Latitude (decimal degree): Latitudinal coordinate [-90:90]\n\n-Study_area: Study area according to the Global Oceans and Seas of the standard georeferenced marine regions website (https://www.marineregions.org/)\n\n-Longhurst_province: Longhurst province of the sample location according to the standard georeferenced marine regions website (https://www.marineregions.org/)\n\n-Sampling datetime (yyyy-mm-ddThh:mm:ssZ, UTC): Sampling time\n\n-Sampling_min_depth_range (meters): Minimum/Shallowest sampling depth\n\n-Sampling_max_depth_range (meters): Maximum/Deepest sampling depth\n\n-ROI_number (#): Number of Region Of Interest imaged in the sample\n\n-Sample_flag (0/1): Overall flag for each sample. 0: not flagged, 1: flagged\n\n-Flag_path: Local path of flag details for individual control quality check criteria.\nFlagged samples will be discarded during standardization\n\nContact us: nmfs.pssdb@noaa.gov")
+                 file.write("README file for project quality control report (First created on February 10, 2023):\n\nThis directory contains interactive reports of project control quality flags.\nThe bottom table include flagged samples that can be checked by clicking on the URL of the first column.\nCurrent flagging is done based on 7 critera:\n\n-GPS coordinates on land (Falg_GPScoordinatesonland): takes 1 if GPS coordinates correspond to a location on land (according to a 10m spatial resolution)\n\n-Dubious GPS coordinates (Flag_dubiousGPScoordinates): takes 1 if location is at 0 degrees latitude and longitude\n\n-Missing variables (Flag_missing): takes 1 if a variable required for project standardization is missing (check required variables on the project standardizer spreadsheets)\n\n-Low particles count per sample (Flag_count): takes 1 if the total number of particles detected in a given sample yields high uncertainty (>5%) assuming counts follow a Poisson distribution\n\n-High percentage of artefacts (Flag_artefacts): takes 1 if the percentage of artefacts in a given sample is superior to 20%\n\n-Low percentage of taxonomic annotations validation (Flag_validation, *UVP and Zooscan only): takes 1 if the percentage of validation in a given sample/profile is less than 95%\n\n-Multiple pixel-to-size calibration factors (Flag_size): takes 1 if the project include multiple size calibration factors per cruise\n\nEach flag is assigned a boolean factor which takes 0 if the given sample has not been flagged or 1 if it has been flagged.\nThe overall flag (Flag) is predicted based on the result of 1 or more flagged critera.\nFlagged samples will be discarded during standardization.\nThe flag report will be updated if a project have been updated with additional samples.\nTables of project control quality check can be found at: {}\n\nContact us: nmfs.pssdb@noaa.gov".format(path_to_datafile.parent))
 
          #if len(flag_overrule_path) == 0 or Path(flag_overrule_path).expanduser().is_file() == False:
          overrule_name ='project_{}_flags.csv'.format(str(project_id))
          print('\nSaving flags to', str(path_to_datafile / overrule_name),'\nSet Overrule to True if you wish to keep samples for further processing', sep=" ")
-         overruled_df = flagged_df[['Sample', 'Sample_URL','Sample_localpath', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
+         #overruled_df = flagged_df[['Sample', 'Sample_URL','Sample_localpath', 'Flag'] + [column for column in flagged_df.columns if('Flag_' in column) or ('Missing_field' in column)]].drop_duplicates()  # flagged_df[flagged_df['Flag']==0][['Sample','Flag']].drop_duplicates()
          overruled_df['Overrule'] = False
-         overruled_df = overruled_df.sort_values(by=['Flag'], ascending=False)
-         pd.concat([df_flags.reset_index(drop=True), overruled_df.reset_index(drop=True)], axis=0).sort_values( by=['Flag', 'Sample'], ascending=[False, True]).to_csv(str(path_to_datafile / overrule_name), sep=',',index=False)
-
-         #  Generate project summary:
-
-         flagged_df = pd.concat([df_flagged_existing.reset_index(drop=True), flagged_df.reset_index(drop=True)], axis=0)
-         save_flag_summary(df_flagged=flagged_df , df_standardizer=df_standardizer, project_id=project_id, path_to_summary=path_to_summary)
+         overruled_df = pd.concat([df_flags.reset_index(drop=True), overruled_df.reset_index(drop=True)], axis=0).sort_values( by=['Flag', 'Sample'], ascending=[False, True])
+         overruled_df.to_csv(str(path_to_datafile / overrule_name), sep=',',index=False)
 
          # Update standardizer spreadsheet with flagged samples path and save
          df_standardizer['Flag_path'] = df_standardizer['Flag_path'].astype(str)
@@ -779,7 +739,7 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
          df_project = df_projects[(df_projects.Project_ID.astype(str) == str(project_id)) & (df_projects.Portal.astype(str).isin(['ecotaxa', 'ifcb']))]
          idx_project = df_project.index
          if (len(df_project) == 1):
-             df_flags_summary = overruled_df.assign(Project_ID=project_id).groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(overruled_df)), 'Number_flagged_samples': int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(overruled_df), 'Percentage_flagged_GPScoordinatesonland': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland'] == 1]) / len( overruled_df),'Percentage_flagged_dubiousGPScoordinates': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates'] == 1]) / len(overruled_df), 'Percentage_flagged_count': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count'] == 1]) / len(overruled_df),'Percentage_flagged_artefact': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts'] == 1]) / len(overruled_df),'Percentage_flagged_validation': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation'] == 1]) / len(overruled_df), 'Percentage_flagged_size': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size'] == 1]) / len(overruled_df)})).reset_index()
+             df_flags_summary = overruled_df.groupby(['Project_ID']).apply(lambda x: pd.Series({'Number_samples': int(len(overruled_df)), 'Number_flagged_samples': int(len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)'))), 'Percentage_flagged_missing': len(x[x['Flag_missing'] == 1]) / len(overruled_df), 'Percentage_flagged_GPScoordinatesonland': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_GPScoordinatesonland'] == 1]) / len( overruled_df),'Percentage_flagged_dubiousGPScoordinates': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_dubiousGPScoordinates'] == 1]) / len(overruled_df), 'Percentage_flagged_count': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_count'] == 1]) / len(overruled_df),'Percentage_flagged_artefact': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_artefacts'] == 1]) / len(overruled_df),'Percentage_flagged_validation': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_validation'] == 1]) / len(overruled_df), 'Percentage_flagged_size': len(x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')[x.query('(Flag==1 & Overrule==False) or (Flag==0 & Overrule==True)')['Flag_size'] == 1]) / len(overruled_df)})).reset_index()
              df_project = pd.merge(df_project[['Project_ID']+[column for column in df_project.columns if column not in df_flags_summary.columns]], df_flags_summary, how='left', on='Project_ID').set_index(idx_project)
              df_projects = pd.concat([df_projects[df_projects.Portal == df_project['Portal'].values[0]].drop(index=df_project.index),df_project], axis=0).sort_values(['PSSdb_access', 'Instrument', 'Project_ID'], ascending=[False, False, True])
              print('\nAdding flag summary to project list')
@@ -789,12 +749,10 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
                      pd.concat([df_projects_metadata, pd.DataFrame({'Variables': df_flags_summary.columns[1:], 'Variable_types': df_flags_summary.dtypes[1:],'Units/Values': ['#', '#'] + ['[0-1]'] * 7,'Description': ['Number of samples/nets/profiles in project','Number of samples flagged during the project control quality check','Percentage of samples flagged due to missing data/metadata','Percentage of samples flagged due to GPS coordinates on land (according to a 10m resolution)','Percentage of samples flagged due to dubious GPS coordinates (0x0 degrees)','Percentage of samples flagged due to low ROI count per sample','Percentage of samples flagged due to high percentage of artefacts', 'Percentage of samples flagged due to low validation of the taxonomic annotations (* UVP and Zooscan only)','Percentage of samples flagged due to multiple pixel size conversion factor']})],axis=0).to_excel(writer, sheet_name='metadata', index=False)
 
          # Generating interactive project report
-         flagged_df['Annotation'] = flagged_df['Annotation'] if 'Annotation' in flagged_df.columns else 'predicted' if ( 'Annotation' not in flagged_df.columns) and ('Category' in flagged_df.columns) else 'unclassified'
-         # Drop small particles to calculate the percentage of validation/artefacts for UVP projects
-         flagged_df.Category =np.where((flagged_df.Category == '') | (flagged_df.Category.isna()), pd.NA, df.Category)
-         flagged_df_subset = flagged_df.dropna(subset=['Category']) if len(flagged_df.dropna(subset=['Category'])) else flagged_df
-         summary_df = flagged_df_subset.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI_number.sum(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=sum(x.ROI_number)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.astype(str).str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
+         summary_df = overruled_df.sort_values(['Sample_datetime'])#flagged_df_subset.groupby(['Sample','Sample_URL',  'Latitude', 'Longitude']+[column for column in flagged_df.columns if ('Flag' in column) or ('Missing_field' in column)], dropna=False).apply(lambda x: pd.Series({'ROI_count': x.ROI_number.sum(),'Count_error':np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=sum(x.ROI_number)))[0] if len(x.ROI) else 0,'Validation_percentage':len(x[x['Annotation'].isin(['validated'])].ROI) / len(x.ROI) if len(x.ROI) else 0,'Artefacts_percentage':len(x[x.Category.astype(str).str.lower().apply(lambda annotation:len(re.findall(r'bead|bubble|artefact|artifact',annotation))>0)].ROI) / len(x.ROI) if len(x.ROI) else 0})).reset_index()
          summary_df['Sample_URL'] =  summary_df[['Sample', 'Sample_URL']].apply(lambda x: pd.Series({'Sample_URL': r'<a href="{}">{}</a>'.format( x.Sample_URL,x.Sample)}),axis=1)
+         summary_df['Count_error']=summary_df.ROI_count.apply(lambda count:np.diff(poisson.ppf([0.05/2,1-(0.05/2)], mu=count))[0])
+         summary_df=summary_df.astype(dict(zip([column for column in summary_df.columns if 'Flag' in column],[int]*len([column for column in summary_df.columns if 'Flag' in column]))))
          subset_summary_df=summary_df.dropna(subset=[ 'Sample','Sample_URL'])
 
          if len(subset_summary_df):
@@ -808,20 +766,20 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
 
              # Map, left column
              subset_summary_df['colors']=np.where(subset_summary_df.Flag_GPScoordinatesonland==1, 'red','black')
-             subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df.Sample.unique(),ordered=True)
+             subset_summary_df.Sample = pd.Categorical(subset_summary_df.Sample, categories=subset_summary_df[['Sample','Sample_datetime']].drop_duplicates().sort_values(['Sample_datetime']).Sample.values,ordered=True)
              #gdf = gpd.GeoDataFrame(subset_summary_df,geometry=gpd.points_from_xy(subset_summary_df.Longitude,subset_summary_df.Latitude)).set_index('Sample').set_crs(epsg=4326, inplace=True)
              if len(subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland==0])>0:
                  sub_data = subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 0]
                  data_geo =dict(type='scattergeo',
                              name='No flag',
-                             lon=sub_data.Longitude,
-                             lat=sub_data.Latitude,
+                             lon=sub_data.Longitude.astype(float),
+                             lat=sub_data.Latitude.astype(float),
                              hovertext='Sample ID: ' + sub_data.Sample.astype(str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
                              hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)), geojson="natural earth", showlegend=True,geo='geo')
                  layout = dict()
                  layout['geo2'] = dict(
-                 projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
-                 center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
+                 projection_rotation=dict(lon=np.nanmean(sub_data.Longitude.astype(float)), lat=np.nanmean(sub_data.Latitude.astype(float)), roll=0),
+                 center=dict(lon=np.nanmean(sub_data.Longitude.astype(float)), lat=np.nanmean(sub_data.Latitude.astype(float))),
                  projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
                  domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
                  layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],
@@ -838,14 +796,14 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
                  sub_data=subset_summary_df[subset_summary_df.Flag_GPScoordinatesonland == 1]
                  data_geo = dict(type='scattergeo',
                           name='GPS coordinates on land<br>(Flag_GPScoordinatesonland)',
-                          lon=sub_data.Longitude,
-                          lat=sub_data.Latitude,
+                          lon=sub_data.Longitude.astype(float),
+                          lat=sub_data.Latitude.astype(float),
                           hovertext='Sample ID: ' + sub_data.Sample.astype(str)+ '<br> Longitude (ºE): '+sub_data.Longitude.astype(str)+'<br> Latitude (ºN): '+sub_data.Latitude.astype(str),
                           hoverinfo="text", marker=dict(size=3, line=dict(color=sub_data.colors, width=2), color='black'), geojson="natural earth", showlegend=True,
                           geo='geo')
 
                  layout = dict()
-                 layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),projection_type='orthographic',lataxis_range=[-90,90], lonaxis_range=[-180, 180],
+                 layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude.astype(float)), lat=np.nanmean(sub_data.Latitude.astype(float)), roll=0),center=dict(lon=np.nanmean(sub_data.Longitude.astype(float)), lat=np.nanmean(sub_data.Latitude.astype(float))),projection_type='orthographic',lataxis_range=[-90,90], lonaxis_range=[-180, 180],
                  domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]),bgcolor='rgba(0,0,0,0)')
                  layout['geo'] = dict(lonaxis_range=[-180,180],lataxis_range=[-80,80],
                  domain=dict(x=[0.0, 0.2], y=[0.4, 0.52]))
@@ -863,13 +821,13 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
                  sub_data = subset_summary_df[subset_summary_df.Flag_dubiousGPScoordinates == 1]
                  data_geo = dict(type='scattergeo',
                              name='Dubious GPS coordinates<br>(Flag_dubiousGPScoordinates)',
-                             lon=sub_data.Longitude,
-                             lat=sub_data.Latitude,
+                             lon=sub_data.Longitude.astype(float),
+                             lat=sub_data.Latitude.astype(float),
                              hovertext='Sample ID: ' + sub_data.Sample.astype( str) + '<br> Longitude (ºE): ' + sub_data.Longitude.astype(str) + '<br> Latitude (ºN): ' + sub_data.Latitude.astype(str),
                              hoverinfo="text", marker=dict(color='black', line=dict(color=sub_data.colors, width=2)),
                              geojson="natural earth", showlegend=True, geo='geo')
-                 layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude), roll=0),
-                                center=dict(lon=np.nanmean(sub_data.Longitude), lat=np.nanmean(sub_data.Latitude)),
+                 layout['geo2'] = dict(projection_rotation=dict(lon=np.nanmean(sub_data.Longitude.astype(float)), lat=np.nanmean(sub_data.Latitude.astype(float)), roll=0),
+                                center=dict(lon=np.nanmean(sub_data.Longitude.astype(float)), lat=np.nanmean(sub_data.Latitude.astype(float))),
                                 projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
                                 domain=dict(x=[0.0, 0.67], y=[0.4, 0.95]), bgcolor='rgba(0,0,0,0)')
                  fig.add_trace(data_geo, row=1, col=1)
