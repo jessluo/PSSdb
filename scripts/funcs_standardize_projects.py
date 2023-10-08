@@ -941,7 +941,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
     df_standardizer = pd.read_excel(standardizer_path,sheet_name=sheet,index_col=0)
 
-    # Control. Standardization only works for IFCB, Zooscan, and UVP projects at the moment
+    # Control. Standardization only works for IFCB, scanners, and UVP projects at the moment
     if project_id not in df_standardizer.index:
         print('\nProject ID is not included in standardizer. Quitting')
         return
@@ -973,6 +973,24 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
     path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("ecotaxa_export_"+str(project_id)+'_*'))
     path_files_list=[path for path in path_files_list if ('flag' not in str(path)) & ("._" not in str(path))]
+    path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / \path_files_list[0].parent.stem
+    path_to_standard_plot = path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / \ path_files_list[0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
+    if path_to_standard_plot.exists():
+        with open(str(path_to_standard_plot))) as f:
+            html = f.read()
+        call_arg_str = re.findall(r'Plotly\.newPlot\((.*)\)', html)[1]
+        call_args = json.loads(f'[{call_arg_str}]')
+        plotly_json = {'data': call_args[1], 'layout': call_args[2]}
+        #plotly.io.from_json(json.dumps(plotly_json))
+        plotly_json['data']
+        summary_df_standardized_all=pd.DataFrame({'Latitude':plotly_json['data'][0]['lat'],'Longitude':plotly_json['data'][0]['lon'],'Sample':pd.Series(plotly_json['data'][0]['hovertext']).str.replace(r'Sample ID: ','').values})
+        summary_df_standardized_all=pd.merge(summary_df_standardized_all,pd.DataFrame({'Sample':plotly_json['data'][2]['x'],'Abundance':plotly_json['data'][2]['y']}),how='outer',on='Sample')
+        summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['data'][3]['x'], 'Average_diameter': plotly_json['data'][3]['y']}), how='outer',on='Sample')
+        summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['data'][4]['x'], 'Std_diameter': plotly_json['data'][4]['y']}), how='outer',on='Sample')
+
+        df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['legendgroup'],'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if 'legendgroup' in dict_args.keys() else pd.Dataframe({}),plotly_json['data'][5:]))
+        df_nbss['Group_index']=pd.Categorical(df_nbss.Sample,df_nbss.Sample.unique()).codes
+
 
     if len(path_files_list)>0: # Check for native format datafile
         columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))
@@ -981,10 +999,8 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         dtypes_dict = {fields_of_interest_series.loc[key]: value for key, value in dtypes_dict_all.items() if key in fields_of_interest_series.index}
 
         # Check for existing standardized file(s):
-        path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}_*.csv'.format(str(project_id))))
-        path_to_standard_plot = path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[ 0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
         path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
         if len(path_to_standard_file):
             dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
