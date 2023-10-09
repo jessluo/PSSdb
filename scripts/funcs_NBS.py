@@ -261,8 +261,8 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     binned_data= binned_data.reset_index(drop=True)
     #drop small size classes that are below the 20% uncertainty in size estimate according to the camera resolution
 
-    binned_data['count_uncertainty'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
-    binned_data['size_uncertainty'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
+    binned_data['NB'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
+    binned_data['NB'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
     #binned_data = binned_data.loc[~((binned_data['size_uncertainty']>=threshold_size) | (binned_data['count_uncertainty']>=threshold_count))].reset_index(drop=True)
 
     binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
@@ -274,7 +274,7 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
     cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
     if empty_bins in cum_empty.to_numpy():
-        binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty.isnull() == False].index.to_numpy())-1)].reset_index(drop=True)
+        binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty >=empty_bins].index.to_numpy())-1)].reset_index(drop=True)
     else:
         binned_data_filt = binned_data_filt.loc[0:max(empty_SC.index[empty_SC==False])].reset_index(drop=True)
 
