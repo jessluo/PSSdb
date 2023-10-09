@@ -128,7 +128,7 @@ PQ=ureg.Quantity
 ureg.load_definitions(Path(cfg['git_dir']).expanduser()/cfg['units_file'])  # This text file is used to define custom units from standard units  (e.g. square_pixel etc.)
 full_list_units = list(dict.fromkeys(sorted(dir(ureg))))  # list(dict.fromkeys(sorted(list(np.concatenate([dir(getattr(ureg.sys,system)) for system in dir(ureg.sys)]).flat))))
 import re
-
+import json
 # Poisson distribution
 from scipy.stats import poisson # Estimate counts uncertainties assuming detection follows a Poisson distribution
 import math
@@ -961,7 +961,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     fields_of_interest_list = list(( key, field) for key, value in fields_of_interest.items() for field in value.split(','))
     fields_of_interest_series =pd.Series(list(value[1] for value in fields_of_interest_list),list(value[0] for value in fields_of_interest_list))
 
-    # Retrieve flagged samples/profiles
+    # Retrieve flagged samples/profiles. Deprecated: Standardization is now performed regardless of the QC flags
     """
     if str(df_standardizer.loc[project_id]['Flag_path'])!='nan':
           df_flagged=pd.read_table(df_standardizer.loc[project_id]['Flag_path'],sep=',')
@@ -973,23 +973,25 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     path_to_data = Path(df_standardizer.at[project_id, "Project_localpath"]).expanduser()
     path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("ecotaxa_export_"+str(project_id)+'_*'))
     path_files_list=[path for path in path_files_list if ('flag' not in str(path)) & ("._" not in str(path))]
-    path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / \path_files_list[0].parent.stem
-    path_to_standard_plot = path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / \ path_files_list[0].parent.stem / 'standardized_project_{}.html'.format(str(project_id))
-    if path_to_standard_plot.exists():
-        with open(str(path_to_standard_plot))) as f:
+    path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
+    path_to_standard_plot = list(Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem).glob('standardized_project_{}.html'.format(str(project_id)))) if len(list(Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem).glob('standardized_project_{}.html'.format(str(project_id))))) else [Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem/'standardized_project_{}.html'.format(str(project_id)))]
+    summary_df_standardized_all=pd.DataFrame({})
+    df_nbss=pd.DataFrame({})
+    if len(path_to_standard_plot):
+        with open(str(path_to_standard_plot[-1])) as f:
             html = f.read()
         call_arg_str = re.findall(r'Plotly\.newPlot\((.*)\)', html)[1]
         call_args = json.loads(f'[{call_arg_str}]')
         plotly_json = {'data': call_args[1], 'layout': call_args[2]}
         #plotly.io.from_json(json.dumps(plotly_json))
-        plotly_json['data']
         summary_df_standardized_all=pd.DataFrame({'Latitude':plotly_json['data'][0]['lat'],'Longitude':plotly_json['data'][0]['lon'],'Sample':pd.Series(plotly_json['data'][0]['hovertext']).str.replace(r'Sample ID: ','').values})
-        summary_df_standardized_all=pd.merge(summary_df_standardized_all,pd.DataFrame({'Sample':plotly_json['data'][2]['x'],'Abundance':plotly_json['data'][2]['y']}),how='outer',on='Sample')
-        summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['data'][3]['x'], 'Average_diameter': plotly_json['data'][3]['y']}), how='outer',on='Sample')
-        summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['data'][4]['x'], 'Std_diameter': plotly_json['data'][4]['y']}), how='outer',on='Sample')
+        summary_df_standardized_all=pd.merge(summary_df_standardized_all,pd.DataFrame({'Sample':plotly_json['layout']['updatemenus'][0]['buttons'][0]['args'][0]['x'][0],'Abundance':plotly_json['layout']['updatemenus'][0]['buttons'][0]['args'][0]['y'][0]}),how='outer',on='Sample') #plotly_json['layout']['updatemenus'][0]['buttons'][0]['label']
+        summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['layout']['updatemenus'][0]['buttons'][1]['args'][0]['x'][0], 'Average_diameter': plotly_json['layout']['updatemenus'][0]['buttons'][1]['args'][0]['y'][0]}), how='outer',on='Sample') #plotly_json['layout']['updatemenus'][0]['buttons'][1]['label']
+        summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['layout']['updatemenus'][0]['buttons'][2]['args'][0]['x'][0], 'Std_diameter': plotly_json['layout']['updatemenus'][0]['buttons'][2]['args'][0]['y'][0]}), how='outer',on='Sample') #plotly_json['layout']['updatemenus'][0]['buttons'][2]['label']
+        if plot=='nbss':
+            df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['legendgroup'],'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if 'legendgroup' in dict_args.keys() else pd.Dataframe({}),plotly_json['data'][3:]))
+            df_nbss['Group_index']=pd.Categorical(df_nbss.Sample,df_nbss.Sample.unique()).codes
 
-        df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['legendgroup'],'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if 'legendgroup' in dict_args.keys() else pd.Dataframe({}),plotly_json['data'][5:]))
-        df_nbss['Group_index']=pd.Categorical(df_nbss.Sample,df_nbss.Sample.unique()).codes
 
 
     if len(path_files_list)>0: # Check for native format datafile
@@ -1001,15 +1003,16 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         # Check for existing standardized file(s):
         path_to_standard_dir.mkdir(parents=True, exist_ok=True)
         path_to_standard_file = list(path_to_standard_dir.rglob('standardized_project_{}_*.csv'.format(str(project_id))))
-        path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
+        path_to_standard_plot[-1].parent.mkdir(parents=True, exist_ok=True)
         if len(path_to_standard_file):
-            dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
-            df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
+            #dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
+            #df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all,usecols=['Sample','Category']))[-1],natsorted(path_to_standard_file)))#pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
             remaining_raw_files =[path for path in path_files_list if not Path(path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(path.stem)[str(path.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( path.stem))].replace( '_features', ''))).exists()]
             if len(remaining_raw_files):
                 print('\nExisting standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))
             else:
                 print( '\nExisting standardized file(s) found at {}, but no additional samples.\nSkipping project after saving report (if missing)'.format(path_to_standard_dir))
+                """
                 if path_to_standard_plot.is_file() == False:
                     #summary_df_standardized = pd.DataFrame({})
                     #for profile in df_standardized_existing.reset_index(drop=True).Sample.unique():
@@ -1043,7 +1046,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                         fig = standardization_report_func(df_summary=summary_subset_df , df_standardized=df_standardized_existing.assign(Project_source=df_standardizer['Project_source'][project_id]), df_nbss=nbss, plot=plot)
                     fig.write_html(path_to_standard_plot)
                     print('\nSaving standardized export plot to', path_to_standard_plot, sep=' ')
-
+                """
                 return
         else:
             df_standardized_existing = pd.DataFrame()
@@ -1052,7 +1055,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         df_standardized_new=pd.DataFrame({})
         format='{desc}{bar}' if len(path_files_list)>1 else '{desc}'
         print('\nSaving standardized datafile(s) to', path_to_standard_dir, sep=' ')
-        with tqdm(desc='', total=len(path_files_list), bar_format=format, position=0, leave=True) as bar:
+        with tqdm(desc='', total=len(remaining_raw_files), bar_format=format, position=0, leave=True) as bar:
             for file in natsorted(remaining_raw_files):
                 df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path).astype({key:value for key,value in  dtypes_dict_all.items() if key in columns}))[-1],[file])).reset_index(drop=True)
                 old_columns = df.columns
@@ -1067,8 +1070,6 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],[file])).drop_duplicates().reset_index(drop=True)
                 df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
                 df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
-
-
 
                 # Remove flagged samples/profiles
                 df=df[df['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
@@ -1231,31 +1232,40 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
                 df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged', 'ROI','ROI_number', 'Annotation','Category', 'Minor_axis', 'Major_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
                 df_standardized.to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(file.stem)[str(file.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( file.stem))].replace( '_features', '')), sep=",", index=False)
+                df_standardized_new=pd.concat([df_standardized_new,df_standardized],axis=0)
+                # Append summary
+                df_standardized = df_standardized[(df_standardized.Longitude <= 180) & (df_standardized.Longitude >= -180) & (df_standardized.Latitude <= 90) & (df_standardized.Latitude >= -90)]
+
+                if len(df_standardized):
+                    df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
+                    df_standardized['Station'] = df_standardized['Station'].astype(str)  # Required to pass groupby if missing
+                    df_standardized['Sample'] = df_standardized['Sample'].astype( str)  # Required to pass groupby if missing
+                    group = ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile'] if 'UVP' in instrument else ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max']
+
+                    df_standardized_summary = df_standardized.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'Cumulative_volume_imaged':x[['Sample','Volume_imaged']].drop_duplicates().Volume_imaged.sum(),'Depth_range_min': x.Depth_min.astype(float).min(),'Depth_range_max': x.Depth_max.astype( float).max()})).reset_index()
+                    df_standardized = pd.merge(df_standardized, df_standardized_summary, how='left', on=group)
+                    summary_df_standardized = df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Cumulative_volume_imaged','Depth_range_min', 'Depth_range_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI_number.sum(),
+                         'Abundance': x.ROI_number.sum() / (x.Cumulative_volume_imaged.unique()[0]),# individuals per liter
+                         'Average_diameter': np.nanmean(2 * np.power(np.repeat(x.Area, x.ROI_number) / np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean( np.repeat(x.ESD, x.ROI_number)),  # micrometer
+                         'Std_diameter': np.nanstd(2 * np.power(np.repeat(x.Area, x.ROI_number) / np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(np.repeat(x.ESD, x.ROI_number))})).reset_index()
+                    summary_df_standardized = summary_df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile'], dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
+                                             'Average_diameter': np.nanmean(x.Average_diameter),  # micrometer
+                                             'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
+
+                    summary_df_standardized_all=pd.concat([summary_df_standardized_all,summary_df_standardized],axis=0).reset_index(drop=True)
+                    if plot=='nbss':
+                        nbss_sample=pd.concat(map(lambda sample: process_nbss_standardized_files(path=None, df=df_standardized.astype({'Category':str,'Sampling_type':str}).query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x: np.where(x.ROI.isna(), 'all', 'vignettes')), category=['type_particles'],depth_selection=False)[2],df_standardized.Sample.unique()))
+                        df_nbss=pd.concat([df_nbss,nbss_sample],axis=0).reset_index(drop=True)
                 bar.set_description('Saving standardized datafile(s)', refresh=True)
                 ok = bar.update(n=1)
-                df_standardized_new=pd.concat([df_standardized_new,df_standardized],axis=0)
+
+
 
         # with pd.ExcelWriter(str(path_to_standard_file),engine="xlsxwriter") as writer:
         # df_standardized.to_csv(path_to_standard_file, sep="\t",index=False) # to_excel(writer, sheet_name='Data', index=False)
         # df_standardized_metadata.to_csv(path_to_metadata_standard, sep="\t",index=False)  # to_excel(writer, sheet_name='Metadata',index=False)
-        df_standardized = pd.concat([df_standardized_existing.reset_index(drop=True), df_standardized_new.reset_index(drop=True)], axis=0,ignore_index=True)
-
-        df_standardized=df_standardized[(df_standardized.Longitude<=180) & (df_standardized.Longitude>=-180) & (df_standardized.Latitude<=90) & (df_standardized.Latitude>=-90)]
-        #df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
-        #df_standardized['Station'] = df_standardized['Station'].astype(str)  # Required to pass groupby if missing
-         #df_standardized['Sample'] = df_standardized['Sample'].astype(str)  # Required to pass groupby if missing
-        group=['Sample', 'Station', 'Latitude', 'Longitude', 'Profile'] if 'UVP' in instrument else ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile','Volume_imaged','Depth_min','Depth_max']
-
-        df_standardized_summary=df_standardized.groupby(group).apply(lambda x: pd.Series({'Cumulative_volume_imaged':x[['Sample','Volume_imaged']].drop_duplicates().Volume_imaged.sum(),'Depth_range_min': x.Depth_min.astype(float).min(),'Depth_range_max': x.Depth_max.astype(float).max()})).reset_index()
-        df_standardized=pd.merge(df_standardized,df_standardized_summary,how='left',on=group)
-        summary_df_standardized=df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Cumulative_volume_imaged','Depth_range_min','Depth_range_max'],dropna=True).apply(lambda x: pd.Series({'Count':x.ROI_number.sum(),'Abundance': x.ROI_number.sum() / ( x.Cumulative_volume_imaged.unique()[0]), # individuals per liter
-                                                                                                                                                                       'Average_diameter':np.nanmean(2*np.power(np.repeat(x.Area,x.ROI_number)/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean(np.repeat(x.ESD,x.ROI_number)), # micrometer
-                                                                                                                                                                       'Std_diameter':np.nanstd(2*np.power(np.repeat(x.Area,x.ROI_number)/np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(np.repeat(x.ESD,x.ROI_number))})).reset_index()
-        summary_df_standardized=summary_df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile'],dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance), # individuals per liter
-                                                                                                                                     'Average_diameter':np.nanmean(x.Average_diameter), # micrometer
-                                                                                                                                     'Std_diameter':np.nanmean(x.Std_diameter)})).reset_index() # micrometer
-
-        df_standardized_metadata=pd.DataFrame({'Variables':df_standardized.drop(columns=[ 'Cumulative_volume_imaged','Depth_range_min','Depth_range_max']).columns,'Variable_types':df_standardized.drop(columns=[ 'Cumulative_volume_imaged','Depth_range_min','Depth_range_max']).dtypes,
+        df_standardized =df_standardized_new.reset_index(drop=True) #pd.concat([df_standardized_existing.reset_index(drop=True), df_standardized_new.reset_index(drop=True)], axis=0,ignore_index=True)
+        df_standardized_metadata=pd.DataFrame({'Variables':df_standardized.columns,'Variable_types':df_standardized.dtypes,
         'Units/Values/Timezone':['','','','','','','','degree','degree','yyyymmdd (UTC)','hhmmss (UTC)','meter','meter','cubic_decimeter','cubic_decimeter','','','','']+['micrometer' for ntimes in range(df_standardized[['Minor_axis']].shape[1])]+['micrometer' for ntimes in range(df_standardized[['Major_axis']].shape[1])]+['micrometer' for ntimes in range(df_standardized[['ESD']].shape[1])]+['square_micrometer' for ntimes in range(df_standardized[['Area']].shape[1])]+['cubic_micrometer' for ntimes in range(df_standardized[['Biovolume']].shape[1])]+['pixel_per_millimeter','micrometer','micrometer',''],
         'Description':['Project ID','Project cruise','Instrument','Sampling type (e.g. platform, gear, strategy)','Station ID (native format)','Profile ID (native format)','Sample ID (native format)','Latitude','Longitude','Sampling date','Sampling time','Minimum sampling depth','Maximum sampling depth','Volume analyzed (not accounting for sample dilution and/or fractionation)','Volume imaged (accounting for sample dilution and/or fractionation)','Region of interest ID (native format)','Number of ROI for a given area estimate (equals to 1 for all scanner, IFCB projects and UVP large particles)','Status of ROI annotation (e.g. unclassified, predicted, validated)','ROI assigned taxonomy']+ ['Object minor ellipsoidal axis derived from '+ field if field!='' or len(fields['Minor_axis'])>1 else 'Object minor ellipsoidal axis' for field in fields['Minor_axis'] ]+ ['Object major ellipsoidal axis derived from '+ field if field!='' or len(fields['Major_axis'])>1 else 'Object major ellipsoidal axis' for field in fields['Major_axis'] ]+ ['Object equivalent spherical diameter derived from '+ field if field!='' or len(fields['ESD'])>1 else 'Object equivalent spherical diameter' for field in fields['ESD'] ]+ ['Object surface area derived from '+ field if field!='' or len(fields['Area'])>1 else 'Object surface area' for field in fields['Area'] ]+['Object biovolume derived from '+ field if field!='' or len(fields['Biovolume'])>1 else 'Object biovolume' for field in fields['Biovolume']]+['Pixel size used for size conversion','Smallest sampled size','Largest sampled size','Additional description of the sampling method or protocol']})
        # Create readme file:
@@ -1265,31 +1275,29 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
         # Interactive plots
         if ((plot=='diversity') and len(summary_df_standardized)>0):
-            path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
             # Using report function defined below
-            fig=standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.dropna(subset=['ROI']).assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
+            fig=standardization_report_func(df_summary=summary_df_standardized_all,df_standardized=df_standardized.dropna(subset=['ROI']).assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
             fig.write_html(path_to_standard_plot)
             print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
-        elif ((plot=='nbss') and len(summary_df_standardized)>0):
-            path_to_standard_plot.parent.mkdir(parents=True, exist_ok=True)
-            if (instrument=='IFCB') & len(path_files_list)>1: # Use multi-processing to compute IFCB dashboard nbss
-                nbss=pd.DataFrame({})
-                chunk = 1000
-                with ThreadPool() as pool:
-                    # for result in pool.map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path, chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
-                    for result in pool.map(lambda sample: process_nbss_standardized_files(path=None,df=df_standardized.query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x:np.where(x.ROI.isna(),'all','vignettes')),category=['type_particles'],depth_selection=False)[2],df_standardized.Sample.unique(),chunksize=chunk):  # pool.map(lambda path: (columns := pd.read_table(path,sep=",", nrows=0).columns, pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_imaged','ROI','ROI_number','Area','Category'] if column in columns],dtype=dtypes_dict_all))[-1],standardized_files, chunksize=chunk):
-                        nbss = pd.concat([nbss, result], axis=0)
-                nbss = nbss.reset_index(drop=True)
+        elif ((plot=='nbss') and len(summary_df_standardized_all)>0):
+            df_nbss=df_nbss.assign(Instrument=df_standardizer.at[project_id,'Instrument'],Project_ID=project_id)
+            group=['Instrument', 'Project_ID', 'Sample']
+            nbss=pd.merge(df_nbss.drop(columns=['Group_index']), df_nbss.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename( {'index': 'Group_index'}, axis='columns'), how='left', on=group)
+            # Using report function defined below
+            if (instrument == 'IFCB') & (len(path_files_list)> 1): # group dataset by 6 month intervals and save
+                summary_df_standardized_all['Sample_datetime']=pd.to_datetime(summary_df_standardized_all.Sample.str[0:7],format='D%Y%m')
+                summary_df_standardized_all['Datetime_bin'] = summary_df_standardized_all.Sample_datetime.dt.strftime("%Y-")+pd.cut(summary_df_standardized_all.Sample_datetime.dt.strftime("%m").astype(float),[0,6,12],labels=['01','06']).astype(str)
+                nbss['Sample_datetime']=pd.to_datetime(nbss.Sample.str[0:7],format='D%Y%m')
+                nbss['Datetime_bin'] = nbss.Sample_datetime.dt.strftime("%Y-") + pd.cut( nbss.Sample_datetime.dt.strftime("%m").astype(float), [0, 6, 12], labels=['01', '06']).astype(str)
+
+                for increment,bin in enumerate(summary_df_standardized_all.Datetime_bin.unique()):
+                    fig = standardization_report_func(df_summary=summary_df_standardized_all.query('Datetime_bin=="{}"'.format(bin)),df_standardized=pd.DataFrame({'Project_source' : df_standardizer['Project_source'][project_id],'Project_ID':project_id,'Instrument':df_standardizer['Instrument'][project_id]},index=[0]),df_nbss=nbss.query('Datetime_bin=="{}"'.format(bin)), plot=plot)
+                    fig.write_html(Path(path_to_standard_plot[0].parent)/'standardized_project_{}_{}.html'.format(project_id,bin))
 
             else:
-                nbss=process_nbss_standardized_files(path=None,df=df_standardized.assign(type_particles=np.where(df_standardized.ROI.isna(),'all','vignettes')),category=['type_particles'],depth_selection=False)[2]
-            group=['Instrument', 'Project_ID', 'Station', 'Sample', 'Date_bin', 'Latitude', 'Longitude', 'Min_obs_depth', 'Max_obs_depth','type_particles']
-            nbss=pd.merge(nbss.drop(columns=['Group_index']), nbss.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename( {'index': 'Group_index'}, axis='columns'), how='left', on=group)
-
-            # Using report function defined below
-            fig = standardization_report_func(df_summary=summary_df_standardized,df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
-            fig.write_html(path_to_standard_plot)
-            print('\nSaving standardized export plot to', path_to_standard_plot, sep=' ')
+                fig = standardization_report_func(df_summary=summary_df_standardized_all,df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
+                fig.write_html(Path(path_to_standard_plot[0].parent)/'standardized_project_{}.html'.format(project_id))
+            print('\nSaving standardized export plot to', path_to_standard_plot[0].parent, sep=' ')
 
         else:
             print('\nNo samples left after dropping samples NAs. Skipping standardization report')
@@ -1353,7 +1361,7 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
                 fig.add_trace(go.Scatter(y=nbss.NBSS, x=nbss.size_class_mid,
                          line=dict(color=colors[i]),
                          name=str(sample),
-                         hovertext='Sample ID: ' + nbss.Sample + '<br>Size bin: ' + np.round( nbss['size_class_mid'], 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( nbss['NBSS'], 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
+                         hovertext='Sample ID: ' + nbss.Sample.astype(str) + '<br>Size bin: ' + np.round( nbss['size_class_mid'].astype(float), 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( nbss['NBSS'].astype(float), 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
                          hoverinfo="text",
                          legendrank=i,legendgroup=str(sample),
                          mode='lines', showlegend=show, visible=True), row=2, col=2)
