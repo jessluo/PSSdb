@@ -73,7 +73,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             lin_fit_data = pd.concat([lin_fit_data, lin_fit])
             print(lin_fit_data[lin_fit_data.columns[0]].count())
             print(NBSS_binned_all[NBSS_binned_all.columns[0]].count())
-        NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mean', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth'], axis=1)
+        NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin', 'light_cond', 'size_class_mid', 'ECD_mid', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth'], axis=1)
         if light_parsing == True:
             NBSS_1a_full = NBSS_stats_func(NBSS_raw, light_parsing=True, bin_loc=bin_loc, group_by=group_by)
             lin_fit_1b_full = stats_linfit_func(lin_fit_data, light_parsing=True, bin_loc=bin_loc, group_by=group_by)
