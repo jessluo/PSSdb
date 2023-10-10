@@ -320,11 +320,12 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD_biovolume.
 
 #Comparison between NBSS and PSD slope
 slope, intercept, r_value, p_value, std_err = stats.linregress(x=df.dropna(subset=['NBSS_slope_mean','PSD_slope_mean'])['NBSS_slope_mean'],y=df.dropna(subset=['NBSS_slope_mean','PSD_slope_mean'])['PSD_slope_mean'])
-plot = (ggplot(data=df_test)+
+plot = (ggplot(data=df)+
         geom_abline(slope=slope, intercept=intercept, alpha=0.1) +
-        geom_point(aes(x='NBSS_slope', y='PSD_slope', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
+        geom_point(aes(x='NBSS_slope_mean', y='PSD_slope_mean', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
         #geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
         labs(y='PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
+        annotate('text', label='y = '+str(np.round(slope, 2))+'x + '+str(np.round(intercept, 2))+ ', R$^{2}$ = '+str(np.round(r_value, 3)),  x = -1.3,y = -3)+
         scale_color_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.NBSS_slope_mean,[0.05,0.95]))+
         scale_y_continuous(limits=np.nanquantile(df.PSD_slope_mean,[0.05,0.95]))+
         theme_paper).draw(show=False, return_ggplot=True)
@@ -354,7 +355,7 @@ slope, intercept, r_value, p_value, std_err = stats.linregress(x=df.dropna(subse
 plot = (ggplot(data=df)+
         geom_abline(slope=slope, intercept=intercept, alpha=0.1) +
         geom_point(aes(x='NBSS_intercept_mean', y='PSD_intercept_mean', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
-        #geom_smooth(aes(x='NBSS_intercept_mean', y='PSD_intercept_mean'), method='lm', linetype='dashed', size = 0.5)+
+        annotate('text', label='y = '+str(np.round(slope, 2))+'x + '+str(np.round(intercept, 2))+ ', R$^{2}$ = '+str(np.round(r_value, 3)),  x = 1,y = 1)+
         labs(y='PSD intercept (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'NBSS intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)')+
         scale_color_manual(values = colors)+
         scale_x_continuous(limits=np.nanquantile(df.NBSS_intercept_mean,[0.05,0.95]),labels=lambda bk:['10$^{%s}$'% int(size) for size in bk])+
