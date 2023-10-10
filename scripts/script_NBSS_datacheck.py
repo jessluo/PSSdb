@@ -42,6 +42,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon, mapping
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
 world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in  np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
+import statsmodels.api as sm
 
 ## Workflow starts here:
 path_to_git=Path('~/GIT/PSSdb').expanduser()
@@ -74,6 +75,17 @@ dtypes_dict_all = dict(
              'Sampling_description'],
             [str, str, str, str, float, float, float, float, str, str, float,float, str,float, float, float, float, float, str,
              str, str, float, float, int, str]))
+
+def regress_nbss(y,x):
+    try:
+        y,x=y.to_numpy(),x.to_numpy()
+        x=sm.add_constant(x)
+        wls_model =sm.WLS(y, x )
+        reg =  wls_model.fit()
+        return {'slope':reg.params[1],'slope_sd':reg.bse[1],'intercept':reg.params[0],'intercept_sd':reg.bse[0],'R2':reg.rsquared}
+    except:
+        return {'slope': pd.NA, 'slope_sd': pd.NA, 'intercept': pd.NA, 'intercept_sd': pd.NA,'R2': pd.NA}
+
 
 def process_nbss_standardized_files(path=None,df=None,category=[],depth_selection=True):
     """

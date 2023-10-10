@@ -29,8 +29,21 @@ import geopandas as gpd
 oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
 world_polygon = pd.concat([pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon[0]).shape[0])}),pd.DataFrame(polygon[0], columns=['Longitude', 'Latitude'])], axis=1) if pd.DataFrame(polygon[0]).shape[1] > 1 else pd.concat([pd.DataFrame({'Country': np.repeat(country_polygon, pd.DataFrame(polygon).shape[0])}),pd.DataFrame(polygon, columns=['Longitude', 'Latitude'])], axis=1) for country, region in zip(world.name, world.geometry) for country_polygon, polygon in zip([str(country) + "_" + str(poly) for poly in np.arange(len(mapping(region)['coordinates'])).tolist()], mapping(region)['coordinates'])], axis=0)
+theme_paper=theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              panel_border=element_rect(color='black'),
+              legend_title=element_text(family="serif", size=8),
+              legend_position='top',
+              legend_text=element_text(family="serif", size=8),
+              axis_title=element_text(family="serif", size=8),
+              axis_text_x=element_text(family="serif", size=8),
+              axis_text_y=element_text(family="serif", size=8, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))
 
 ## Workflow starts here:
+
 
 # Generate stats for table 1 and Suppl Fig A1 (Sampling efforts):
 path_to_project_list=Path(cfg['git_dir']).expanduser()/ cfg['proj_list']
@@ -156,13 +169,16 @@ df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.u
 
 
 # Generate maps and heatmap of the spatio-temporal coverage for PSSdb products 1
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data'
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_10_2023'
 path_files= list(set(path_to_datafile.rglob('*_1b_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
 path_files_1a=list(set(path_to_datafile.rglob('*_1a_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
 #df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
 
 df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
+grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
+# Normalized biovolume vs size
+df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
 
 # Fig 5. Latitudinal trends
 df['latitude_cat'] = pd.cut(df['latitude'], bins=list(np.arange(-90,100, 1))).apply(lambda x: np.round(x.mid))
@@ -262,106 +278,107 @@ plot[0].set_size_inches(6.5,2.8)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 #Fig. 3a  Average NBSS and supplemental figure 2 Average PSD
-colors = {'IFCB': 'green', 'Scanner': 'red', 'UVP': 'blue'}
-grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
-
-df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
+colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
+# Normalized biovolume vs size
 plot = (ggplot(data=df_1a)+
-        geom_line(df_1a,aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument',group='Group_index'), alpha=0.2, size = 0.1) +
-        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),size = 0.05, alpha=0.1, shape = 'o')+
-        stat_summary(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),geom='line', fun_y=np.nanmedian, size = 1)+
+        geom_line(df_1a,aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_1a[df_1a.groupby(['Instrument']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),geom='line', fun_y=np.nanmedian, size = 1)+
         labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
         scale_color_manual(values = colors)+
         scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3.1_NBSS.pdf'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(4.5,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSS.pdf'.format(str(Path.home())), dpi=300)
 
 
-#figure 3B
+#Normalized abundance vs size
 plot = (ggplot(data=df_1a)+
-        geom_line(df_1a,aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument',group='Group_index'), alpha=0.2, size = 0.1) +
-        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument'),size = 0.05, alpha=0.1, shape = 'o')+
-        stat_summary(aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument'),geom='line', fun_y=np.nanmean, size = 1)+
+        geom_line(df_1a,aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_1a[df_1a.groupby(['Instrument']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument'),geom='line', fun_y=np.nanmean, size = 1)+
         labs(y=r'Normalized Abundance (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'Equivalent circular diameter ($\mu$m)')+
         scale_color_manual(values = colors)+
         scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3.2_PSD.pdf'.format(str(Path.home())), dpi=600)
-
-
-#figure 3C, relation between NBSS and PSD slope
-slope, intercept, r_value, p_value, std_err = stats.linregress(df['NBSS_slope_mean'],df['PSD_slope_mean'])
-plot = (ggplot(data=df)+
-        geom_point(aes(x='NBSS_slope_mean', y='PSD_slope_mean', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
-        geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
-        labs(y='PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(4.5,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD.pdf'.format(str(Path.home())), dpi=300)
+plot = (ggplot(data=df_1a)+
+        geom_line(df_1a,aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_1a[df_1a.groupby(['Instrument']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument'),geom='line', fun_y=np.nanmean, size = 1)+
+        labs(y=r'Normalized Abundance (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'Biovolume ($\mu$m$^{3}$)')+
         scale_color_manual(values = colors)+
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3.3_slopes.pdf'.format(str(Path.home())), dpi=600)
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_x_log10(labels=lambda bk: [int(size) for size in bk])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(4.5,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD_biovolume.pdf'.format(str(Path.home())), dpi=100)
 
-#figure 3D, relation between NBSS and PSD intercept
-slope, intercept, r_value, p_value, std_err = stats.linregress(df['NBSS_intercept_mean'],df['PSD_intercept_mean'])
+
+#Comparison between NBSS and PSD slope
+slope, intercept, r_value, p_value, std_err = stats.linregress(x=df.dropna(subset=['NBSS_slope_mean','PSD_slope_mean'])['NBSS_slope_mean'],y=df.dropna(subset=['NBSS_slope_mean','PSD_slope_mean'])['PSD_slope_mean'])
+plot = (ggplot(data=df_test)+
+        geom_abline(slope=slope, intercept=intercept, alpha=0.1) +
+        geom_point(aes(x='NBSS_slope', y='PSD_slope', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
+        #geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
+        labs(y='PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
+        scale_color_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.NBSS_slope_mean,[0.05,0.95]))+
+        scale_y_continuous(limits=np.nanquantile(df.PSD_slope_mean,[0.05,0.95]))+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_slopes.svg'.format(str(Path.home())), dpi=600)
+# Add density
 plot = (ggplot(data=df)+
+        geom_density(aes(x='NBSS_slope_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
+        #geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
+        labs(y='Density', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
+        scale_fill_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.NBSS_slope_mean,[0.05,0.95]))+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,1)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSslopes_density.svg'.format(str(Path.home())), dpi=600)
+plot = (ggplot(data=df)+
+        geom_density(aes(x='PSD_slope_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
+        labs(y='Density', x=r'PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)')+
+        scale_fill_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.PSD_slope_mean,[0.95,0.05]))+
+        #coord_flip()+ flipping messes up the rendering
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,1)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDslopes_density.svg'.format(str(Path.home())), dpi=600)
+
+#Comparison between NBSS and PSD intercept
+
+slope, intercept, r_value, p_value, std_err = stats.linregress(x=df.dropna(subset=['NBSS_intercept_mean','PSD_intercept_mean'])['NBSS_intercept_mean'],y=df.dropna(subset=['NBSS_intercept_mean','PSD_intercept_mean'])['PSD_intercept_mean'])
+plot = (ggplot(data=df)+
+        geom_abline(slope=slope, intercept=intercept, alpha=0.1) +
         geom_point(aes(x='NBSS_intercept_mean', y='PSD_intercept_mean', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
-        geom_smooth(aes(x='NBSS_intercept_mean', y='PSD_intercept_mean'), method='lm', linetype='dashed', size = 0.5)+
+        #geom_smooth(aes(x='NBSS_intercept_mean', y='PSD_intercept_mean'), method='lm', linetype='dashed', size = 0.5)+
         labs(y='PSD intercept (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'NBSS intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)')+
         scale_color_manual(values = colors)+
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3.4_intercepts.pdf'.format(str(Path.home())), dpi=600)
+        scale_x_continuous(limits=np.nanquantile(df.NBSS_intercept_mean,[0.05,0.95]),labels=lambda bk:['10$^{%s}$'% int(size) for size in bk])+
+        scale_y_continuous(limits=np.nanquantile(df.PSD_intercept_mean,[0.05,0.95]),labels=lambda bk:['10$^{%s}$'% int(size) for size in bk])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_intercepts.svg'.format(str(Path.home())), dpi=600)
+# Add density
+plot = (ggplot(data=df)+
+        geom_density(aes(x='NBSS_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
+        #geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
+        labs(y='Density', x=r'NBSS intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)')+
+        scale_fill_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.NBSS_intercept_mean,[0.05,0.95]))+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,1)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSintercepts_density.svg'.format(str(Path.home())), dpi=600)
+plot = (ggplot(data=df)+
+        geom_density(aes(x='PSD_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
+        labs(y='Density', x=r'PSD intercept (particles L$^{-1}$ $\mu$m$^{-1}$)')+
+        scale_fill_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.PSD_intercept_mean,[0.95,0.05]))+
+        #coord_flip()+ flipping messes up the rendering
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,1)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDintercepts_density.svg'.format(str(Path.home())), dpi=600)
 
 # extra figure for intercept values:
 
