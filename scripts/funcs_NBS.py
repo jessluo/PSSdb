@@ -225,9 +225,12 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
     else:
         NBS_biovol_df= NBS_biovol_df
 
-    NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD'], [float] * 6)))
-
-    lin_fit = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: linear_fit_func(x)).reset_index(drop=True)
+    if len(NBS_biovol_df) ==0:
+        NBS_biovol_df=pd.DataFrame()
+        lin_fit=pd.DataFrame()
+    else:
+        NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD'], [float] * 6)))
+        lin_fit = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: linear_fit_func(x)).reset_index(drop=True)
 
     return NBS_biovol_df, lin_fit
 
@@ -264,26 +267,29 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     binned_data['NB'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
     binned_data['NB'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
     #binned_data = binned_data.loc[~((binned_data['size_uncertainty']>=threshold_size) | (binned_data['count_uncertainty']>=threshold_count))].reset_index(drop=True)
-
-    binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
-    binned_data_filt['NB'] = binned_data_filt['NB'].replace(0, np.NaN)
-
-    #binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
-
-    empty_SC = binned_data_filt['NB'].isnull()  # get row indices with empty size bins
-    sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
-    cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
-    if empty_bins in cum_empty.to_numpy():
-        binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty >=empty_bins].index.to_numpy())-1)].reset_index(drop=True)
+    if len(binned_data.NB.unique()) <3:
+        binned_data_filt= pd.DataFrame()
     else:
-        binned_data_filt = binned_data_filt.loc[0:max(empty_SC.index[empty_SC==False])].reset_index(drop=True)
+        binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
+        binned_data_filt['NB'] = binned_data_filt['NB'].replace(0, np.NaN)
+
+        #binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
+
+        empty_SC = binned_data_filt['NB'].isnull()  # get row indices with empty size bins
+        sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
+        cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
+        if empty_bins in cum_empty.to_numpy():
+            binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty >=empty_bins].index.to_numpy())-1)].reset_index(drop=True)
+        else:
+            binned_data_filt = binned_data_filt.loc[0:max(empty_SC.index[empty_SC==False])].reset_index(drop=True)
 
     #lower threshold based on three consecutive size bins with nans
     #for n, i in enumerate(np.isnan(binned_data_filt['NB'])):
         #if (i == True) and (np.isnan(binned_data_filt.loc[n+1, 'NB']) == True) and (np.isnan(binned_data_filt.loc[n+2, 'NB']) == True): #edited to test thresholding
             #binned_data_filt = binned_data_filt.loc[0:n-1]
             #break
-
+    if len(binned_data.NB.unique()) <3:
+        binned_data_filt= pd.DataFrame()
     return binned_data_filt
 
 def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
