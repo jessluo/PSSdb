@@ -59,7 +59,7 @@ flag_subdir : 'flags'
 proj_list : 'raw/project_list_all.xlsx'
 
 # Path to custom file containing the size classes used to compute the Size Spectra products
-size_bins_path: '~/GIT/PSSdb/raw/ecopart_size_bins.tsv'
+size_bins_path: '~/GIT/PSSdb/ancillary/ecopart_size_bins.tsv'
 
 # Path to custom units definition: The list of custom units definition needed for datasets standardization
 units_file : 'scripts/units_def.txt'
