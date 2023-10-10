@@ -58,7 +58,7 @@ df_standardizer['Portal']=df_standardizer.Project_localpath.apply(lambda x: 'eco
 df_standardizer['Project_files']=df_standardizer.apply(lambda x:';'.join([str(path) for path in list(Path(x['Project_localpath']).expanduser().rglob('*raw_{}_metadata.tsv'.format(x['Project_ID'])))]) if x.Portal=='ecopart' else x.Project_files  ,axis=1)
 df_standardizer=pd.merge(df_standardizer,df_list[df_list.PSSdb_access==True][['Project_ID','Project_title','Contact_name','Contact_email','Portal']],how='left',on=['Project_ID','Portal'])
 
-path_to_bins = path_to_data / 'ecopart_size_bins.tsv'
+path_to_bins = path_to_git / 'ancillary' / 'ecopart_size_bins.tsv'
 df_bins=pd.read_table(path_to_bins,sep=",")
 from scipy import stats
 
