@@ -288,7 +288,7 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
         #if (i == True) and (np.isnan(binned_data_filt.loc[n+1, 'NB']) == True) and (np.isnan(binned_data_filt.loc[n+2, 'NB']) == True): #edited to test thresholding
             #binned_data_filt = binned_data_filt.loc[0:n-1]
             #break
-    if len(binned_data.NB.unique()) <3:
+    if len(binned_data_filt.NB.unique()) <3:
         binned_data_filt= pd.DataFrame()
     return binned_data_filt
 
