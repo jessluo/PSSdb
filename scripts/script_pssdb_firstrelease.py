@@ -663,19 +663,7 @@ plot = (ggplot(data=df)+
         labs(y=r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+        theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(5,5)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.1_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
 
@@ -686,19 +674,7 @@ plot = (ggplot(data=df)+
         labs(y=r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+        theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(5,5)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.2_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
 
@@ -709,18 +685,6 @@ plot = (ggplot(data=df)+
         labs(y=r'Mean R$^{2}$', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
-        theme(axis_ticks_direction="inout",
-              panel_grid=element_blank(),
-              panel_border = element_blank(),
-              axis_line = element_line(colour = "black"),
-              panel_background=element_rect(fill='white'),
-              #panel_border=element_rect(color='#222222'),
-              legend_title=element_text(family="serif", size=10),
-              legend_position=[0.5, 0.95],
-              legend_text=element_text(family="serif", size=10),
-              axis_title=element_text(family="serif", size=15),
-              axis_text_x=element_text(family="serif", size=12),
-              axis_text_y=element_text(family="serif", size=12, rotation=90),
-              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+        theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(5,5)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.3_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
