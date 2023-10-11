@@ -68,7 +68,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             file_subset = [file for file in file_list if i in file]
             NBS_biovol_df= pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
             if instrument == 'IFCB':
-                NBS_biovol_df = NBS_biovol_df[NBS_biovol_df['Sample'].str.contains('D20200204T143120_IFCB109') == False].reset_index(drop=True)
+                NBS_biovol_df = NBS_biovol_df[(~NBS_biovol_df['Sample'].str.contains('D20200204T143120_IFCB109')) | (~NBS_biovol_df['Sample'].str.contains('D20131110T014214_IFCB101')) | (~NBS_biovol_df['Sample'].str.contains('D20131110T105100_IFCB101'))| (~NBS_biovol_df['Sample'].str.contains('D20190825T074148_IFCB109'))].reset_index(drop=True)
             NBS_biovol_df, df_bins = size_binning_func(NBS_biovol_df, biovol)  # create size bins
             NBS_biovol_df, lin_fit = NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate=biovol, sensitivity=sensitivity)
             NBSS_binned_all = pd.concat([NBSS_binned_all, NBS_biovol_df])
