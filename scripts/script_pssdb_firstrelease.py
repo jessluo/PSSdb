@@ -25,6 +25,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 palette=list((sns.color_palette("PuRd",4).as_hex()))
 fontname = 'serif'
+from scipy.stats import spearmanr
 import geopandas as gpd
 oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
 world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
@@ -41,21 +42,30 @@ theme_paper=theme(axis_ticks_direction="inout",
               axis_text_x=element_text(family="serif", size=8),
               axis_text_y=element_text(family="serif", size=8, rotation=90),
               plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))
+colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
 
 ## Workflow starts here:
+
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_10_2023'
+path_files= list(set(path_to_datafile.rglob('*_1b_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
+path_files_1a=list(set(path_to_datafile.rglob('*_1a_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
+#df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
+df_cor=df[['NBSS_slope_mean','PSD_slope_mean','NBSS_intercept_mean','PSD_intercept_mean','NBSS_r2_mean','PSD_r2_mean']].corr(method='spearman')
+
+df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
+grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
+df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
 
 
 # Generate stats for table 1 and Suppl Fig A1 (Sampling efforts):
 path_to_project_list=Path(cfg['git_dir']).expanduser()/ cfg['proj_list']
 df_list=pd.concat(map(lambda x:pd.read_excel(path_to_project_list,sheet_name=x).assign(Portal=x),['ecotaxa','ecopart','ifcb']))
 
-path_to_datafile=(Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']).expanduser()
-path_standardizer=list(Path(path_to_datafile.parent).glob(['project_Zooscan*', 'project_Other*']))
-path_standardizer=list(Path(path_to_datafile.parent).glob('project_UVP_*'))
-path_standardizer=list(Path(path_to_datafile.parent).glob('project_IFCB_*'))
+path_to_datafile=(Path(cfg['raw_dir']).expanduser() /cfg['flag_subdir']).expanduser()
+path_flags=list(Path(path_to_datafile).rglob('project_*_flags.csv'))
 
-path_files=list(path_to_datafile.rglob('standardized_*.csv'))
-df_standardizer=pd.concat(map(lambda path: pd.read_excel(path),path_standardizer)).reset_index(drop=True)
+df_standardizer=pd.concat(map(lambda path: pd.read_table(path,sep=","),path_flags)).reset_index(drop=True)
 # Select only standard files for the instrument of interest
 path_files=[path for project in df_standardizer.index  for path in path_files if path in list(Path(df_standardizer.loc[project,'Project_localpath'].replace('raw',cfg['standardized_subdir'])).expanduser().rglob('standardized_project_{}_*'.format(df_standardizer.loc[project,'Project_ID'])))]
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time','Depth_min','Depth_max','Sampling_description'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}),path_files)).drop_duplicates().reset_index(drop=True)
@@ -169,16 +179,6 @@ df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.u
 
 
 # Generate maps and heatmap of the spatio-temporal coverage for PSSdb products 1
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_10_2023'
-path_files= list(set(path_to_datafile.rglob('*_1b_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
-path_files_1a=list(set(path_to_datafile.rglob('*_1a_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
-df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
-#df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
-
-df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
-grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
-# Normalized biovolume vs size
-df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
 
 # Fig 5. Latitudinal trends
 df['latitude_cat'] = pd.cut(df['latitude'], bins=list(np.arange(-90,100, 1))).apply(lambda x: np.round(x.mid))
@@ -206,30 +206,22 @@ for instrument in df.Instrument.unique():
 
 # Fig 6. Climatology per basin
 df=pd.merge(df.astype(dict(zip(['longitude', 'latitude'],[str]*2))),df.astype(dict(zip(['longitude', 'latitude'],[str]*2))).drop_duplicates(subset=['longitude', 'latitude'], ignore_index=True)[['longitude', 'latitude']].reset_index().rename({'index': 'Group_index'}, axis='columns'),how='left',on=['longitude', 'latitude']).astype(dict(zip(['longitude', 'latitude'],[float]*2)))
-gdf = gpd.GeoDataFrame(df[['Group_index','longitude', 'latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy( df[[ 'Group_index','longitude', 'latitude']].drop_duplicates().dropna().longitude,df[['Group_index','longitude', 'latitude']].drop_duplicates().dropna().latitude))
-df['Study_area'] = pd.merge(df, gpd.tools.sjoin_nearest(gdf, oceans, how='left')[['Group_index', 'name']], how='left',on='Group_index')['name'].astype(str)
-
-plot=(ggplot(data=df[(df.groupby(['Instrument','Study_area'])['month'].transform(lambda x: len(x.unique())>7)) &(df.Study_area.isin(['Indian Ocean','Mediterranean Region','North Atlantic Ocean','North Pacific Ocean','South Pacific Ocean']))].melt(id_vars=['Instrument', 'Group_index', 'Study_area','year', 'month', 'latitude', 'longitude', 'min_depth', 'max_depth', 'N'],value_vars=['slope_NB_mean',  'intercept_NB_mean','r2_NB_mean']))+
-   facet_grid('pd.Categorical(variable,categories=["slope_NB_mean",  "intercept_NB_mean","r2_NB_mean"])~pd.Categorical(Study_area,categories=["Indian Ocean","Mediterranean Region","North Atlantic Ocean","North Pacific Ocean","South Pacific Ocean"])',scales='free')+
-  stat_summary( aes(x="month",y="value",color='Instrument'),alpha=1) +
-      stat_summary(aes(x="month", y="value", color='Instrument'), alpha=1,geom='line') +
-      stat_summary(aes(x="month", y="value", fill='Instrument'),geom='ribbon', alpha=0.3) +
+df['Study_area']=df.ocean
+#gdf = gpd.GeoDataFrame(df[['Group_index','longitude', 'latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy( df[[ 'Group_index','longitude', 'latitude']].drop_duplicates().dropna().longitude,df[['Group_index','longitude', 'latitude']].drop_duplicates().dropna().latitude))
+#df['Study_area'] = pd.merge(df, gpd.tools.sjoin_nearest(gdf, oceans, how='left')[['Group_index', 'name']], how='left',on='Group_index')['name'].astype(str)
+data=df[(df.groupby(['Instrument','Study_area'])['month'].transform(lambda x: len(x.unique())>9)) &(df.Study_area.isin(['Indian Ocean','Mediterranean Region','North Atlantic Ocean','North Pacific Ocean','South Pacific Ocean']))].melt(id_vars=['Instrument', 'Group_index', 'Study_area','year', 'month', 'latitude', 'longitude', 'min_depth', 'max_depth'],value_vars=['NBSS_slope_mean',  'NBSS_intercept_mean','NBSS_r2_mean']).astype({'month':float,'value':float}).dropna(subset=['value'])
+plot=(ggplot(data)+
+    facet_grid('pd.Categorical(variable,categories=["NBSS_slope_mean",  "NBSS_intercept_mean","NBSS_r2_mean"])~pd.Categorical(Study_area,categories=["Indian Ocean","Mediterranean Region","North Atlantic Ocean","North Pacific Ocean","South Pacific Ocean"])',scales='free')+
+    stat_summary( aes(x="month",y="value",color='Instrument'),alpha=0.4) +
+    stat_summary(aes(x="month", y="value", color='Instrument'), alpha=1,geom='line') +
+    stat_summary(aes(x="month", y="value", fill='Instrument'),geom='ribbon', alpha=0.3) +
 labs(x=r'', y=r'') +
-scale_color_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
-scale_fill_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
+scale_color_manual(values=colors)+
+scale_fill_manual(values=colors)+
 scale_x_continuous(breaks=np.arange(1,13,3),labels=[calendar.month_abbr[month] for month in np.arange(1,13,3)])+
-theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
-                      panel_grid=element_blank(),
-                      panel_background=element_rect(fill='white'),
-                      panel_border=element_rect(color='#222222'),
-                      legend_title=element_text(family="serif", size=10),
-                      legend_text=element_text(family="serif", size=10),
-                      axis_title=element_text(family="serif", size=10),
-                      axis_text_x=element_text(family="serif", size=10),
-                      axis_text_y=element_text(family="serif", size=10, rotation=90),
-                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches( 8,5)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Climatologies_PSSdb.pdf'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
+theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches( 8,6)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figures_6.svg'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
 
 
 # Fig 2. Spatial coverage
@@ -278,7 +270,6 @@ plot[0].set_size_inches(6.5,2.8)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 #Fig. 3a  Average NBSS and supplemental figure 2 Average PSD
-colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
 # Normalized biovolume vs size
 plot = (ggplot(data=df_1a)+
         geom_line(df_1a,aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument',group='Group_index'), alpha=0.02, size = 0.1) +
