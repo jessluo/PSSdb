@@ -5,6 +5,7 @@ warnings.filterwarnings('ignore')
 import numpy as np
 from wcmatch.pathlib import Path # Handling of path object
 import pandas as pd
+import statistics as st
 import yaml
 import math as m
 import shutil
@@ -50,7 +51,7 @@ def size_binning_func(df_subset, biovol_estimate):
     df_subset['size_class_mid'] = df_subset.sizeClasses.apply(lambda x: x.mid)
 
     df_subset['size_range_ECD'] = df_subset.sizeClasses_ECD.apply(lambda x: x.length)
-    df_subset['ECD_mid'] = df_subset.sizeClasses_ECD.apply(lambda x: x.mid)
+    df_subset['ECD_mid'] = df_subset.sizeClasses_ECD.apply(lambda x: np.round(st.geometric_mean([x.left, x.right]), 2)) # change this to geometric mean
 
     #defining the full size bins data
 
