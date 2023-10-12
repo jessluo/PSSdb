@@ -83,7 +83,7 @@ def biovolume_metric(df_binned):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=True): #, niter=0
+def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=False): #, niter=0
     """
     """
     import numpy as np
