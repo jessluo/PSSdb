@@ -83,7 +83,7 @@ def biovolume_metric(df_binned):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=False): #, niter=0
+def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=True): #, niter=0
     """
     """
     import numpy as np
@@ -490,12 +490,12 @@ def NBSS_stats_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm')
     # generate a cleaner dataset (without grouping variables) to finally present 1a
     NBSS_avg.columns = NBSS_avg.columns.map('_'.join).str.removesuffix("first")
     NBSS_avg.columns = NBSS_avg.columns.str.removesuffix("_")
-    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'size_class_mid','NB_mean', 'NB_std', 'ECD_mid_mean','PSD_mean', 'PSD_std', 'NB_count'], axis=1)
+    NBSS_avg= NBSS_avg.filter(['year', 'month', 'midLatBin', 'midLonBin', 'light_cond', 'Min_obs_depth', 'Max_obs_depth', 'NB_count', 'size_class_mid','NB_mean', 'NB_std', 'ECD_mid_mean','PSD_mean', 'PSD_std'], axis=1)
     NBSS_avg= NBSS_avg.rename(columns={'midLatBin':'latitude', 'midLonBin': 'longitude', 'light_cond':'light_condition',
-                                       'Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth', 'size_class_mid': 'biovolume_size_class',
+                                       'Min_obs_depth':'min_depth', 'Max_obs_depth':'max_depth','NB_count':'n', 'size_class_mid': 'biovolume_size_class',
                                        'NB_mean':'normalized_biovolume_mean', 'NB_std': 'normalized_biovolume_std', 'ECD_mid_mean': 'equivalent_circular_diameter_mean',
-                                       'PSD_mean':'normalized_abundance_mean', 'PSD_std': 'normalized_abundance_std', 'NB_count':'N'})
-    NBSS_avg= NBSS_avg[NBSS_avg.N !=0].reset_index(drop = True)
+                                       'PSD_mean':'normalized_abundance_mean', 'PSD_std': 'normalized_abundance_std'})
+    NBSS_avg= NBSS_avg[NBSS_avg.n !=0].reset_index(drop = True)
     return NBSS_avg
 
 def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm'):
@@ -550,7 +550,7 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
-    lin_fit_stats= lin_fit_stats.rename(columns={'slope_NB_count': 'N', 'midLatBin': 'latitude', 'midLonBin': 'longitude'})
+    lin_fit_stats= lin_fit_stats.rename(columns={'NBSS_slope_count': 'n', 'midLatBin': 'latitude', 'midLonBin': 'longitude'})
     lin_fit_stats= lin_fit_stats[lin_fit_stats.columns.drop(list(lin_fit_stats.filter(regex='count')))]
     del lin_fit_stats['Station_location']
     del lin_fit_stats['date_bin']
