@@ -632,32 +632,32 @@ colors = {'Biovolume-ellipsoid': 'teal', 'Biovolume-area': 'black', 'Biovolume-d
 plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
-        stat_summary(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 10,  position = position_dodge(width=1))+
+        stat_summary(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
         labs(y=r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
         theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
+plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.1_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
 
 plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
-        stat_summary(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 10,  position = position_dodge(width=1))+
+        stat_summary(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
         labs(y=r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
         theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
+plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.2_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
 
 plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
-        stat_summary(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 10,  position = position_dodge(width=1))+
+        stat_summary(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
         labs(y=r'Mean R$^{2}$', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
         theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(5,5)
+plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.3_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
