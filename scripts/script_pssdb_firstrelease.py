@@ -623,7 +623,7 @@ plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.3_r2_clim_basins.p
 plt.close()
 
 
-## Figures of Sensitivity analysis (Supp figure 3)
+## Figures of Sensitivity analysis (Supp figure 3, top row)
 path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'Sensitivity_analysis'
 path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
@@ -633,7 +633,7 @@ plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
         stat_summary(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
-        labs(y=r'Mean slope ( dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
+        labs(y=r'Mean slope ( L$^{-1}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
         theme_paper).draw(show=False, return_ggplot=True)
@@ -644,7 +644,7 @@ plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
         stat_summary(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
-        labs(y=r'Mean Intercept ( $\mu$m$^{3}$ dm$^{-3}$ $\mu$m$^{-3}$)', x='')+
+        labs(y=r'Mean Intercept ( $\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
         theme_paper).draw(show=False, return_ggplot=True)
@@ -661,3 +661,50 @@ plot = (ggplot(data=df)+
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.3_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
+
+
+## Figures of Sensitivity analysis (Supp figure 3, bottom row)
+
+df_1a=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name.split('_')[0], Biovol_metric = path.name.split('_')[2]),path_files_1a)).drop_duplicates().reset_index(drop=True)
+grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument', 'Biovol_metric']
+df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
+
+
+
+plot = (ggplot(data=df_1a.loc[df_1a.Instrument =='IFCB'])+
+        geom_line(df_1a.loc[df_1a.Instrument =='IFCB'],aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_1a.loc[df_1a.Instrument =='IFCB'][df_1a.loc[df_1a.Instrument =='IFCB'].groupby(['Biovol_metric']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric'),geom='line', fun_y=np.nanmedian, size = 1)+
+        labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
+        scale_color_manual(values = colors)+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.4_Biovol_sensitivity_NBSS_IFCB.pdf'.format(str(Path.home())), dpi=600)
+
+
+plot = (ggplot(data=df_1a.loc[df_1a.Instrument =='UVP'])+
+        geom_line(df_1a.loc[df_1a.Instrument =='UVP'],aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_1a.loc[df_1a.Instrument =='UVP'][df_1a.loc[df_1a.Instrument =='UVP'].groupby(['Biovol_metric']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric'),geom='line', fun_y=np.nanmedian, size = 1)+
+        labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
+        scale_color_manual(values = colors)+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.4_Biovol_sensitivity_NBSS_UVP.pdf'.format(str(Path.home())), dpi=600)
+
+
+plot = (ggplot(data=df_1a.loc[df_1a.Instrument =='Scanner'])+
+        geom_line(df_1a.loc[df_1a.Instrument =='Scanner'],aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_1a.loc[df_1a.Instrument =='Scanner'][df_1a.loc[df_1a.Instrument =='Scanner'].groupby(['Biovol_metric']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Biovol_metric'),geom='line', fun_y=np.nanmedian, size = 1)+
+        labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
+        scale_color_manual(values = colors)+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,3)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.4_Biovol_sensitivity_NBSS_Scanner.pdf'.format(str(Path.home())), dpi=600)
