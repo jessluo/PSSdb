@@ -463,14 +463,14 @@ def convert(na, type):
         str(na)
 
 
-def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2,validation_threshold=0.95):
+def flag_func(dataframe,count_uncertainty_threshold=cfg['count_uncertainty_threshold'],artefacts_threshold=cfg['artefacts_threshold'],validation_threshold=cfg['validation_threshold']):
     """
         Objective: This function assign flags to samples contained in a imaging dataset based on multiple criteria.
         Criteria include missing data/metadata, anomalous GPS location, low ROI counts/validation percentage, presence of artefacts, multiple size calibration factors
         :param dataframe: dataframe whose samples need to be quality controlled
-        :param count_uncertainty_threshold: threshold used to flag samples with low ROI counts [0-1]
-        :param artefacts_threshold: threshold used to flag samples with high percentage of artefacts [0-1]
-        :param validation_threshold: threshold used to flag samples with low percentage of taxonomic annotation [0-1]
+        :param count_uncertainty_threshold: threshold used to flag samples with low ROI counts [0-1]. Default is 5% (0.05), change in comfiguration masterfile if needed
+        :param artefacts_threshold: threshold used to flag samples with high percentage of artefacts [0-1]. Default is 20% (0.2), change in comfiguration masterfile if needed
+        :param validation_threshold: threshold used to flag samples with low percentage of taxonomic annotation [0-1]. Default is 95% (0.95), change in comfiguration masterfile if needed
         :return: initial dataframe with flags, sample-specific summary
     """
 
@@ -486,9 +486,10 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
         df_summary=dataframe[['Sample','Missing_field']].drop_duplicates().reset_index(drop=True)
         # Flag #2/3: anomalous GPS location
         dataframe['Flag_GPScoordinatesonland'] = 0
+        dataframe[['Longitude', 'Latitude']]=np.round(dataframe[['Longitude', 'Latitude']],4)
         gdf = gpd.GeoDataFrame(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna(), geometry=gpd.points_from_xy(dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Longitude, dataframe[['Sample','Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
         point_in_polygons = gpd.tools.sjoin(gdf, oceans, predicate="within", how='left')
-        summary=pd.merge(point_in_polygons[['Sample', 'name']].rename(columns={'name':'Study_area'}),gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']].rename(columns={'ProvDescr':'Longhurst_province'}),how='left',on='Sample')
+        summary=pd.merge(point_in_polygons[['Sample', 'name']].rename(columns={'name':'Study_area'}),gpd.tools.sjoin(gdf, Longhurst, predicate="within", how='left')[['Sample', 'ProvDescr']].rename(columns={'ProvDescr':'Longhurst_province'}),how='left',on='Sample').drop_duplicates(subset=['Sample','Study_area','Longhurst_province'])
         df_summary=pd.merge(df_summary,summary,how='left',on=['Sample'])
         if any(point_in_polygons.index_right.astype(str) == 'nan'):
             gdf['Flag_GPScoordinatesonland'] =point_in_polygons.index_right.astype(str) == 'nan'# point_in_polygons.index_right.astype(str) != 'nan'
@@ -533,9 +534,9 @@ def flag_func(dataframe,count_uncertainty_threshold=0.05,artefacts_threshold=0.2
             # dataframe['0' in dataframe['Flag_size'].astype('str')].Sample.unique()
 
     dataframe['Flag']=np.where(dataframe[[column for column in dataframe.columns if 'Flag_' in column]].sum(axis=1)==0,0,1) # Default is 0, aka no anomaly
-    df_summary = pd.merge(df_summary, dataframe[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','datetime','Longitude','Latitude','Depth_min','Depth_max']+[column for column in dataframe.columns if 'Flag' in column]].drop_duplicates().rename(columns={ 'datetime': 'Sample_datetime'}).astype({'Project_ID': str, 'Instrument': str, 'Sample': str, 'Sample_localpath': str,'Flag': str, 'Longitude': str, 'Latitude': str,'Sample_datetime': str}).groupby(['Project_ID', 'Instrument', 'Sample', 'Sample_localpath','Sample_URL', 'Flag', 'Longitude', 'Latitude', 'Sample_datetime']+[column for column in dataframe.columns if 'Flag_' in column]).apply(lambda x: pd.Series({'Sampling_depth_min_range': x.Depth_min.min(), 'Sampling_depth_max_range': x.Depth_max.max()})).reset_index(), how='right',on='Sample')
+    df_summary = pd.merge(df_summary, dataframe[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','datetime','Longitude','Latitude','Depth_min','Depth_max']+[column for column in dataframe.columns if 'Flag' in column]].drop_duplicates(subset=['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL']).rename(columns={ 'datetime': 'Sample_datetime'}).astype({'Project_ID': str, 'Instrument': str, 'Sample': str, 'Sample_localpath': str,'Flag': str, 'Longitude': str, 'Latitude': str,'Sample_datetime': str}).groupby(['Project_ID', 'Instrument', 'Sample', 'Sample_localpath','Sample_URL', 'Flag', 'Longitude', 'Latitude', 'Sample_datetime']+[column for column in dataframe.columns if 'Flag_' in column]).apply(lambda x: pd.Series({'Sampling_depth_min_range': x.Depth_min.min(), 'Sampling_depth_max_range': x.Depth_max.max()})).reset_index(), how='right',on='Sample')
     df_summary=df_summary if 'Artefacts_count' in df_summary.columns else  df_summary.assign(Artefacts_count= 0,Artefacts_percentage=0, Validation_percentage= 0)
-    return dataframe,df_summary[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','Sample_datetime','Sampling_depth_min_range','Sampling_depth_max_range','Longitude','Latitude', 'Study_area', 'Longhurst_province','ROI_count', 'Count_uncertainty', 'Count_lower', 'Count_upper','Artefacts_count', 'Artefacts_percentage', 'Validation_percentage','Missing_field','Flag_missing', 'Flag_GPScoordinatesonland','Flag_dubiousGPScoordinates', 'Flag_count', 'Flag_artefacts','Flag_validation','Flag_size','Flag']]
+    return dataframe,df_summary[['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL','Sample_datetime','Sampling_depth_min_range','Sampling_depth_max_range','Longitude','Latitude', 'Study_area', 'Longhurst_province','ROI_count', 'Count_uncertainty', 'Count_lower', 'Count_upper','Artefacts_count', 'Artefacts_percentage', 'Validation_percentage','Missing_field','Flag_missing', 'Flag_GPScoordinatesonland','Flag_dubiousGPScoordinates', 'Flag_count', 'Flag_artefacts','Flag_validation','Flag_size','Flag']].drop_duplicates(subset=['Project_ID','Instrument','Sample','Sample_localpath','Sample_URL'])
 
 def save_flag_summary(df_flagged,df_standardizer,project_id,path_to_summary):
     gdf = gpd.GeoDataFrame(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna(),geometry=gpd.points_from_xy(df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Longitude,df_flagged[['Sample', 'Longitude', 'Latitude']].drop_duplicates().dropna().Latitude))
@@ -674,6 +675,8 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
                      samples = api_instance.samples_search(project_ids=int(project_id), id_pattern='')  #
                  df = pd.merge(df, pd.DataFrame({'Sample': pd.Series(map(lambda x: x['orig_id'], samples)).astype(str(df.dtypes['Sample'])), 'Sample_ID': list(map(lambda x: x['sampleid'], samples))}), how='left', on='Sample')
              df = pd.merge(df, df.groupby(['Sample']).apply(lambda x: pd.Series({'Sample_URL': r'{}?taxo=&taxochild=&ipp=100&zoom=100&sortby=&magenabled=0&popupenabled=0&statusfilter=&samples={}&sortorder=asc&dispfield=&projid={}&pageoffset=0"'.format(df_standardizer['Project_source'][project_id],str(x.Sample_ID.unique()[0]),project_id) if df_standardizer['Project_source'][project_id] == 'https://ecotaxa.obs-vlfr.fr/prj/' + str(project_id) else r'{}&bin={}'.format(df_standardizer['Project_source'][ project_id],str(x.Sample.unique()[0])) if 'ifcb' in df_standardizer['Project_source'][project_id] else ''})),how='left', on='Sample')
+             if 'Sample_ID' in df.columns:
+                 df=df.drop(columns=['Sample_ID'])
 
 
          if len(flagged_df) == 0:
