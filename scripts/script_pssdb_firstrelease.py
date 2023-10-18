@@ -18,6 +18,10 @@ try:
     from funcs_standardize_projects import *
 except:
     from scripts.funcs_standardize_projects import *
+try:
+    from script_NBSS_datacheck import *
+except:
+    from scripts.script_NBSS_datacheck import *
 
 # Functions for plotting:
 from plotnine import *
@@ -230,58 +234,93 @@ df_list=pd.concat(map(lambda x:pd.read_excel(path_to_project_list,sheet_name=x).
 
 path_to_datafile=(Path(cfg['raw_dir']).expanduser() /cfg['flag_subdir']).expanduser()
 path_flags=list(Path(path_to_datafile).rglob('project_*_flags.csv'))
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Sample','Sample_localpath','Latitude','Longitude','Sample_datetime','Sampling_depth_min_range','Sampling_depth_max_range','Flag','Overrule']),path_flags)).drop_duplicates().reset_index(drop=True)
+df=df.rename(columns={'Sampling_depth_min_range':'Depth_min','Sampling_depth_max_range':'Depth_max'})
+df['ingested']=((df.Flag==0) & (df.Overrule==False)) | ((df.Flag==1) & (df.Overrule==True))
+df.loc[df.ingested==False,'Project_ID'].unique()
 
-df_standardizer=pd.concat(map(lambda path: pd.read_table(path,sep=","),path_flags)).reset_index(drop=True)
 # Select only standard files for the instrument of interest
-path_files=[path for project in df_standardizer.index  for path in path_files if path in list(Path(df_standardizer.loc[project,'Project_localpath'].replace('raw',cfg['standardized_subdir'])).expanduser().rglob('standardized_project_{}_*'.format(df_standardizer.loc[project,'Project_ID'])))]
-df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time','Depth_min','Depth_max','Sampling_description'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}),path_files)).drop_duplicates().reset_index(drop=True)
+path_files=df.loc[(df.ingested==True) & (df.Instrument.isin(['IFCB']))  & (df.Project_ID.isin(['EXPORTS'])),'Sample_localpath'].unique()#[path for project in df_standardizer.index  for path in path_files if path in list(Path(df_standardizer.loc[project,'Project_localpath'].replace('raw',cfg['standardized_subdir'])).expanduser().rglob('standardized_project_{}_*'.format(df_standardizer.loc[project,'Project_ID'])))]
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time','Depth_min','Depth_max','Sampling_description'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}).assign(File_path=path),path_files)).drop_duplicates().reset_index(drop=True)
 ## Convert sampling description column
-df_method=pd.concat(map (lambda desc:pd.DataFrame(ast.literal_eval('{"'+(' '.join(list(filter(lambda x:':' in x,desc.split(' '))))).replace(' ','","').replace(':','":"')+'"}') ,index=[0]).assign(Sampling_description=desc)  if str(desc)!='nan' else pd.DataFrame({'Sampling_description':desc},index=[0]),df.Sampling_description)).reset_index(drop=True)
-df=pd.concat([df,df_method.drop(columns='Sampling_description')],axis=1)
+df_method=pd.concat([df.Sample,pd.concat(map (lambda desc:pd.DataFrame(ast.literal_eval('{"'+(' '.join(list(filter(lambda x:':' in x,desc.split(' '))))).replace(' ','","').replace(':','":"')+'"}') ,index=[0]).assign(Sampling_description=desc)  if str(desc)!='nan' else pd.DataFrame({'Sampling_description':desc},index=[0]),df.Sampling_description)).reset_index(drop=True)],axis=1)
+df=pd.merge(df,df_method,how='left',on=['Sample','Sampling_description'])
+df['Setting']=pd.Categorical(df[['Pmta_voltage', 'Pmta_threshold']].agg('-'.join, axis=1),categories=df[['Pmta_voltage', 'Pmta_threshold']].agg('-'.join, axis=1).unique())# if ('Pmta_voltage' in df.columns) else
+path_files=df.loc[df.Setting.isin(df.Setting.cat.categories[np.round(df.Setting.value_counts()/df.Setting.value_counts().sum(),1)>=0.20]),'File_path'].unique()
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',',keep_date_col=True, parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}).assign(File_path=path),path_files)).drop_duplicates().reset_index(drop=True)
+df_nbss=process_nbss_standardized_files(path=None,df=df,category=[],depth_selection=True)[2]
+#x=df_nbss.loc[list(df_nbss.groupby(['Instrument', 'Project_ID', 'Station', 'Sample', 'Date_bin', 'Latitude','Longitude', 'Min_obs_depth', 'Max_obs_depth','volume']).groups.values())[0]]
+df_nbss=pd.concat([df_nbss,df_nbss.groupby(['Instrument', 'Project_ID', 'Station', 'Sample', 'Date_bin', 'Latitude','Longitude', 'Min_obs_depth', 'Max_obs_depth','volume']).apply(lambda x: pd.DataFrame(regress_nbss(nbss=x,threshold_count=0.2,threshold_size=0.2,n_bins=3),index=x.index))],axis=1)
+df_nbss=pd.merge(df_nbss,df_method,how='left',on=['Sample'])
+df_nbss['Setting']=pd.Categorical(df_nbss[['Pmta_voltage', 'Pmta_threshold']].agg('-'.join, axis=1),categories=natsorted(df_nbss[['Pmta_voltage', 'Pmta_threshold']].agg('-'.join, axis=1).unique()))# if ('Pmta_voltage' in df.columns) else
+
+# Normalized biovolume vs size
+plot = (ggplot(data=df_nbss)+
+        facet_wrap('~Setting',ncol=1)+
+        geom_vline(xintercept=4)+
+        geom_line(df_nbss,aes(x='size_class_mid', y='NBSS',group='Group_index'), alpha=0.02, size = 0.1) +
+        geom_point(aes(x='size_class_mid', y='NBSS',group='Group_index'),size = 0.05, alpha=0.01, shape = 'o')+
+        stat_summary(data=df_nbss.query('selection==True')[df_nbss.query('selection==True').groupby(['Group_index']).size_class_mid.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='size_class_mid', y='NBSS',color='selection'),geom='line', fun_y=np.nanmedian, size = 1)+
+        labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
+        scale_color_manual(values={True:'black'})+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(3,14)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_suppl_NBSS_settings.pdf'.format(str(Path.home())), dpi=300, bbox_inches='tight')
+
+plot = (ggplot(data=df_nbss[['Setting','Group_index','total_abundance','selected_abundance']].drop_duplicates().melt(id_vars=['Setting','Group_index'],value_vars=['total_abundance','selected_abundance']))+
+        facet_wrap('~Setting',ncol=1,scales='free')+
+        stat_summary(aes(x='variable', y='value',group='variable',color='variable'),geom='pointrange')+
+        labs(y=r'Total Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'')+
+        scale_color_manual(values={'total_abundance':'gray','selected_abundance':'black'})+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        theme_paper).draw(show=False, return_ggplot=True)
+plot[0].set_size_inches(1,14)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_suppl_abundance_settings.pdf'.format(str(Path.home())), dpi=300, bbox_inches='tight')
+
 # Apply depth and artefacts filter, as well as category filter if non-null
 df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 250)).values[0]})).reset_index()
 df_depthselection.Depth_selected.value_counts(normalize=True)
-df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1))
+df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).dropna(subset=['Depth_min','Depth_max']).reset_index(drop=True)
+df=df.assign(Depth_range=np.round(df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[float])))).astype(dict(zip(['Depth_min','Depth_max'],2*[int])),errors='ignore').astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1))
 df.groupby(['Instrument']).apply(lambda x:pd.Series({'nb_samples':len(x.Sample.unique()),'Date_min':x.Sampling_datetime.dt.strftime('%Y %m').min(),'Date_max':x.Sampling_datetime.dt.strftime('%Y %m').max()})).reset_index()
 
+
+dataframe=df.copy()
+dataframe.Instrument.unique()
+df=dataframe[(dataframe.Instrument.isin(['UVP'])) & (dataframe.ingested==True)]
 # Group net depth range in 50m bins
 if all(df.Instrument.isin(['Zooscan','Scanner'])):
     df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(50 * round(float(depth.split('-')[0]) / 50))),str(int(50 * round(float(depth.split('-')[1]) / 50)))]))
 if all(df.Instrument.isin(['IFCB'])):
     df['Depth_range']=df.Depth_range.apply(lambda depth:'-'.join([str(int(10 * round(float(depth.split('-')[0]) / 10))),str(int(10 * round(float(depth.split('-')[1]) / 10)))]))
 if all(df.Instrument.isin(['UVP'])):
-    df['Depth_min']=df.astype({'Depth_min':float}).groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'])['Depth_min'].transform(min)
-    df['Depth_max']=df.astype({'Depth_max':float}).groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'])['Depth_max'].transform(max)
+    df['Depth_min']=df.astype({'Depth_min':float}).groupby(['Instrument','Project_ID','Sample','Latitude','Longitude'])['Depth_min'].transform(min)
+    df['Depth_max']=df.astype({'Depth_max':float}).groupby(['Instrument','Project_ID','Sample','Latitude','Longitude'])['Depth_max'].transform(max)
     df=df.drop(columns=['Depth_selected','Depth_range']).drop_duplicates().reset_index(drop=True)
-    df=df.assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[float]))).astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1),Depth_selected=df.groupby(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description']).apply(lambda x:  ((x.Depth_min.astype(float) < 200))).reset_index(['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_datetime','Sampling_description'], drop=True))
+    df=df.assign(Depth_range=df[['Depth_min','Depth_max']].astype(dict(zip(['Depth_min','Depth_max'],2*[float]))).astype(dict(zip(['Depth_min','Depth_max'],2*[int]))).astype(dict(zip(['Depth_min','Depth_max'],2*[str]))).agg('-'.join, axis=1),Depth_selected=df.groupby(['Instrument','Project_ID','Sample','Latitude','Longitude']).apply(lambda x:  ((x.Depth_min.astype(float) < 200))).reset_index(['Instrument','Project_ID','Sample','Latitude','Longitude'], drop=True))
     df['Depth_range']=df.Depth_range.astype(str).apply(lambda depth:'-'.join([str(int(100 * round(float(depth.split('-')[0]) / 100))),str(int(100 * round(float(depth.split('-')[1]) / 100)))]))
     df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_range'])[['Project_ID', 'Sample', 'Depth_range']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_range'],[str]*3))).reset_index(drop=True).groupby(['Project_ID', 'Sample', 'Depth_range']).apply(lambda x: pd.Series({'Depth_selected': ((float(x.Depth_range.unique()[0].split('-')[0]) < 200))})).reset_index()
     df_depthselection.Depth_selected.value_counts(normalize=True)
     df=pd.merge(df.astype(dict(zip(['Project_ID', 'Sample', 'Depth_range'],[str]*3))).drop(columns='Depth_selected'),df_depthselection,how='left',on=['Project_ID', 'Sample', 'Depth_range'])
     df=pd.merge(df.astype({'Project_ID':str}),df_list.astype({'Project_ID':str}).loc[df_list.Portal=='ecotaxa',['Project_ID','Instrument']],how='left',on='Project_ID')
 df['Depth_range']=pd.Categorical(df['Depth_range'],categories=natsorted(df['Depth_range'].unique()))
-df_summary=df.groupby(['Depth_selected','Depth_range']).apply(lambda x: pd.Series({'Sample_count':len(x.Sample)})).reset_index()
+df_summary=df.astype({'Depth_selected':str,'Depth_range':str}).groupby(['Depth_selected','Depth_range']).apply(lambda x: pd.Series({'Sample_count':len(x.Sample)})).reset_index()
 
 df_summary['Sample_percentage']=df_summary.groupby(['Depth_selected'])['Sample_count'].transform(lambda x:np.round(100*(x/np.nansum(x)),1))
-df_summary['Sample_percentage']=np.where((df_summary.Sample_percentage<1) | (df_summary.Sample_percentage.isna()),'',df_summary.Sample_percentage.astype(str)+'%')
-(100*(df_summary.groupby(['Depth_selected'])['Sample_count'].sum()/df_summary['Sample_count'].sum())).round(1)
-plot=(ggplot(data=df_summary)+
-  geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'),width=1.5, position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,100),alpha=1) +
-geom_text(df_summary,aes(x='Depth_range', y='Sample_count',label='Sample_percentage', group=1), position=position_dodge(width=0.9), size=8,va='bottom') +
-      labs(x=r'Depth range (m)', y=r'# samples') +scale_fill_manual(values={True:'#{:02x}{:02x}{:02x}'.format(0, 0 , 0),False:'#{:02x}{:02x}{:02x}'.format(236, 236 , 236)},drop=True)+
-theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_position='top',
-                      panel_grid=element_blank(),
-                      panel_background=element_rect(fill='white'),
-                      panel_border=element_rect(color='#222222'),
-                      legend_title=element_text(family="serif", size=10),
-                      legend_text=element_text(family="serif", size=10),
-                      axis_title=element_text(family="serif", size=10),
-                      axis_text_x=element_text(family="serif", size=8, rotation=90,ha='center'),
-                      axis_text_y=element_text(family="serif", size=10, rotation=90),
-                      plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
+df_summary['Sample_percentage']=np.where((df_summary.Depth_selected=='False') | (df_summary.Sample_percentage<5) | (df_summary.Sample_percentage.isna()),'',df_summary.Sample_percentage.astype(str)+'%')
+(100*(df_summary.groupby(['Depth_selected'])['Sample_count'].sum()/df_summary['Sample_count'].sum())).round(2)
+df_summary['Depth_range']=pd.Categorical(df_summary['Depth_range'],categories=natsorted(df_summary['Depth_range'].unique()))
 
+plot=(ggplot(data=df_summary)+
+      geom_col( aes(x="Depth_range",y='Sample_count',fill='Depth_selected'),width=1.5, position=position_dodge(width=0.9),color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,1),alpha=1) +
+      geom_text(df_summary,aes(x='Depth_range', y='Sample_count',label='Sample_percentage', group=1), position=position_dodge(width=0.9), size=8,va='bottom',ha='left') +
+      labs(x=r'Depth range (m)', y=r'# samples') +
+      scale_fill_manual(values={'True':'#{:02x}{:02x}{:02x}'.format(0, 0 , 0),'False':'#{:02x}{:02x}{:02x}'.format(236, 236 , 236)},drop=True,na_value='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0))+
+theme_paper+theme(axis_title_y=element_text(size=10),axis_text_y=element_text(size=10),axis_text_x=element_text(rotation=90,ha='center'))).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(9.2,4)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_depth_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_depth_PSSdb_{}.svg'.format(str(Path.home()),df.Instrument.unique()[0]), limitsize=False, dpi=600, bbox_inches='tight')
 
 df_summary=df[(df.Depth_selected==True) &(df.Sampling_description.isna()==False)][['Cruise','Pmta_voltage','Pmta_threshold','Pmtb_voltage','Pmtb_threshold']].drop_duplicates().melt(id_vars=['Cruise'])
 df_summary=df_summary.astype({'value':float}).groupby(['Cruise','variable']).agg({'value':['mean','std'] }).reset_index()
