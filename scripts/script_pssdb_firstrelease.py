@@ -623,7 +623,7 @@ plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.3_r2_clim_basins.p
 plt.close()
 
 
-## Figures of Sensitivity analysis (Supp figure 3, top row)
+## Figures of Sensitivity analysis (Supp figure 3, bottom row)
 path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'Sensitivity_analysis'
 path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
@@ -632,7 +632,7 @@ colors = {'Biovolume-ellipsoid': 'teal', 'Biovolume-area': 'black', 'Biovolume-d
 plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
-        stat_summary(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
+        stat_summary(aes(x='Instrument', y='NBSS_slope_mean', color='Biovol_metric'),geom='point', fun_y=np.nanmedian, shape=0, size = 5,  position = position_dodge(width=1))+
         labs(y=r'Mean slope ( L$^{-1}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
@@ -643,7 +643,7 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.1_Biovol_
 plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
-        stat_summary(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
+        stat_summary(aes(x='Instrument', y='NBSS_intercept_mean', color='Biovol_metric'),geom='point', fun_y=np.nanmedian, shape=0, size = 5,  position = position_dodge(width=1))+
         labs(y=r'Mean Intercept ( $\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
@@ -654,7 +654,7 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.2_Biovol_
 plot = (ggplot(data=df)+
         geom_violin(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),  position = position_dodge(width=1))+
         geom_point(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'), position = position_dodge(width=1),size = 1, alpha=0.4, shape = 'o')+
-        stat_summary(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),geom='point', fun_y=np.mean, shape=0, size = 5,  position = position_dodge(width=1))+
+        stat_summary(aes(x='Instrument', y='NBSS_r2_mean', color='Biovol_metric'),geom='point', fun_y=np.nanmedian, shape=0, size = 5,  position = position_dodge(width=1))+
         labs(y=r'Mean R$^{2}$', x='')+
         scale_color_manual(values = colors)+
         scale_fill_manual(values=['#00000000', '#00000000', '#00000000']) +
