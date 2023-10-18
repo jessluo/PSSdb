@@ -51,8 +51,8 @@ colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
 ## Workflow starts here:
 
 path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_10_2023'
-path_files= list(set(path_to_datafile.rglob('*_1b_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
-path_files_1a=list(set(path_to_datafile.rglob('*_1a_*.csv')) - set(path_to_datafile.rglob('*Sensitivity_analysis/*')))
+path_files= list(path_to_datafile.glob('*_1b_*.csv'))
+path_files_1a=list(path_to_datafile.glob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
 #df['intercept_NB_mean']=np.log10(np.exp(df.intercept_NB_mean))
 df_cor=df[['NBSS_slope_mean','PSD_slope_mean','NBSS_intercept_mean','PSD_intercept_mean','NBSS_r2_mean','PSD_r2_mean']].corr(method='spearman')
@@ -146,17 +146,17 @@ plot = (ggplot(data=df)+
 plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_slopes.svg'.format(str(Path.home())), dpi=600)
 # Add density
-plot = (ggplot(data=df.dropna(subset=['NBSS_slope_mean']))+
+plot = (ggplot(data=df.dropna(subset=['NBSS_slope_mean']).query('(NBSS_slope_mean>={}) & (NBSS_slope_mean<={})'.format(np.nanquantile(df.NBSS_slope_mean,0.05),np.nanquantile(df.NBSS_slope_mean,0.95))))+
         geom_histogram(aes(x='NBSS_slope_mean', fill='Instrument'),color='#ffffff00', alpha=0.3)+
         labs(y='Count', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
-        scale_fill_manual(values = colors)+#scale_x_continuous(limits=np.nanquantile(df.NBSS_slope_mean,[0.05,0.95]))+
+        scale_fill_manual(values = colors)+
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(3,1)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSslopes_density.svg'.format(str(Path.home())), dpi=600)
-plot = (ggplot(data=df)+
-        geom_histogram(aes(x='PSD_slope_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
+plot = (ggplot(data=df.query('(PSD_slope_mean>={}) & (PSD_slope_mean<={})'.format(np.nanquantile(df.PSD_slope_mean,0.05),np.nanquantile(df.PSD_slope_mean,0.95))))+
+        geom_histogram(aes(x='PSD_slope_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)')+
-        scale_fill_manual(values = colors)+#scale_x_continuous(limits=np.nanquantile(df.PSD_slope_mean,[0.95,0.05]))+
+        scale_fill_manual(values = colors)+
         #coord_flip()+ flipping messes up the rendering
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(3,1)
@@ -177,18 +177,17 @@ plot = (ggplot(data=df)+
 plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_intercepts.svg'.format(str(Path.home())), dpi=600)
 # Add density
-plot = (ggplot(data=df)+
-        geom_density(aes(x='NBSS_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
-        #geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
+plot = (ggplot(data=df.query('(NBSS_intercept_mean>={}) & (NBSS_intercept_mean<={})'.format(np.nanquantile(df.NBSS_intercept_mean,0.05),np.nanquantile(df.NBSS_intercept_mean,0.95))))+
+        geom_histogram(aes(x='NBSS_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'NBSS intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)')+
-        scale_fill_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.NBSS_intercept_mean,[0.05,0.95]))+
+        scale_fill_manual(values = colors)+
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(3,1)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSintercepts_density.svg'.format(str(Path.home())), dpi=600)
-plot = (ggplot(data=df)+
-        geom_density(aes(x='PSD_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.1)+
+plot = (ggplot(data=df.query('(PSD_intercept_mean>={}) & (PSD_intercept_mean<={})'.format(np.nanquantile(df.PSD_intercept_mean,0.05),np.nanquantile(df.PSD_intercept_mean,0.95))))+
+        geom_histogram(aes(x='PSD_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'PSD intercept (particles L$^{-1}$ $\mu$m$^{-1}$)')+
-        scale_fill_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.PSD_intercept_mean,[0.95,0.05]))+
+        scale_fill_manual(values = colors)+
         #coord_flip()+ flipping messes up the rendering
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(3,1)
