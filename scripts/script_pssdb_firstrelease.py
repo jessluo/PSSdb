@@ -230,17 +230,21 @@ plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figures_6.svg'.forma
 # Suppl Fig A1 (Sampling efforts):
 path_to_project_list=Path(cfg['git_dir']).expanduser()/ cfg['proj_list']
 df_list=pd.concat(map(lambda x:pd.read_excel(path_to_project_list,sheet_name=x).assign(Portal=x),['ecotaxa','ecopart','ifcb']))
+df_list.loc[(df_list.Portal=='ecotaxa') & (df_list.Instrument.isin(['IFCB','Zooscan','UVP5','UVP6','UVP5SD', 'UVP5HD', 'Other scanner']))].PSSdb_access.value_counts()
 
 path_to_datafile=(Path(cfg['raw_dir']).expanduser() /cfg['flag_subdir']).expanduser()
 path_flags=list(Path(path_to_datafile).rglob('project_*_flags.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Sample','Sample_localpath','Latitude','Longitude','Sample_datetime','Sampling_depth_min_range','Sampling_depth_max_range','Flag','Overrule']),path_flags)).drop_duplicates().reset_index(drop=True)
 df=df.rename(columns={'Sampling_depth_min_range':'Depth_min','Sampling_depth_max_range':'Depth_max'})
 df['ingested']=((df.Flag==0) & (df.Overrule==False)) | ((df.Flag==1) & (df.Overrule==True))
-df.loc[df.ingested==False,'Project_ID'].unique()
+df.loc[df.ingested==True,'Project_ID'].unique()
+df['selected']=np.where(df.Instrument.isin(['UVP']),df.Depth_min<=250,(df.Depth_min<=200) & (df.Depth_max<=250))
+df[(df.ingested==True) & (df.selected==True)].groupby(['Instrument']).Sample.count()
 
 # Select only standard files for the instrument of interest
-path_files=df.loc[(df.ingested==True) & (df.Instrument.isin(['IFCB']))  & (df.Project_ID.isin(['EXPORTS'])),'Sample_localpath'].unique()#[path for project in df_standardizer.index  for path in path_files if path in list(Path(df_standardizer.loc[project,'Project_localpath'].replace('raw',cfg['standardized_subdir'])).expanduser().rglob('standardized_project_{}_*'.format(df_standardizer.loc[project,'Project_ID'])))]
-df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time','Depth_min','Depth_max','Sampling_description'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}).assign(File_path=path),path_files)).drop_duplicates().reset_index(drop=True)
+path_files=df.loc[(df.ingested==True) & (df.Instrument.isin(['Zooscan','Scanner'])),'Sample_localpath'].unique()#[path for project in df_standardizer.index  for path in path_files if path in list(Path(df_standardizer.loc[project,'Project_localpath'].replace('raw',cfg['standardized_subdir'])).expanduser().rglob('standardized_project_{}_*'.format(df_standardizer.loc[project,'Project_ID'])))]
+df=pd.concat(map(lambda path: pd.read_table(path,sep=',',usecols=['Instrument','Project_ID','Cruise','Sample','Latitude','Longitude','Sampling_date','Sampling_time','Depth_min','Depth_max','Pixel','Sampling_description'], parse_dates={'Sampling_datetime': ['Sampling_date', 'Sampling_time']}).assign(File_path=path),path_files)).drop_duplicates().reset_index(drop=True)
+df.Pixel.describe()
 ## Convert sampling description column
 df_method=pd.concat([df.Sample,pd.concat(map (lambda desc:pd.DataFrame(ast.literal_eval('{"'+(' '.join(list(filter(lambda x:':' in x,desc.split(' '))))).replace(' ','","').replace(':','":"')+'"}') ,index=[0]).assign(Sampling_description=desc)  if str(desc)!='nan' else pd.DataFrame({'Sampling_description':desc},index=[0]),df.Sampling_description)).reset_index(drop=True)],axis=1)
 df=pd.merge(df,df_method,how='left',on=['Sample','Sampling_description'])
@@ -661,7 +665,7 @@ plt.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_6.3_r2_clim_basins.p
 plt.close()
 
 
-## Figures of Sensitivity analysis (Supp figure 3, bottom row)
+## Figures of Sensitivity analysis
 path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'Sensitivity_analysis'
 path_files=list(path_to_datafile.rglob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.rglob('*_1a_*.csv'))
@@ -701,7 +705,7 @@ plot[0].set_size_inches(3,3)
 plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Supp_fig_3.3_Biovol_sensitivity.pdf'.format(str(Path.home())), dpi=600)
 
 
-## Figures of Sensitivity analysis (Supp figure 3, bottom row)
+## Figures of Sensitivity analysis
 
 df_1a=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name.split('_')[0], Biovol_metric = path.name.split('_')[2]),path_files_1a)).drop_duplicates().reset_index(drop=True)
 grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument', 'Biovol_metric']
