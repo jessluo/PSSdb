@@ -973,10 +973,10 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     path_files_list=list(path_to_data.rglob('**/*_{}_*'.format(str(project_id)))) if  path_to_data.stem!=cfg['UVP_consolidation_subdir'] else list( path_to_data.glob("ecotaxa_export_"+str(project_id)+'_*'))
     path_files_list=[path for path in path_files_list if ('flag' not in str(path)) & ("._" not in str(path))]
     path_to_standard_dir = Path(cfg['raw_dir']).expanduser() / cfg['standardized_raw_subdir'] / path_to_data.stem / path_files_list[0].parent.stem
-    path_to_standard_plot = list(Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem).glob('standardized_project_{}.html'.format(str(project_id)))) if len(list(Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem).glob('standardized_project_{}.html'.format(str(project_id))))) else [Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem/'standardized_project_{}.html'.format(str(project_id)))]
+    path_to_standard_plot = list(Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem).glob('standardized_project_{}.html'.format(str(project_id)))) if len(list(Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem).glob('standardized_project_{}.html'.format(str(project_id))))) else [Path(path_to_git / cfg['figures_subdir'] / cfg['figures_standardizer'] / path_to_data.stem / path_files_list[0].parent.stem/'standardized_project_{}.html'.format(str(project_id))) ]
     summary_df_standardized_all=pd.DataFrame({})
     df_nbss=pd.DataFrame({})
-    if len(path_to_standard_plot):
+    if path_to_standard_plot[-1].exists():
         with open(str(path_to_standard_plot[-1])) as f:
             html = f.read()
         call_arg_str = re.findall(r'Plotly\.newPlot\((.*)\)', html)[1]
@@ -1242,11 +1242,11 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                     group = ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile'] if 'UVP' in instrument else ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Volume_imaged', 'Depth_min', 'Depth_max']
 
                     df_standardized_summary = df_standardized.astype(dict(zip(group,[str]*len(group)))).groupby(group).apply(lambda x: pd.Series({'Cumulative_volume_imaged':x[['Sample','Volume_imaged']].drop_duplicates().Volume_imaged.sum(),'Depth_range_min': x.Depth_min.astype(float).min(),'Depth_range_max': x.Depth_max.astype( float).max()})).reset_index()
-                    df_standardized = pd.merge(df_standardized, df_standardized_summary, how='left', on=group)
-                    summary_df_standardized = df_standardized.groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Cumulative_volume_imaged','Depth_range_min', 'Depth_range_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI_number.sum(),
-                         'Abundance': x.ROI_number.sum() / (x.Cumulative_volume_imaged.unique()[0]),# individuals per liter
-                         'Average_diameter': np.nanmean(2 * np.power(np.repeat(x.Area, x.ROI_number) / np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean( np.repeat(x.ESD, x.ROI_number)),  # micrometer
-                         'Std_diameter': np.nanstd(2 * np.power(np.repeat(x.Area, x.ROI_number) / np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(np.repeat(x.ESD, x.ROI_number))})).reset_index()
+                    df_standardized = pd.merge(df_standardized.astype(dict(zip(group,[str]*len(group)))), df_standardized_summary, how='left', on=group)
+                    summary_df_standardized = df_standardized.astype(dict(zip(group,[str]*len(group)))).groupby(['Sample', 'Station', 'Latitude', 'Longitude', 'Profile', 'Cumulative_volume_imaged','Depth_range_min', 'Depth_range_max'], dropna=True).apply(lambda x: pd.Series({'Count': x.ROI_number.sum(),
+                         'Abundance': x.ROI_number.sum() / (x.Cumulative_volume_imaged.astype(float).unique()[0]),# individuals per liter
+                         'Average_diameter': np.nanmean(2 * np.power(np.repeat(x.Area.astype(float), x.ROI_number) / np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanmean( np.repeat(x.ESD.astype(float), x.ROI_number)),  # micrometer
+                         'Std_diameter': np.nanstd(2 * np.power(np.repeat(x.Area.astype(float), x.ROI_number) / np.pi,0.5)) if 'Area' in df_standardized.columns else np.nanstd(np.repeat(x.ESD.astype(float), x.ROI_number))})).reset_index()
                     summary_df_standardized = summary_df_standardized.groupby( ['Sample', 'Station', 'Latitude', 'Longitude', 'Profile'], dropna=True).apply(lambda x: pd.Series({'Abundance': np.nanmean(x.Abundance),  # individuals per liter
                                              'Average_diameter': np.nanmean(x.Average_diameter),  # micrometer
                                              'Std_diameter': np.nanmean(x.Std_diameter)})).reset_index()  # micrometer
@@ -1275,7 +1275,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         # Interactive plots
         if ((plot=='diversity') and len(summary_df_standardized)>0):
             # Using report function defined below
-            fig=standardization_report_func(df_summary=summary_df_standardized_all,df_standardized=df_standardized.dropna(subset=['ROI']).assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
+            fig=standardization_report_func(df_summary=summary_df_standardized_all.astype({'Longitude':float,'Latitude':float,'Sample':str,'Abundance':float}),df_standardized=df_standardized.dropna(subset=['ROI']).assign(Project_source=df_standardizer['Project_source'][project_id]),df_nbss=None,plot=plot)
             fig.write_html(path_to_standard_plot)
             print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
         elif ((plot=='nbss') and len(summary_df_standardized_all)>0):
@@ -1290,11 +1290,11 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 nbss['Datetime_bin'] = nbss.Sample_datetime.dt.strftime("%Y-") + pd.cut( nbss.Sample_datetime.dt.strftime("%m").astype(float), [0, 6, 12], labels=['01', '06']).astype(str)
 
                 for increment,bin in enumerate(summary_df_standardized_all.Datetime_bin.unique()):
-                    fig = standardization_report_func(df_summary=summary_df_standardized_all.query('Datetime_bin=="{}"'.format(bin)),df_standardized=pd.DataFrame({'Project_source' : df_standardizer['Project_source'][project_id],'Project_ID':project_id,'Instrument':df_standardizer['Instrument'][project_id]},index=[0]),df_nbss=nbss.query('Datetime_bin=="{}"'.format(bin)), plot=plot)
+                    fig = standardization_report_func(df_summary=summary_df_standardized_all.query('Datetime_bin=="{}"'.format(bin)).astype({'Longitude':float,'Latitude':float,'Sample':str,'Abundance':float}),df_standardized=pd.DataFrame({'Project_source' : df_standardizer['Project_source'][project_id],'Project_ID':project_id,'Instrument':df_standardizer['Instrument'][project_id]},index=[0]),df_nbss=nbss.query('Datetime_bin=="{}"'.format(bin)), plot=plot)
                     fig.write_html(Path(path_to_standard_plot[0].parent)/'standardized_project_{}_{}.html'.format(project_id,bin))
 
             else:
-                fig = standardization_report_func(df_summary=summary_df_standardized_all,df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
+                fig = standardization_report_func(df_summary=summary_df_standardized_all.astype({'Longitude':float,'Latitude':float,'Sample':str,'Abundance':float}),df_standardized=df_standardized.assign( Project_source=df_standardizer['Project_source'][project_id]),df_nbss=nbss, plot=plot)
                 fig.write_html(Path(path_to_standard_plot[0].parent)/'standardized_project_{}.html'.format(project_id))
             print('\nSaving standardized export plot to', path_to_standard_plot[0].parent, sep=' ')
 
