@@ -148,25 +148,19 @@ def process_nbss_standardized_files(path=None,df=None,category=[],depth_selectio
         group=list(np.delete(group,pd.Series(group).isin(['Sampling_lower_size', 'Sampling_upper_size'])))
         df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
         #  Compute NBSS without applying the thresholding
-        nbss_all = df_subset.dropna(subset=['sizeClasses']).groupby(group + list(df_bins.columns) + [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category,
-            dropna=False).apply(lambda x: pd.Series({'size_class_pixel':(x.Pixel.unique()[0]) * 1e-03 * x.size_class_mid.unique()[0],'NBSS_count': x.ROI_number.sum(), 'sum_biovolume': sum(x.Biovolume * x.ROI_number),'volume': x.cumulative_volume.unique()[0], 'NBSS': sum(x.groupby(['cumulative_volume']).apply( lambda y: (sum(y.Biovolume * y.ROI_number) / y.cumulative_volume.unique())[0])) /(x.range_size_bin.unique())[0]})).reset_index()
+        nbss_all = df_subset.astype(dict(zip(group+['sizeClasses']+ [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category,[str]*len(group+['sizeClasses']+ [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category)))).dropna(subset=['sizeClasses']).groupby(group + list(df_bins.columns) + [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category).apply(lambda x: pd.Series({'size_class_pixel':(x.Pixel.unique()[0]) * 1e-03 * x.size_class_mid.unique()[0],'NBSS_count': x.ROI_number.sum(), 'sum_biovolume': sum(x.Biovolume * x.ROI_number),'volume': x.cumulative_volume.unique()[0], 'NBSS': sum(x.groupby(['cumulative_volume']).apply( lambda y: (sum(y.Biovolume * y.ROI_number) / y.cumulative_volume.unique())[0])) /(x.range_size_bin.unique())[0]})).reset_index()
         #x=nbss_all.loc[list(nbss_all.groupby(group + list(df_bins.columns) + [ 'Group_index'], dropna=True).groups.values())[i]]
-        nbss_max = nbss_all.groupby(group + list(df_bins.columns) + [ 'Group_index']+category, dropna=False).apply(
-            lambda x: x.loc[(x.NBSS == np.nanmax(np.where((x.NBSS_count>1) | (len(x)==1) | (len(x[x.NBSS_count>1])==0) ,x.NBSS,np.nan))), ['size_class_pixel','NBSS_count', 'sum_biovolume', 'volume', 'NBSS']].reset_index(drop=True)).reset_index().sort_values(['Group_index','size_class_mid'])
-        nbss_sum=nbss_all.groupby(group + list(df_bins.columns) + [ 'Group_index']+category, dropna=False).apply(
-            lambda x: pd.DataFrame(x[['NBSS_count', 'sum_biovolume', 'NBSS']].sum(axis='rows').to_dict(),index=[0]).assign(size_class_pixel=np.nanmean(x.size_class_pixel),volume=1 if instrument=='Zooscan' else x.volume.unique()[0])).reset_index().sort_values(['Group_index','size_class_mid'])
-        nbss_average = nbss_all.groupby(group + list(df_bins.columns) + [ 'Group_index']+category, dropna=False).apply(
-            lambda x: pd.Series({'size_class_pixel':np.nanmean(x.size_class_pixel),'NBSS_count': x.NBSS_count.sum(),'sum_biovolume':x.sum_biovolume.sum(),'NBSS': sum((x.sum_biovolume / x.volume.unique()[0]) *(x.drop_duplicates(['volume','Sampling_lower_size', 'Sampling_upper_size']).volume.sum()/x.volume.unique()[0]))/(x.range_size_bin.unique()[0])})).reset_index()
+        nbss_sum=nbss_all.astype(dict(zip(group+['sizeClasses']+ [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category,[str]*len(group+['sizeClasses']+ [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category)))).groupby(group + list(df_bins.columns) + [ 'Group_index']+category, dropna=False).apply(
+            lambda x: pd.Series({'size_class_pixel':np.nanmean(x.size_class_pixel),'volume':1 if instrument in ['Zooscan','Other','Scanner'] else x.volume.unique()[0],'NBSS_count':x.NBSS_count.sum(),'sum_biovolume':x.sum_biovolume.sum(),'NBSS':x.NBSS.sum()})).reset_index().sort_values(['Group_index','size_class_mid'])
 
         #nbss = df_subset.groupby(group + list(df_bins.columns) + [ 'Group_index'], dropna=False).apply(
         #lambda x: pd.Series({'NBSS_count': x.ROI_number.sum(),'sum_biovolume':sum(x.Biovolume * x.ROI_number),'volume':sum(x.cumulative_volume.unique()),'NBSS': sum(x.groupby(['cumulative_volume']).apply(lambda y:(sum(y.Biovolume * y.ROI_number) / y.cumulative_volume.unique())[0]*(y.cumulative_volume.unique()/sum(x.cumulative_volume.unique()))[0])) / (x.range_size_bin.unique())[ 0]})).reset_index()
 
     else:
         nbss_all=pd.DataFrame()
-        nbss_max = pd.DataFrame()
         nbss_sum = pd.DataFrame()
-        nbss_average = pd.DataFrame()
-    return nbss_all, nbss_max, nbss_sum, nbss_average
+
+    return nbss_all,  nbss_sum
 
 if __name__ == '__main__':
     nbss_all=pd.DataFrame()

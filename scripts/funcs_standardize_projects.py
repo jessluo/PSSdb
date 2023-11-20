@@ -988,8 +988,9 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['layout']['updatemenus'][0]['buttons'][1]['args'][0]['x'][0], 'Average_diameter': plotly_json['layout']['updatemenus'][0]['buttons'][1]['args'][0]['y'][0]}), how='outer',on='Sample') #plotly_json['layout']['updatemenus'][0]['buttons'][1]['label']
         summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['layout']['updatemenus'][0]['buttons'][2]['args'][0]['x'][0], 'Std_diameter': plotly_json['layout']['updatemenus'][0]['buttons'][2]['args'][0]['y'][0]}), how='outer',on='Sample') #plotly_json['layout']['updatemenus'][0]['buttons'][2]['label']
         if plot=='nbss':
-            df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['legendgroup'],'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if 'legendgroup' in dict_args.keys() else pd.Dataframe({}),plotly_json['data'][3:]))
-            df_nbss['Group_index']=pd.Categorical(df_nbss.Sample,df_nbss.Sample.unique()).codes
+            if 'hovertext' in plotly_json['data'][3:][0].keys():
+                df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['name'],'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if 'NBSS' in dict_args['hovertext'][0] else pd.DataFrame({}),plotly_json['data'][3:]))
+                df_nbss['Group_index']=pd.Categorical(df_nbss.Sample,df_nbss.Sample.unique()).codes
 
 
 
@@ -1007,6 +1008,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
             #dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
             #df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all,usecols=['Sample','Category']))[-1],natsorted(path_to_standard_file)))#pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
             remaining_raw_files =[path for path in path_files_list if not Path(path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(path.stem)[str(path.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( path.stem))].replace( '_features', ''))).exists()]
+            df_standardized_existing =pd.DataFrame({})
             if len(remaining_raw_files):
                 print('\nExisting standardized file(s) found at {}. Generating standardized file(s) for new samples'.format(path_to_standard_dir))
             else:
@@ -1046,9 +1048,10 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                     fig.write_html(path_to_standard_plot)
                     print('\nSaving standardized export plot to', path_to_standard_plot, sep=' ')
                 """
-                return
+                if path_to_standard_plot[-1].exists():
+                    return
         else:
-            df_standardized_existing = pd.DataFrame()
+            df_standardized_existing = pd.DataFrame({})
             remaining_raw_files=natsorted(path_files_list)
         # Load export tsv file
         df_standardized_new=pd.DataFrame({})
@@ -1253,7 +1256,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
                     summary_df_standardized_all=pd.concat([summary_df_standardized_all,summary_df_standardized],axis=0).reset_index(drop=True)
                     if plot=='nbss':
-                        nbss_sample=pd.concat(map(lambda sample: process_nbss_standardized_files(path=None, df=df_standardized.astype({'Category':str,'Sampling_type':str}).query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x: np.where(x.ROI.isna(), 'all', 'vignettes')), category=['type_particles'],depth_selection=False)[2],df_standardized.Sample.unique()))
+                        nbss_sample=pd.concat(map(lambda sample: process_nbss_standardized_files(path=None, df=df_standardized.astype({'Category':str,'Sampling_type':str}).query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x: np.where(x.ROI.isna(), 'all', 'vignettes')), category=['type_particles'],depth_selection=False)[1],df_standardized.Sample.unique()))
                         df_nbss=pd.concat([df_nbss,nbss_sample],axis=0).reset_index(drop=True)
                 bar.set_description('Saving standardized datafile(s)', refresh=True)
                 ok = bar.update(n=1)
