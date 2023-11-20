@@ -140,13 +140,14 @@ def process_nbss_standardized_files(path=None,df=None,category=[],depth_selectio
 
     df_subset = df[(df.Depth_selected == True) & (df.Sampling_type.str.lower().isin(['test', 'exp', 'junk', 'culture'])==False) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))] if depth_selection else df[(df.Sampling_type.str.lower().isin(['test', 'exp', 'junk', 'culture'])==False) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))]
 
-    if len(df_subset):
+    if len(df_subset) & any(df_subset.ECD!=0):
         # Assign size bins and grouping index for each sample
         df_subset = df_subset.assign(sizeClasses=pd.cut(df_subset['ECD'], bins, include_lowest=True))
         df_subset = pd.merge(df_subset, df_bins, how='left', on=['sizeClasses'])
         # Assign a group index before groupby computation
         group=list(np.delete(group,pd.Series(group).isin(['Sampling_lower_size', 'Sampling_upper_size'])))
         df_subset = pd.merge(df_subset, df_subset.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
+
         #  Compute NBSS without applying the thresholding
         nbss_all = df_subset.astype(dict(zip(group+['sizeClasses']+ [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category,[str]*len(group+['sizeClasses']+ [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category)))).dropna(subset=['sizeClasses']).groupby(group + list(df_bins.columns) + [ 'Group_index','Sampling_lower_size', 'Sampling_upper_size']+category).apply(lambda x: pd.Series({'size_class_pixel':(x.Pixel.unique()[0]) * 1e-03 * x.size_class_mid.unique()[0],'NBSS_count': x.ROI_number.sum(), 'sum_biovolume': sum(x.Biovolume * x.ROI_number),'volume': x.cumulative_volume.unique()[0], 'NBSS': sum(x.groupby(['cumulative_volume']).apply( lambda y: (sum(y.Biovolume * y.ROI_number) / y.cumulative_volume.unique())[0])) /(x.range_size_bin.unique())[0]})).reset_index()
         #x=nbss_all.loc[list(nbss_all.groupby(group + list(df_bins.columns) + [ 'Group_index'], dropna=True).groups.values())[i]]

@@ -989,7 +989,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         summary_df_standardized_all = pd.merge(summary_df_standardized_all, pd.DataFrame({'Sample': plotly_json['layout']['updatemenus'][0]['buttons'][2]['args'][0]['x'][0], 'Std_diameter': plotly_json['layout']['updatemenus'][0]['buttons'][2]['args'][0]['y'][0]}), how='outer',on='Sample') #plotly_json['layout']['updatemenus'][0]['buttons'][2]['label']
         if plot=='nbss':
             if 'hovertext' in plotly_json['data'][3:][0].keys():
-                df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['name'],'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if 'NBSS' in dict_args['hovertext'][0] else pd.DataFrame({}),plotly_json['data'][3:]))
+                df_nbss=pd.concat(map(lambda dict_args:pd.DataFrame({'Sample':dict_args['name'] if 'name' in dict_args.keys() else dict_args['legendgroup'] if 'legendgroup' in dict_args.keys() else np.nan,'NBSS':dict_args['y'],'size_class_mid':dict_args['x']}) if len(list(filter(lambda element: 'NBSS' in element,  dict_args['hovertext']))) else pd.DataFrame({}),plotly_json['data'][3:]))
                 df_nbss['Group_index']=pd.Categorical(df_nbss.Sample,df_nbss.Sample.unique()).codes
 
 
