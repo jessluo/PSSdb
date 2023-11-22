@@ -300,9 +300,6 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     :param df: a dataframe with size bins and NBSS belonging to only one sample (one unique station, date and depth)
     from https://www.edureka.co/blog/least-square-regression/
     """
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
 
     #remove Nans
     df1 = df1[df1['NB'].notna()].reset_index()
