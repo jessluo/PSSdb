@@ -101,7 +101,6 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
         else:
             NBSS_binned_all.to_csv(str(NBSSpath) + '/' + instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-
             NBSS_1a_full.to_csv(str(NBSSpath) + '/' + instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv',index=False)
             lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
 
