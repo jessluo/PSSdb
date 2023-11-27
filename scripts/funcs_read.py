@@ -6,7 +6,7 @@ import yaml
 from pathlib import Path
 from glob import glob
 
-def proj_id_list_func(instrument, data_status, big_grid = False):
+def proj_id_list_func(instrument, data_status):
     """
     Objective:
     read standaroizer files, and generate an instrument specific list of either standardized or gridded files
@@ -22,22 +22,28 @@ def proj_id_list_func(instrument, data_status, big_grid = False):
     # generate paths to standardized, gridded files, and the standardizer spreadsheets
     path_to_standardized = Path(cfg['git_dir']).expanduser() / cfg['standardized_subdir']
     path_to_gridded = Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']
-    path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
+    #11/27/2024 changes: flag files will be used instead of the standardizer to generate the files to be gridded
+    #path_to_standardizer=Path('~/GIT/PSSdb/raw').expanduser()
     #make a dataframe with all the projects and then subset based on the instrument:
-    standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
-    standardizer_df = pd.concat(map((lambda path: (pd.read_excel(path))), standardizer_files))
+    #standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
+    #standardizer_df = pd.concat(map((lambda path: (pd.read_excel(path))), standardizer_files))
+
+    path_flags = Path(cfg['raw_dir']).expanduser() / cfg['flag_subdir']
+    flags_file_list = glob(str(path_flags) + '*/**/*flags.csv', recursive=True)
+    flags_df = pd.concat(map((lambda path: (pd.read_csv(path, sep = ','))), flags_file_list))
+    flags_df_subset = pd.concat([flags_df.loc[(((flags_df.Flag == 0) & (flags_df.Overrule == False)) | ((flags_df.Flag == 1) & (flags_df.Overrule == True))) & (flags_df.Instrument==i)]  for i in Instrument_dict[instrument]]) # subsetting files that passed through the QC and data owner check
     # generate the file list (standardized or gridded files)
-    file_list_full=[]
-    for i in Instrument_dict[instrument]:
-        standardizer_df_subset = standardizer_df[standardizer_df.Instrument == i].reset_index(drop=True)
-        if data_status == 'standardized':
-            #file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + i + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
-            file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*standardized_project_' + str(proj_id) + '_*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
-            #print(file_list)
-        elif data_status == 'gridded':
-            file_list = [file for project in [glob(str(path_to_gridded) + '*/**/*_gridded_project_' + str(proj_id) + '_*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project]
-        file_list_full = file_list_full + file_list
-    return file_list_full
+
+    #standardizer_df_subset = standardizer_df[standardizer_df.Instrument == i].reset_index(drop=True)
+    if data_status == 'standardized':
+        #file_list = [file for project in [glob(str(path_to_standardized) + '*/**/*' + i + '*/**/*' +str(proj_id) + '*.csv', recursive=True) for proj_id in standardizer_df_subset.Project_ID] for file in project] # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
+        file_list = [os.path.expanduser(path) for path in flags_df_subset.Sample_localpath.tolist()]
+        file_list_local = list(set([file for project in [glob(str(path_to_standardized) + '*/**/*standardized_project_' + str(proj_id) + '_*.csv', recursive=True) for proj_id in flags_df_subset.Project_ID] for file in project]))
+        file_list = list(set([file for file in file_list if file in file_list_local])) # local file search is necessary for testing, since a personal computer won't have all the standardized files
+        #print(file_list)
+    elif data_status == 'gridded':
+        file_list = list(set([file for project in [glob(str(path_to_gridded) + '*/**/*_gridded_project_' + str(proj_id) + '_*.csv', recursive=True) for proj_id in flags_df_subset.Project_ID] for file in project]))
+    return file_list
 
 def proj_id_list_func_old(instrument, data_status, big_grid = False):
     """
