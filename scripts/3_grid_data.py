@@ -100,7 +100,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         grid_list = group_gridded_files_func(instrument) # saving files in 1x1  lat/lon cells to facilitate computation
 
         # Temporal binning function starts here: since we consider sample size to assign time bins, data needs to be aggregated by each cell
-        file_list = proj_id_list_func(instrument, data_status='gridded', big_grid=True)
+        file_list = proj_id_list_func(instrument, data_status='gridded')
         for cell in tqdm(grid_list):
             print('assinging temporal bin to large cell ' + cell)
             file_subset = [file for file in file_list if cell in file]
