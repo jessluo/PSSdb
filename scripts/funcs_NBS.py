@@ -83,8 +83,9 @@ def biovolume_metric(df_binned):
 # range of size classes, biovolume, lat & lon ) plus the variables that will be used to group the data by
 # stations, depths and size classes
 # using 5 ml for IFCB
-def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False, light_parsing = False, depth_parsing = False,thresholding=True): #, niter=0
+def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensitivity = False,group=[], light_parsing = False, depth_parsing = False,thresholding=True): #, niter=0
     """
+    This function calculates Normalized Biovolume Size Spectra using the size proxy defined in biovol_estimate for a given bin, and additionally for each level specified in the group column(s)  (e.g. day/night, depth layers, taxonomic groups)
     """
     import numpy as np
     import pandas as pd
@@ -132,43 +133,33 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
                                                                                           'Depth_range_min':x.Depth_min.astype(float).min(),
                                                                                           'Depth_range_max':x.Depth_max.astype(float).max()})).reset_index()
             NBS_biovol_df= pd.merge(NBS_biovol_df, df_vol, how='left', on=grouping )  # df_vol.loc[0, 'cumulative_volume']
-            #computing NBSS for individual size fractions in each samples. Required for zooscan projects, since a single net tow is fractionated by sieves
-            #for index_group in list(NBS_biovol_df.astype(dict(zip(grouping+['Depth_range_min', 'Depth_range_max'],[str]*(2+len(grouping))))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']).groups.values()):
-            #    x=NBS_biovol_df.loc[index_group]
-            #    x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0]
-            #    x[biovol_estimate].sum() / x.ROI_number.sum()
-            #    x[biovol_estimate].sum()
-            #    x.ROI_number.sum()
-            #    x.cumulative_vol.unique()[0]
-            #    (x.ROI_number.sum() / x.cumulative_vol.unique()[0] / (((x.range_size_bin.astype(float).unique()[0] * 6) / m.pi) ** (1. / 3.)))
-            #    (x[biovol_estimate].sum() / x.cumulative_vol.unique()[0] / x.range_size_bin.astype(float).unique()[0])
-            NBS_biovol_df = NBS_biovol_df.astype(dict(zip(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max'],[str]*(3+len(grouping))))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max'],observed=True).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
+            if not len(group):
+                NBS_biovol_df=NBS_biovol_df.assign(Particle_type='bulk')
+                group=['Particle_type']
+            NBS_biovol_df = NBS_biovol_df[(NBS_biovol_df[group]!='nan').all(axis=1)].astype(dict(zip(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,[str]*(4+len(grouping))))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,observed=True).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
+                                                                                                   'Validation_percentage':np.nanmean(len(NBS_biovol_df[(NBS_biovol_df.Sample.astype(str).isin(x.Sample.astype(str).unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI']).Annotation.astype(str).str.lower().str.contains('validated'))/len(NBS_biovol_df[(NBS_biovol_df.Sample.isin(x.Sample.unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI']))) if len(NBS_biovol_df[(NBS_biovol_df.Sample.isin(x.Sample.unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI'])) else 0,
                                                                                                    'pixel_size':np.nanmean(x.Pixel),
                                                                                                    'Biovolume_mean': x[biovol_estimate].sum() / x.ROI_number.sum(),
                                                                                                    'Biovolume_sum': x[biovol_estimate].sum(),
                                                                                                    'ROI_number_sum': x.ROI_number.sum(),
                                                                                                    'Total_volume': x.cumulative_vol.unique()[0],
                                                                                                    'PSD': (x.ROI_number.sum() /x.cumulative_vol.unique()[0] / (((x.size_range_ECD.astype(float).unique()[0]*6)/m.pi)**(1./3.))),
-                                                                                                   #'NB_std': np.std(list(map(lambda count: np.random.normal( loc=np.random.choice(np.repeat(x[biovol_estimate],x.ROI_number),size=count,replace=True),
-                                                                                                                                                             #scale=(1 / 3) * np.pi * (np.sqrt((x.Pixel.unique()[0]) * 1e-03 * x.size_class_mid.astype(float).unique()[0]) ** 3) / ( (1e-03 * x.Pixel.unique()[0]) ** 3),
-                                                                                                                                                             #size=None).sum() / x.cumulative_volume.unique()[0] / (x.range_size_bin.astype(float).unique())[0],
-                                                                                                                                                             #np.random.poisson(lam=sum(x.ROI_number), size=niter)))),
-
-                                                                                                   'NB': (x[biovol_estimate].sum() /x.cumulative_vol.unique()[0] / x.range_size_bin.astype(float).unique()[0])})).reset_index()#, 'ROI_number':x['ROI_number'].sum()}))
+                                                                                                   'NB': (x[biovol_estimate].sum() /x.cumulative_vol.unique()[0] / x.range_size_bin.astype(float).unique()[0])})).reset_index().sort_values(grouping+group).reset_index(drop=True)#, 'ROI_number':x['ROI_number'].sum()}))
 
             #df_bins['sizeClasses']=df_bins.sizeClasses.astype(str)
             #NBS_biovol_df = pd.merge(NBS_biovol_df, df_bins[['sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD']].drop_duplicates(),how='left', on='sizeClasses')
             NBS_biovol_df.sizeClasses = pd.Categorical(NBS_biovol_df.sizeClasses, df_bins.sizeClasses.astype(str),ordered=True) # this generates a categorical index for the column, this index can have a different lenght that the actual number of unique values, especially here since the categories come from df_bins
-            NBS_biovol_df = pd.merge(NBS_biovol_df, NBS_biovol_df.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
+            NBS_biovol_df = pd.merge(NBS_biovol_df, NBS_biovol_df.drop_duplicates(subset=grouping+group, ignore_index=True)[grouping+group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping+group)
             multiindex = pd.MultiIndex.from_product([list(NBS_biovol_df.astype({column: 'category' for column in ['Group_index', 'sizeClasses']})[column].cat.categories) for column in ['Group_index', 'sizeClasses']],names=['Group_index', 'sizeClasses'])
-            NBS_biovol_df =  pd.merge(NBS_biovol_df.drop_duplicates(['Group_index'])[grouping + ['Sample_id','Depth_range_min', 'Depth_range_max','Group_index','Total_volume']],NBS_biovol_df.set_index(['Group_index', 'sizeClasses']).reindex(multiindex,fill_value=pd.NA).reset_index().drop(columns=grouping+['Sample_id','Depth_range_min', 'Depth_range_max','Total_volume']), how='right', on=['Group_index']).sort_values(['Group_index']).reset_index(drop=True)
+            NBS_biovol_df =  pd.merge(NBS_biovol_df.drop_duplicates(['Group_index'])[grouping+group + ['Sample_id','Depth_range_min', 'Depth_range_max','Group_index','Total_volume']],NBS_biovol_df.set_index(['Group_index', 'sizeClasses']).reindex(multiindex,fill_value=pd.NA).reset_index().drop(columns=grouping+group+['Sample_id','Depth_range_min', 'Depth_range_max','Total_volume']), how='right', on=['Group_index']).sort_values(['Group_index']).reset_index(drop=True)
 
 
             NBS_biovol_df= pd.merge(NBS_biovol_df, df_bins[['sizeClasses','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD']].astype({'sizeClasses':str}).drop_duplicates(), how='left', on='sizeClasses')
             NBS_biovol_df =NBS_biovol_df.astype({'ECD_mid':float}).sort_values(['Group_index','ECD_mid']).reset_index(drop=True).astype({'ECD_mid':str})
 
             # summing the NB for each size class that come from separate size fractions(because of sieving) to obtain the overall NB for a size class in a net
-            NBS_biovol_df= NBS_biovol_df.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD'],[str]*6))).groupby(['Sample_id',  'date_bin', 'Station_location','midLatBin', 'midLonBin','sizeClasses','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD']).apply(lambda x: pd.Series({ #.astype(dict(zip(['Depth_range_min','Depth_range_max'],[str]*2)))
+            NBS_biovol_df= NBS_biovol_df.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD'],[str]*6))).groupby(['Sample_id',  'date_bin', 'Station_location','midLatBin', 'midLonBin','sizeClasses','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD']+group).apply(lambda x: pd.Series({ #.astype(dict(zip(['Depth_range_min','Depth_range_max'],[str]*2)))
+                                                                                                                     'Validation_percentage':np.nanmean(x.Validation_percentage),
                                                                                                                      'Depth_range_min': x.Depth_range_min.unique()[0],
                                                                                                                      'Depth_range_max': x.Depth_range_max.unique()[0],
                                                                                                                      'Biovolume_mean': x.Biovolume_sum.sum() / x.ROI_number_sum.sum(),
@@ -182,14 +173,14 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
             #average NB for each date and station bin, from NB that come from different net tows. NOTE: here, things need to be done differently depending on
 
 
-            nbss_depths = NBS_biovol_df.groupby(['date_bin','midLatBin', 'midLonBin','Station_location']).apply(lambda x: pd.Series({ 'Min_obs_depth':np.nanmin(x.Depth_range_min.astype(float)),
-                                                                                                                                            'Max_obs_depth': np.nanmax(x.Depth_range_max.astype(float))})).reset_index()
+            nbss_depths = NBS_biovol_df.groupby(['date_bin','midLatBin', 'midLonBin','Station_location']).apply(lambda x: pd.Series({ 'Min_obs_depth':np.nanmin(x.Depth_range_min.astype(float)),'Max_obs_depth': np.nanmax(x.Depth_range_max.astype(float))})).reset_index()
 
 
             NBS_biovol_df = pd.merge(NBS_biovol_df, nbss_depths, how='left', on=['date_bin','midLatBin', 'midLonBin','Station_location'])
 
             # depth integration OR weighted sum
-            NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses', 'size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD']).apply(lambda x: pd.Series({
+            NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['Min_obs_depth','Max_obs_depth'],[str]*2))).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth', 'sizeClasses', 'size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD']+group).apply(lambda x: pd.Series({
+                                                                                                                        'Validation_percentage': np.nanmean(x.Validation_percentage),
                                                                                                                         'Biovolume_mean': x.Biovolume_mean.mean(),# in cubic micrometers
                                                                                                                         'size_class_pixel': x.Pixel_mean.mean(),# Number of pixels
                                                                                                                         'ROI_number_sum': np.nansum(x.ROI_number_sum),
@@ -199,7 +190,7 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
                                                                                                                         'NB': np.nansum(x.NB * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1),
                                                                                                                         'PSD': np.nansum(x.PSD * np.where((x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)) > 1,(x.Depth_range_max.astype(float) - x.Depth_range_min.astype(float)), 1)) / np.where( (x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]) > 1,(x.Max_obs_depth.astype(float).unique()[0] - x.Min_obs_depth.astype(float).unique()[0]), 1)})).reset_index()
 
-            NBS_biovol_df= NBS_biovol_df.astype({'ECD_mid':float}).sort_values(['date_bin','midLatBin', 'midLonBin','Station_location','ECD_mid']).reset_index(drop=True)
+            NBS_biovol_df= NBS_biovol_df.astype({'ECD_mid':float}).sort_values(['date_bin','midLatBin', 'midLonBin','Station_location']+group+['ECD_mid']).reset_index(drop=True)
             NBS_biovol_df=NBS_biovol_df.assign(count_uncertainty=poisson.pmf(k=NBS_biovol_df['ROI_number_sum'], mu=NBS_biovol_df['ROI_number_sum']),
                                  size_uncertainty=NBS_biovol_df.astype({'size_class_pixel':float}).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth','Max_obs_depth']).size_class_pixel.transform(lambda x: norm.pdf((1/3)*np.pi*x**3,loc=(1/3)*np.pi*x.min()**3,scale=(1/3)*1*np.pi)).values.tolist())
 
@@ -222,7 +213,7 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
         #NBS_biovol_df[i] = NBS_biovol_df[i].unique()[1]
     # let's do the thresholding here:
     if thresholding==True:
-        NBS_biovol_df = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: threshold_func(x)).reset_index(drop=True)
+        NBS_biovol_df = NBS_biovol_df.groupby(['date_bin', 'Station_location']+group).apply(lambda x: threshold_func(x)).reset_index(drop=True)
     else:
         NBS_biovol_df= NBS_biovol_df
 
@@ -231,8 +222,8 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
         lin_fit=pd.DataFrame()
     else:
         NBS_biovol_df = NBS_biovol_df.astype(dict(zip(['midLatBin', 'midLonBin','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD'], [float] * 6)))
-        lin_fit = NBS_biovol_df.groupby(['date_bin', 'Station_location']).apply(lambda x: linear_fit_func(x)).reset_index(drop=True)
-
+        lin_fit = NBS_biovol_df.groupby(['date_bin', 'Station_location']+group+['Validation_percentage']).apply(lambda x: linear_fit_func(x)).reset_index().drop(columns='level_'+str(len(['date_bin', 'Station_location']+group+['Validation_percentage'])))
+        lin_fit=lin_fit.sort_values(['date_bin', 'Station_location']+group).reset_index(drop=True)
     return NBS_biovol_df, lin_fit
 
 ## assing ocean label using gdp
@@ -349,7 +340,7 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     if depth_parsing == True:
         lin_fit.loc[0, 'depth'] = df1.loc[0, 'midDepthBin']
 
-    lin_fit.loc[0, 'Station_location'] = str(df1.loc[0, 'Station_location'])
+   # lin_fit.loc[0, 'Station_location'] = str(df1.loc[0, 'Station_location'])
     lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
 
     #lin_fit.loc[0, 'year'] = str(df1.loc[0, 'year'])

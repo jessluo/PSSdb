@@ -71,6 +71,9 @@ if len(existing_project_path) != 0:
 
         elif confirmation=='N':
             df_Ecotaxa_list={'data':df_ecotaxa}
+        else:
+            print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
+            quit()
     else:
         print("Creating list of Ecotaxa projects. Please wait")
         # get projects list
@@ -112,6 +115,9 @@ if len(existing_project_path) != 0:
                 df_metadata.to_excel(writer, sheet_name='metadata', index=False)
         elif confirmation=='N':
             df_Ecopart_list={'data':df_ecopart}
+        else:
+            print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
+            quit()
     else:
         print("Creating list of Ecopart projects. Please wait")
         # get projects list
@@ -157,6 +163,10 @@ if len(existing_project_path) != 0:
 
         elif confirmation=='N':
             df_ifcb_list={'data':df_ifcb}
+        else:
+        print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
+        quit()
+
     else:
         print("Creating list of IFCB projects. Please wait")
         # get projects list
