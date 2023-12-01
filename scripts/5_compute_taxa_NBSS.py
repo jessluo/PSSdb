@@ -87,7 +87,7 @@ elif confirmation=='N':
 else:
     print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
     quit()
-#2: Loop through instrument-specific gridded files
+#2: Loop through instrument-specific gridded files and compute class- and functional types-specifc Normalized Biovolume Size Spectra
 for instrument in os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']):
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     #get paths to gridded files
@@ -96,15 +96,15 @@ for instrument in os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_su
     currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
     currentYear = str(datetime.datetime.now().year)
     NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / str('NBSS_ver_'+currentMonth+'_'+currentYear)
-    NBSSpath.mkdir(exist_ok=True,parents=True)
+
 
     biovol = 'Biovolume_area'
-    print ('generating PSSdb products for ' +instrument+' based on ' + biovol)
+    print ('generating PSSdb biovolume products for ' +instrument+' based on ' + biovol)
     NBSS_binned_all,NBSS_binned_all_PFT = pd.DataFrame(),pd.DataFrame()  # NBSS dataset
     lin_fit_data,lin_fit_data_PFT = pd.DataFrame(),pd.DataFrame()
     for i in tqdm(grid_list):
         i = i.group(1)
-        print ('grouping data and calculating NBSS for cell number ' + i)
+        print ('grouping data and calculating Normalized Biovolume Size Specta for cell number ' + i)
         file_subset = [file for file in file_list if i in file]
         #  Read gridded standardized files and merge to taxonomy lookup table
         NBS_biovol_df= pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
@@ -147,6 +147,7 @@ for instrument in os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_su
         lin_fit_1b_class= lin_fit_data.groupby(['Taxon','Validation_percentage']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         lin_fit_1b_class = ocean_label_func(lin_fit_1b_class.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
 
+        Path(NBSSpath / 'Class').mkdir(exist_ok=True, parents=True)
         NBSS_binned_all.to_csv(NBSSpath / 'Class' / str(instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
         NBSS_1a_class.to_csv(NBSSpath /'Class' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
         lin_fit_1b_class.to_csv(NBSSpath / 'Class' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
@@ -158,6 +159,7 @@ for instrument in os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_su
         lin_fit_1b_PFT = ocean_label_func(lin_fit_1b_PFT.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
 
         # Save data levels
+        Path(NBSSpath / 'PFT').mkdir(exist_ok=True, parents=True)
         NBSS_binned_all_PFT.to_csv(NBSSpath / 'PFT' / str(instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
         NBSS_1a_PFT.to_csv(NBSSpath /'PFT' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
         lin_fit_1b_PFT.to_csv(NBSSpath / 'PFT' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
