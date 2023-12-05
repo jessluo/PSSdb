@@ -39,6 +39,7 @@ except:
     from scripts.funcs_read import *
     from scripts.funcs_NBS import *
 
+from natsort import natsorted
 import pint # Use pip install pint
 warnings.filterwarnings('ignore', module='pint')
 import pint_pandas # Use pip install pint-pandas
@@ -83,8 +84,8 @@ df_allometry['C_Intercept']=df_allometry['C_Intercept']*(df_allometry.Size_unit.
 df_allometry['Size_unit']='cubic_micrometer'
 df_allometry['Elemental_mass_unit']='gram'
 
-
 df_taxonomy=pd.read_excel(path_to_taxonomy)
+
 #1: Merge taxonomic and allometric lookup tables generated on step 2 to assign a taxonomic group for each ROI
 confirmation = input("Starting the computation of class- and functional type-specifc size spectra.\nDo you wish to update the taxonomic lookup table ({})? Enter Y or N\nY if new annotations should be merged to the WORMS database (https://www.marinespecies.org/aphia.php?p=search)\n".format(str(path_to_taxonomy).replace(str(Path.home()),'~')))
 if confirmation=='Y':
@@ -124,7 +125,7 @@ else:
     print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
     quit()
 #2: Loop through instrument-specific gridded files and compute class- and functional types-specifc Normalized Biovolume Size Spectra
-for instrument in os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']):
+for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']))[-2:-1]:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
