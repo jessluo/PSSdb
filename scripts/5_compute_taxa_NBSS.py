@@ -188,13 +188,13 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
                 NBS_biovol_df_biomass_PFT = pd.merge(NBS_biovol_df_biomass_PFT.astype({'sizeClasses': str}), df_bins[[ 'sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid','size_range_ECD','biomass_mid', 'range_biomass_bin']].astype({'sizeClasses': str}), how='left',on='sizeClasses').astype({'size_class_mid': float})[['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD','range_biomass_bin', 'biomass_mid', 'PFT', 'Validation_percentage', 'Biovolume_mean','size_class_pixel', 'ROI_number_sum', 'ROI_abundance_mean', 'NB', 'PSD', 'count_uncertainty','size_uncertainty', 'logNB', 'logSize', 'logPSD', 'logECD']].sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT','size_class_mid']).reset_index(drop=True)
 
                 NBS_biovol_df_biomass_PFT = NBS_biovol_df_biomass_PFT.groupby(group).apply( lambda x: threshold_func(x)).reset_index(drop=True)
-                NBS_biovol_df_biomass_PFT['Total_biomass'] = NBS_biovol_df_biomass_PFT.groupby( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply( lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
-
-                ## Perform linear regression
-                lin_fit_PFT_biomass = NBS_biovol_df_biomass_PFT.groupby(group + ['Validation_percentage']).apply( lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / df_bins.biomass_mid[0])))).reset_index().drop( columns='level_' + str(len(group + ['Validation_percentage']))).sort_values( ['date_bin', 'Station_location'] + group).reset_index(drop=True).sort_values(group).reset_index( drop=True)
-                lin_fit_PFT_biomass = pd.merge(lin_fit_PFT_biomass, NBS_biovol_df_biomass_PFT.drop_duplicates(group + ['Validation_percentage', 'Total_biomass'])[ group + ['Validation_percentage', 'Total_biomass']], how='left', on=group + ['Validation_percentage'])
-                NBSS_binned_all_biomass_PFT = pd.concat([NBSS_binned_all_biomass_PFT, NBS_biovol_df_biomass_PFT])
-                lin_fit_data_biomass_PFT = pd.concat([lin_fit_data_biomass_PFT, lin_fit_PFT_biomass])
+                if len(NBS_biovol_df_biomass_PFT):
+                    NBS_biovol_df_biomass_PFT['Total_biomass'] = NBS_biovol_df_biomass_PFT.groupby( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply( lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
+                    ## Perform linear regression
+                    lin_fit_PFT_biomass = NBS_biovol_df_biomass_PFT.groupby(group + ['Validation_percentage']).apply( lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / df_bins.biomass_mid[0])))).reset_index().drop( columns='level_' + str(len(group + ['Validation_percentage']))).sort_values( ['date_bin', 'Station_location'] + group).reset_index(drop=True).sort_values(group).reset_index( drop=True)
+                    lin_fit_PFT_biomass = pd.merge(lin_fit_PFT_biomass, NBS_biovol_df_biomass_PFT.drop_duplicates(group + ['Validation_percentage', 'Total_biomass'])[ group + ['Validation_percentage', 'Total_biomass']], how='left', on=group + ['Validation_percentage'])
+                    NBSS_binned_all_biomass_PFT = pd.concat([NBSS_binned_all_biomass_PFT, NBS_biovol_df_biomass_PFT])
+                    lin_fit_data_biomass_PFT = pd.concat([lin_fit_data_biomass_PFT, lin_fit_PFT_biomass])
 
         if len(NBS_biovol_df_biovolume):
             # Compute functional type specific NBSS
@@ -209,10 +209,11 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
             NBS_biovol_df_PFT = pd.merge(NBS_biovol_df_PFT.astype({'sizeClasses':str}), df_bins[['sizeClasses','size_class_mid', 'range_size_bin','ECD_mid', 'size_range_ECD','biomass_mid','range_biomass_bin']].astype({'sizeClasses':str}).drop_duplicates(), how='left', on='sizeClasses').astype({'size_class_mid':float})[['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth', 'sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD','biomass_mid','range_biomass_bin', 'PFT','Validation_percentage', 'Biovolume_mean', 'size_class_pixel','ROI_number_sum', 'ROI_abundance_mean', 'NB', 'PSD','count_uncertainty', 'size_uncertainty', 'logNB', 'logSize', 'logPSD','logECD']].sort_values(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth','PFT','size_class_mid']).reset_index(drop=True)
 
             NBS_biovol_df_PFT = NBS_biovol_df_PFT.groupby(group).apply(lambda x: threshold_func(x)).reset_index(drop=True)
-            ## Perform linear regression
-            lin_fit_PFT = NBS_biovol_df_PFT.groupby( group+ ['Validation_percentage'] ).apply(lambda x: linear_fit_func(x)).reset_index().drop(columns='level_' + str(len(group + ['Validation_percentage']))).sort_values(['date_bin', 'Station_location'] + group).reset_index(drop=True).sort_values(group).reset_index(drop=True)
-            NBSS_binned_all_PFT = pd.concat([NBSS_binned_all_PFT, NBS_biovol_df_PFT])
-            lin_fit_data_PFT = pd.concat([lin_fit_data_PFT, lin_fit_PFT])
+            if len(NBS_biovol_df_PFT):
+                ## Perform linear regression
+                lin_fit_PFT = NBS_biovol_df_PFT.groupby( group+ ['Validation_percentage'] ).apply(lambda x: linear_fit_func(x)).reset_index().drop(columns='level_' + str(len(group + ['Validation_percentage']))).sort_values(['date_bin', 'Station_location'] + group).reset_index(drop=True).sort_values(group).reset_index(drop=True)
+                NBSS_binned_all_PFT = pd.concat([NBSS_binned_all_PFT, NBS_biovol_df_PFT])
+                lin_fit_data_PFT = pd.concat([lin_fit_data_PFT, lin_fit_PFT])
 
 
     NBSS_raw = NBSS_binned_all.filter(['date_bin', 'midLatBin', 'midLonBin','Taxon','PFT','Validation_percentage', 'size_class_mid', 'ECD_mid', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth'], axis=1)
