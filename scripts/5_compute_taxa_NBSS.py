@@ -136,12 +136,12 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
 
 
     biovol = 'Biovolume_area'
-    print ('generating PSSdb biovolume/biomass products for ' +instrument+' based on ' + biovol)
+    print ('\ngenerating PSSdb biovolume/biomass products for ' +instrument+' based on ' + biovol)
     NBSS_binned_all,NBSS_binned_all_PFT,NBSS_binned_all_biomass,NBSS_binned_all_biomass_PFT = pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame()  # NBSS dataset
     lin_fit_data,lin_fit_data_PFT,lin_fit_data_biomass,lin_fit_data_biomass_PFT = pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
     for i in tqdm(grid_list):
         i = i.group(1)
-        print ('grouping data and calculating Normalized Biovolume/Biomass Size Spectra for cell number ' + i)
+        print ('\ngrouping data and calculating Normalized Biovolume/Biomass Size Spectra for cell number ' + i)
         file_subset = [file for file in file_list if i in file]
         #  Read gridded standardized files and merge to taxonomy lookup table
         NBS_biovol_df= pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
@@ -163,21 +163,22 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
 
             # Compute taxa-specific Normalized Biomass Size Spectra
             NBS_biovol_df=pd.merge(NBS_biovol_df, df_allometry.query('Size_proxy=="Biovolume"')[['Taxon','Size_unit','Elemental_mass_unit','C_Intercept','C_Slope']],how='left',on=['Taxon'])
-            NBS_biovol_df[NBS_biovol_df.C_Slope.isna()]
+            df_check=NBS_biovol_df[NBS_biovol_df.C_Slope.isna()].drop_duplicates(subset=['Category','Taxon','PFT'])
             NBS_biovol_df=pd.merge(NBS_biovol_df, data_bins[['sizeClasses_ECD','range_biomass_bin','biomass_mid']],how='left',on=['sizeClasses_ECD'])
             # Generate biomass estimates using biovolume_area
             NBS_biovol_df=NBS_biovol_df.assign(Biomass_area=NBS_biovol_df['C_Intercept']*(NBS_biovol_df[biovol]**NBS_biovol_df['C_Slope'])) # in g
 
             NBS_biovol_df_biomass, lin_fit_biomass = NB_SS_func(NBS_biovol_df.drop(columns=['range_size_bin']).assign(range_size_bin=NBS_biovol_df.range_biomass_bin), df_bins.drop(columns=['size_class_mid']).assign(size_class_mid=data_bins.biomass_mid/data_bins.biomass_mid[0]), biovol_estimate='Biomass_area', sensitivity=sensitivity,group=['Taxon','PFT'])
-            NBS_biovol_df_biomass=pd.merge(NBS_biovol_df_biomass, df_bins[['sizeClasses', 'range_biomass_bin', 'biomass_mid']], how='left', on=['sizeClasses'])
-            NBS_biovol_df_biomass['Total_biomass']=NBS_biovol_df_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth', 'Taxon','Validation_percentage']).apply(lambda x:pd.DataFrame({'Total_biomass':1e+06 * np.nansum(x.NB * x.range_biomass_bin)},index=list(x.index))).reset_index().Total_biomass.values # in microgram per liters or milligram per cubic meters
-            # Re-calculate spectral slope/intercept after dropping PFT grouping
-            lin_fit_biomass = NBS_biovol_df_biomass.groupby( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon'] + ['Validation_percentage']).apply(lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / df_bins.biomass_mid[0])))).reset_index().drop(columns='level_' + str(len(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon'] + ['Validation_percentage']))).sort_values( ['date_bin', 'Station_location'] + ['midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon']).reset_index(drop=True).sort_values(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon']).reset_index(drop=True)
-            lin_fit_biomass=pd.merge(lin_fit_biomass,NBS_biovol_df_biomass.drop_duplicates(['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth', 'Taxon','Validation_percentage']+ [ 'Total_biomass'])[['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth', 'Taxon','Validation_percentage']+ [ 'Total_biomass']],how='left', left_on=['date_bin', 'Station_location', 'latitude', 'longitude','min_depth', 'max_depth', 'Taxon','Validation_percentage'],right_on=['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth', 'Taxon','Validation_percentage'])
-
-            NBSS_binned_all_biomass = pd.concat([NBSS_binned_all_biomass, NBS_biovol_df_biomass])
-            lin_fit_data_biomass = pd.concat([lin_fit_data_biomass, lin_fit_biomass])
             if len(NBS_biovol_df_biomass):
+                NBS_biovol_df_biomass = pd.merge(NBS_biovol_df_biomass,df_bins[['sizeClasses', 'range_biomass_bin', 'biomass_mid']], how='left', on=['sizeClasses'])
+                NBS_biovol_df_biomass['Total_biomass'] = NBS_biovol_df_biomass.groupby( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage'], dropna=False).apply( lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
+                # Re-calculate spectral slope/intercept after dropping PFT grouping
+                lin_fit_biomass = NBS_biovol_df_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon'] + ['Validation_percentage']).apply(lambda x: linear_fit_func( x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / df_bins.biomass_mid[0])))).reset_index().drop(columns='level_' + str( len(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon'] + ['Validation_percentage']))).sort_values(['date_bin', 'Station_location'] + ['midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon']).reset_index(drop=True).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon']).reset_index(drop=True)
+                lin_fit_biomass = pd.merge(lin_fit_biomass, NBS_biovol_df_biomass.drop_duplicates( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon', 'Validation_percentage'] + ['Total_biomass'])[ ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','Taxon', 'Validation_percentage'] + ['Total_biomass']], how='left',on=['date_bin', 'Station_location', 'midLatBin', 'midLonBin','Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage'])
+
+                NBSS_binned_all_biomass = pd.concat([NBSS_binned_all_biomass, NBS_biovol_df_biomass])
+                lin_fit_data_biomass = pd.concat([lin_fit_data_biomass, lin_fit_biomass])
+
                 group = ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT']
                 NBS_biovol_df_biomass_PFT = NBS_biovol_df_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD', 'range_biomass_bin', 'biomass_mid', 'PFT']).apply(lambda x: pd.Series({ 'Validation_percentage': np.round(np.nansum((x.Validation_percentage.astype(float) * x.ROI_number_sum.astype( float)) / x.ROI_number_sum.astype(float).sum()), 2),'Biovolume_mean': np.nansum((x.Biovolume_mean.astype(float) * x.ROI_number_sum) / x.ROI_number_sum.sum()),'size_class_pixel': np.nanmean(x.size_class_pixel.astype(float)), 'ROI_number_sum': x.ROI_number_sum.astype( float).sum(),'ROI_abundance_mean': np.nansum(( x.ROI_abundance_mean.astype(float) * x.ROI_number_sum.astype(float)) / x.ROI_number_sum.astype(float).sum()),'NB': x.NB.astype( float).sum(), 'PSD': x.PSD.astype(float).sum(), 'count_uncertainty': poisson.pmf( k=np.nansum(( x.ROI_abundance_mean.astype(float) * x.ROI_number_sum.astype(float)) / x.ROI_number_sum.astype(float).sum()), mu=np.nansum(( x.ROI_abundance_mean.astype(float) * x.ROI_number_sum.astype( float)) / x.ROI_number_sum.astype(float).sum())),'size_uncertainty': np.nanmean( x.size_uncertainty.astype(float)), 'logNB': np.log10( x.NB.astype( float).sum()), 'logSize': np.log10( x.size_class_mid.astype( float).unique()[0]),'logPSD': np.log10( x.PSD.astype( float).sum()), 'logECD': np.log10(x.ECD_mid.astype( float).unique()[0])})).reset_index().sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'size_class_mid']).reset_index(drop=True)
                 ## Add empty size classes and threshold
@@ -189,7 +190,7 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
 
                 NBS_biovol_df_biomass_PFT = NBS_biovol_df_biomass_PFT.groupby(group).apply( lambda x: threshold_func(x)).reset_index(drop=True)
                 if len(NBS_biovol_df_biomass_PFT):
-                    NBS_biovol_df_biomass_PFT['Total_biomass'] = NBS_biovol_df_biomass_PFT.groupby( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply( lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
+                    NBS_biovol_df_biomass_PFT['Total_biomass'] = NBS_biovol_df_biomass_PFT.groupby( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage'],dropna=False).apply( lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
                     ## Perform linear regression
                     lin_fit_PFT_biomass = NBS_biovol_df_biomass_PFT.groupby(group + ['Validation_percentage']).apply( lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / df_bins.biomass_mid[0])))).reset_index().drop( columns='level_' + str(len(group + ['Validation_percentage']))).sort_values( ['date_bin', 'Station_location'] + group).reset_index(drop=True).sort_values(group).reset_index( drop=True)
                     lin_fit_PFT_biomass = pd.merge(lin_fit_PFT_biomass, NBS_biovol_df_biomass_PFT.drop_duplicates(group + ['Validation_percentage', 'Total_biomass'])[ group + ['Validation_percentage', 'Total_biomass']], how='left', on=group + ['Validation_percentage'])

@@ -136,8 +136,9 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
             if not len(group):
                 NBS_biovol_df=NBS_biovol_df.assign(Particle_type='bulk')
                 group=['Particle_type']
+            #x=(NBS_biovol_df[(NBS_biovol_df[group]!='nan').all(axis=1)].astype(dict(zip(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,[str]*(4+len(grouping)))))).loc[list(NBS_biovol_df[(NBS_biovol_df[group]!='nan').all(axis=1)].astype(dict(zip(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,[str]*(4+len(grouping))))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,observed=True).groups.values())[0]]
             NBS_biovol_df = NBS_biovol_df[(NBS_biovol_df[group]!='nan').all(axis=1)].astype(dict(zip(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,[str]*(4+len(grouping))))).groupby(grouping+['sizeClasses','Depth_range_min', 'Depth_range_max']+group,observed=True).apply(lambda x: pd.Series({'Sample_id': x.Station_location.unique()[0] if 'Sample' not in grouping else x.Sample.unique()[0],  # 'fake' sample identifier, so that grouping by Sample in the next step is the same as grouing it by Station_location
-                                                                                                   'Validation_percentage':np.nanmean(len(NBS_biovol_df[(NBS_biovol_df.Sample.astype(str).isin(x.Sample.astype(str).unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI'])[NBS_biovol_df[(NBS_biovol_df.Sample.astype(str).isin(x.Sample.astype(str).unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI']).Annotation.astype(str).str.lower().str.contains('validated')])/len(NBS_biovol_df[(NBS_biovol_df.Sample.isin(x.Sample.unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI']))) if len(NBS_biovol_df[(NBS_biovol_df.Sample.isin(x.Sample.unique())) & (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI'])) else 0,
+                                                                                                   'Validation_percentage':len(NBS_biovol_df[(NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI'])[NBS_biovol_df[ (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI']).Annotation.astype(str).str.lower().str.contains('validated')])/len(NBS_biovol_df[ (NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI'])) if len(NBS_biovol_df[(NBS_biovol_df[group].isin(dict(zip(x.drop_duplicates(group)[group].columns.to_list(),list(map(lambda el:[el], x.drop_duplicates(group)[group].values.tolist()[0]))))).all(axis=1))].dropna(subset=['ROI'])) else 0,
                                                                                                    'pixel_size':np.nanmean(x.Pixel),
                                                                                                    'Biovolume_mean': x[biovol_estimate].sum() / x.ROI_number.sum(),
                                                                                                    'Biovolume_sum': x[biovol_estimate].sum(),
@@ -168,8 +169,8 @@ def NB_SS_func(NBS_biovol_df, df_bins, biovol_estimate = 'Biovolume_area',sensit
                                                                                                                      'ROI_number_sum': x.ROI_number_sum.sum(),
                                                                                                                      'ROI_abundance': np.nansum(x.ROI_number_sum/ x.Total_volume),
                                                                                                                      #'NB_std': np.sqrt(sum(x.NB_std ** 2)),
-                                                                                                                     'PSD': x.PSD.sum(),
-                                                                                                                     'NB': x.NB.sum()})).reset_index()#, 'ROI_nu
+                                                                                                                     'PSD': np.nansum(x.PSD),
+                                                                                                                     'NB': np.nansum(x.NB)})).reset_index()#, 'ROI_nu
             #average NB for each date and station bin, from NB that come from different net tows. NOTE: here, things need to be done differently depending on
 
 
@@ -258,13 +259,25 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
 
     binned_data['NB'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
     binned_data['NB'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
+    """
+    binned_data['PSD'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
+    binned_data['PSD'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
+    binned_data['logNB'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
+    binned_data['logNB'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
+    binned_data['logPSD'].mask(binned_data['count_uncertainty'] >= threshold_count, np.NaN, inplace=True)
+    binned_data['logPSD'].mask(binned_data['size_uncertainty'] >= threshold_size, np.NaN, inplace=True)
+    """
     #binned_data = binned_data.loc[~((binned_data['size_uncertainty']>=threshold_size) | (binned_data['count_uncertainty']>=threshold_count))].reset_index(drop=True)
     if len(binned_data.NB.unique()) <3:
         binned_data_filt= pd.DataFrame()
     else:
         binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
         binned_data_filt['NB'] = binned_data_filt['NB'].replace(0, np.NaN)
-
+        """
+        binned_data_filt['PSD'] = binned_data_filt['PSD'].replace(0, np.NaN)
+        binned_data_filt['logNB'] = binned_data_filt['logNB'].replace(0, np.NaN)
+        binned_data_filt['logPSD'] = binned_data_filt['logPSD'].replace(0, np.NaN)
+        """
         #binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
 
         empty_SC = binned_data_filt['NB'].isnull()  # get row indices with empty size bins
@@ -291,6 +304,24 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     :param df: a dataframe with size bins and NBSS belonging to only one sample (one unique station, date and depth)
     from https://www.edureka.co/blog/least-square-regression/
     """
+    df1 = df1.reset_index()
+    # generate dataframe and append the results in the corresponding variable
+    lin_fit = pd.DataFrame()
+    if depth_parsing == True:
+        lin_fit.loc[0, 'depth'] = df1.loc[0, 'midDepthBin']
+
+    # lin_fit.loc[0, 'Station_location'] = str(df1.loc[0, 'Station_location'])
+    lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
+
+    # lin_fit.loc[0, 'year'] = str(df1.loc[0, 'year'])
+    # lin_fit.loc[0, 'month'] = str(df1.loc[0, 'month'])
+
+    lin_fit.loc[0, 'latitude'] = df1.loc[0, 'midLatBin']
+    lin_fit.loc[0, 'longitude'] = df1.loc[0, 'midLonBin']
+    if light_parsing == True:
+        lin_fit.loc[0, 'light_condition'] = df1.loc[0, 'light_cond']
+    lin_fit.loc[0, 'min_depth'] = df1.loc[0, 'Min_obs_depth']
+    lin_fit.loc[0, 'max_depth'] = df1.loc[0, 'Max_obs_depth']
 
     #remove Nans
     df1 = df1[df1['NB'].notna()].reset_index()
@@ -300,58 +331,44 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
         '''
         :param Y_var: string that identifies the column header of the df1 dataframe to use as Y variable
         '''
-        X = df1[X_var].values#.reshape(-1, 1)
-        Y = df1[Y_var].values#.reshape(-1, 1)
-        # Mean X and Y
-        mean_x = np.mean(X)
-        mean_y = np.mean(Y)
-        # Total number of values
-        n = len(X)
-        # Model 1 -linear model : Y = m*X + b
-        numer = 0 # numerator
-        denom = 0 # denominator
-        for i in range(n):
-            numer += (X[i] - mean_x) * (Y[i] - mean_y)
-            denom += (X[i] - mean_x) ** 2
-        m = numer / denom # slope
-        b = mean_y - (m * mean_x) # intercept
-        #print("Coefficients")
-        #print(m, c)
-        # Calculating Root Mean Squares Error and R2 score
-        rmse = 0 # root mean square error
-        ss_tot = 0 # total sum of squares
-        ss_res = 0 # total sum of squares of residuals
-        for i in range(n):
-            y_pred = b + m * X[i]
-            rmse += (Y[i] - y_pred) ** 2
-            ss_tot += (Y[i] - mean_y) ** 2
-            ss_res += (Y[i] - y_pred) ** 2
-        rmse = np.sqrt(rmse / n)
-        #print("RMSE")
-        #print(rmse)
-        R2 = 1 - (ss_res / ss_tot)
-        #print("R2 Score")
-        #print(R2)
+        try:
+            X = df1[X_var].values#.reshape(-1, 1)
+            Y = df1[Y_var].values#.reshape(-1, 1)
+            # Mean X and Y
+            mean_x = np.mean(X)
+            mean_y = np.mean(Y)
+            # Total number of values
+            n = len(X)
+            # Model 1 -linear model : Y = m*X + b
+            numer = 0 # numerator
+            denom = 0 # denominator
+
+            for i in range(n):
+                numer += (X[i] - mean_x) * (Y[i] - mean_y)
+                denom += (X[i] - mean_x) ** 2
+            m = numer / denom # slope
+            b = mean_y - (m * mean_x) # intercept
+            #print("Coefficients")
+            #print(m, c)
+            # Calculating Root Mean Squares Error and R2 score
+            rmse = 0 # root mean square error
+            ss_tot = 0 # total sum of squares
+            ss_res = 0 # total sum of squares of residuals
+            for i in range(n):
+                y_pred = b + m * X[i]
+                rmse += (Y[i] - y_pred) ** 2
+                ss_tot += (Y[i] - mean_y) ** 2
+                ss_res += (Y[i] - y_pred) ** 2
+            rmse = np.sqrt(rmse / n)
+            #print("RMSE")
+            #print(rmse)
+            R2 = 1 - (ss_res / ss_tot)
+        except:
+            m, b, rmse, R2=pd.NA,pd.NA,pd.NA,pd.NA
         return m,b,rmse,R2
+
     m_NB, b_NB, rmse_NB, R2_NB = regression(df1, 'logSize','logNB')
     m_PSD, b_PSD, rmse_PSD, R2_PSD = regression(df1, 'logECD', 'logPSD')
-    # generate dataframe and append the results in the corresponding variable
-    lin_fit = pd.DataFrame()
-    if depth_parsing == True:
-        lin_fit.loc[0, 'depth'] = df1.loc[0, 'midDepthBin']
-
-   # lin_fit.loc[0, 'Station_location'] = str(df1.loc[0, 'Station_location'])
-    lin_fit.loc[0, 'Date'] = str(df1.loc[0, 'date_bin'])
-
-    #lin_fit.loc[0, 'year'] = str(df1.loc[0, 'year'])
-    #lin_fit.loc[0, 'month'] = str(df1.loc[0, 'month'])
-
-    lin_fit.loc[0, 'latitude'] = df1.loc[0, 'midLatBin']
-    lin_fit.loc[0, 'longitude'] = df1.loc[0, 'midLonBin']
-    if light_parsing==True:
-        lin_fit.loc[0, 'light_condition'] = df1.loc[0, 'light_cond']
-    lin_fit.loc[0, 'min_depth'] = df1.loc[0, 'Min_obs_depth']
-    lin_fit.loc[0, 'max_depth'] = df1.loc[0, 'Max_obs_depth']
 
     lin_fit.loc[0, 'NBSS_slope'] = m_NB
     lin_fit.loc[0, 'NBSS_intercept'] = b_NB
