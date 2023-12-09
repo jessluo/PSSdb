@@ -1,6 +1,9 @@
 # Objective: This step computes taxa-specific Normalized Biovolume Size Spectrum based on steps 0,1,2,3. Computation follows that of step 4, except that taxonomic groups are assigned to each ROI to compute taxa-specific products
 
 # Python modules and path specifications:
+import warnings
+warnings.filterwarnings('ignore')
+
 
 # Standardization of taxonomic annotations
 try:
@@ -19,7 +22,92 @@ path_to_allometry=path_to_git/cfg['allometry_lookup']
 path_to_taxonomy=path_to_git/cfg['annotations_lookup']
 
 
+# Plot module
+import plotly.express as px # Use pip install plotly==5.8.0
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+from plotnine import * # Python equivalent to ggplot2. Use pip install plotnine. Do not execute in Pycharm (bug- no fix yet): https://youtrack.jetbrains.com/issue/PY-42390
+from colorspace import sequential_hcl # Use: pip install git+https://github.com/retostauffer/python-colorspace
 
+def report_product(biovolume_spectra,biomass_spectra,taxo_group='Taxon'):
+    subplot_specs = [[{"type": "scattergeo"}, {"type": "scatter"}], [{"type": "scattergeo"}, {"type": "scatter"}]]
+    subplot_titles = ['Biovolume integral', '','Biomass integral', '']
+    fig_class = make_subplots(rows=2, cols=2,specs=subplot_specs, subplot_titles=subplot_titles, column_widths=[0.6, 0.4], row_heights=[0.5, 0.5], vertical_spacing=0.1)
+    fig_class.update_yaxes(type="log", row=1, col=2)
+    fig_class.update_yaxes(type="log", row=2, col=2)
+    fig_class.update_xaxes(type="log", row=2, col=2, ticks="inside")
+    fig_class.update_xaxes(type="log", row=1, col=2, ticks="inside")
+    fig_class.for_each_xaxis(lambda x: x.update(showgrid=False))
+    fig_class.for_each_yaxis(lambda x: x.update(showgrid=False, ticks="inside"))
+
+    group=['year','month','latitude','longitude']
+    biovolume_spectra['Group_NBSS'] = biovolume_spectra.groupby(['year', 'month', 'latitude', 'longitude',taxo_group], dropna=False).normalized_biovolume_mean.transform(sum)
+    biovolume_spectra['Total_NBSS'] = biovolume_spectra.groupby(['year', 'month', 'latitude', 'longitude'],dropna=False).normalized_biovolume_mean.transform(sum)
+
+    # Add spectrum
+    biovolume_spectra = pd.merge(biovolume_spectra,biovolume_spectra.drop_duplicates(subset=group + [taxo_group, 'min_depth', 'max_depth'], ignore_index=True)[group + [taxo_group, 'min_depth', 'max_depth']].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left',on=group + [taxo_group, 'min_depth', 'max_depth']) if 'Group_index' not in biovolume_spectra.columns else biovolume_spectra
+    nbss = biovolume_spectra.groupby('Group_index').apply(lambda x: x.append( x.tail(1).assign(equivalent_circular_diameter_mean=np.nan, normalized_biovolume_mean=np.nan))).reset_index( drop=True)
+
+    fig_class.add_trace(go.Scatter(y=nbss.normalized_biovolume_mean, x=nbss.equivalent_circular_diameter_mean,line=dict(color='grey', width=0.15),name='All taxa (biovolume)',mode='lines', showlegend=True, visible=True), row=1, col=2)
+    fig_class.add_trace(go.Scatter(y=nbss[nbss[taxo_group]==nbss[taxo_group].unique()[0]].normalized_biovolume_mean, x=nbss[nbss[taxo_group]==nbss[taxo_group].unique()[0]].equivalent_circular_diameter_mean, line=dict(color='black', width=0.5), name='taxa_biovolume', mode='lines', showlegend=True,visible=True), row=1, col=2)
+
+    biomass_spectra['Group_NBSS'] = biomass_spectra.groupby(['year', 'month', 'latitude', 'longitude', taxo_group], dropna=False).normalized_biomass_mean.transform(sum)
+    biomass_spectra['Total_NBSS'] = biomass_spectra.groupby(['year', 'month', 'latitude', 'longitude'], dropna=False).normalized_biomass_mean.transform( sum)
+
+    # Add spectrum
+    biomass_spectra= pd.merge(biomass_spectra, biomass_spectra.drop_duplicates( subset=group + [taxo_group, 'min_depth', 'max_depth'], ignore_index=True)[ group + [taxo_group, 'min_depth', 'max_depth']].reset_index().rename({'index': 'Group_index'}, axis='columns'),how='left', on=group + [taxo_group, 'min_depth','max_depth']) if 'Group_index' not in biomass_spectra.columns else biomass_spectra
+    nbss_biomass =biomass_spectra.groupby('Group_index').apply( lambda x: x.append(x.tail(1).assign(biomass_mid=np.nan, normalized_biomass_mean=np.nan))).reset_index(drop=True)
+
+    fig_class.add_trace(go.Scatter(y=nbss_biomass.normalized_biomass_mean, x=nbss_biomass.biomass_mid,
+                                   line=dict(color='gray', width=0.15), name='All taxa (biomass)', mode='lines', showlegend=True,
+                                   visible=True), row=2, col=2)
+    fig_class.add_trace(go.Scatter(y=nbss_biomass[nbss_biomass[taxo_group]==nbss_biomass[taxo_group].unique()[0]].normalized_biomass_mean, x=nbss_biomass[nbss_biomass[taxo_group]==nbss_biomass[taxo_group].unique()[0]].biomass_mid,
+                                   line=dict(color='black', width=0.5), name='taxa_biomass', mode='lines', showlegend=True,
+                                   visible=True), row=2, col=2)
+
+    # Button should be defined before geo traces to fix bug
+    button_scatter1 = [dict(method="update",  # argument to change data
+                            args=[{'lon': [biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().longitude, biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().longitude],
+                                   'lat':  [biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().latitude, biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().latitude],
+                                  'x': [nbss_biomass.biomass_mid,nbss_biomass[nbss_biomass[taxo_group]==taxa].biomass_mid,nbss.equivalent_circular_diameter_mean,nbss[nbss[taxo_group]==taxa].equivalent_circular_diameter_mean], #
+                                  'y':[nbss_biomass.normalized_biomass_mean,nbss_biomass[nbss_biomass[taxo_group]==taxa].normalized_biomass_mean,nbss.normalized_biovolume_mean,nbss[nbss[taxo_group]==taxa].normalized_biovolume_mean], #
+                                   'xaxis':['x2','x2','x','x'],'yaxis':['y2','y2','y','y'],
+                                   'marker.color':[np.log10(biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index()['Group_NBSS']),np.log10(biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index()[ 'Group_NBSS'])]             ,
+                                  'line.color':['gray','black', 'gray','black','gray','gray'],
+                                   'name':['all taxa (biomass)','taxa_biomass','all taxa (biovolume)','taxa_biovolume','',''],
+                                   'visible': [True]*len(fig_class.data)},{'traces': [0,1, 2,3,4,5]}],# visible should have the same length as number of subplots, second argument specifies which subplot is updated
+                            label=taxa) for taxa in list(set(biovolume_spectra[taxo_group].unique()).intersection(set(biomass_spectra[taxo_group].unique())))]
+
+    fig_class.update_layout(updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
+        xaxis={'title': u'Equivalent circular diameter (\u03BCm)', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
+        xaxis2={'title': u'Wet weight (g)', 'tickfont': dict(size=10), 'titlefont': dict(size=12)},
+        yaxis={"tickmode": "array",'title': u'Normalized Biovolume Size Spectrum <br> (\u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3)', 'tickfont': dict(size=10), 'titlefont': dict(size=12)},
+        yaxis2={"tickmode": "array",'title': u'Normalized Biomass Size Spectrum <br> (g dm\u207B\u00b3 g\u207B\u00b9)','tickfont': dict(size=10), 'titlefont': dict(size=12)})
+    df_summary = biovolume_spectra.groupby(['latitude', 'longitude']).Total_NBSS.mean().reset_index()
+    data_geo = dict(type='scattergeo',name='',
+                    lon=df_summary.dropna(subset=['latitude', 'longitude']).longitude,
+                    lat=df_summary.dropna(subset=['latitude', 'longitude']).latitude,
+                    marker=dict(color=np.log10(df_summary.dropna(subset=['latitude', 'longitude'])['Total_NBSS']),colorbar=dict(titleside="top", outlinecolor="rgba(68, 68, 68, 0)", x=0.15,ticks="inside", orientation='h', title='$log_{10} particles per L$',len=0.3, xanchor='left'), colorscale=px.colors.sequential.Teal_r + px.colors.sequential.Reds, opacity=0.7,size=2 * (1 + np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS) - min(np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS)))),
+                    geojson="natural earth", showlegend=False, geo='geo')
+    layout = dict()
+    layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80])
+    # go.Figure(data=data_geo, layout=layout)
+    fig_class.add_trace(data_geo, row=1, col=1).update_layout(go.Figure(data=data_geo, layout=layout).layout)
+    df_summary = biomass_spectra.groupby(['latitude', 'longitude']).Total_NBSS.mean().reset_index()
+    data_geo = dict(type='scattergeo',name='',lon=df_summary.dropna(subset=['latitude', 'longitude']).longitude, lat=df_summary.dropna(subset=['latitude', 'longitude']).latitude,
+                    marker=dict(color=np.log10(df_summary.dropna(subset=['latitude', 'longitude'])['Total_NBSS']),colorbar=dict(titleside="top", outlinecolor="rgba(68, 68, 68, 0)", x=0.15, y=-0.15,ticks="inside", orientation='h', title='$log_{10} particles per L$',len=0.3, xanchor='left'),colorscale=px.colors.sequential.Teal_r + px.colors.sequential.Reds, opacity=0.7,size=2 * (1 + np.log10( df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS) - min(np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS)))), geojson="natural earth", showlegend=False, geo='geo')
+    layout = dict()
+    layout['geo2'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80])
+    # go.Figure(data=data_geo, layout=layout)
+    data_geo.update({'geo': 'geo2'})
+
+    fig_class.add_trace(data_geo, row=2, col=1)
+    fig_class.layout['geo2']={'domain': {'x': [0.1, 0.5], 'y': [0.0, 0.45]}}
+    fig_class.layout['geo']['domain']['x']=[0.1, 0.5]
+
+
+    return fig_class
+fig=report_product(biovolume_spectra=NBSS_1a_class, biomass_spectra=NBSS_1a_class_biomass, taxo_group='PFT')
 import pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
@@ -130,7 +218,7 @@ else:
 df_taxonomy=pd.read_excel(path_to_taxonomy)
 df_taxonomy['Taxon']=df_taxonomy.Taxon.str.replace(" ","_")
 #2: Loop through instrument-specific gridded files and compute class- and functional types-specifc Normalized Biovolume Size Spectra
-for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']))[-2:-1]:
+for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']))[1:2]:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
@@ -206,44 +294,55 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
         Path(NBSSpath / 'PFT').mkdir(exist_ok=True, parents=True)
         NBSS_binned_all_PFT_biomass.to_csv(NBSSpath / 'PFT' / str(instrument + '_Biomass-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
 
-    # Saving final dataframes
+    # Saving final dataframes and interactive report
     if len(NBSS_raw):
         # Average at bin levels
         NBSS_1a_class = NBSS_raw.groupby(['Taxon','Validation_percentage']).apply(lambda x: NBSS_stats_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         NBSS_1a_class =  ocean_label_func(NBSS_1a_class.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        NBSS_1a_class =NBSS_1a_class.dropna(subset=['Taxon']).sort_values(['year', 'month', 'latitude', 'longitude', 'Taxon', 'equivalent_circular_diameter_mean']).reset_index(drop=True)
 
         lin_fit_1b_class= lin_fit.groupby(['Taxon','Validation_percentage']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         lin_fit_1b_class = ocean_label_func(lin_fit_1b_class.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        lin_fit_1b_class =lin_fit_1b_class.sort_values(['Taxon','year','month','latitude','longitude']).reset_index(drop=True)
 
-        NBSS_1a_class.sort_values(['year','month','latitude','longitude','Taxon','equivalent_circular_diameter_mean']).to_csv(NBSSpath /'Class' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
-        lin_fit_1b_class.sort_values(['Taxon','year','month','latitude','longitude']).to_csv(NBSSpath / 'Class' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        NBSS_1a_class.to_csv(NBSSpath /'Class' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        lin_fit_1b_class.to_csv(NBSSpath / 'Class' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+
     if len(NBSS_raw_PFT):
         NBSS_1a_PFT = NBSS_raw_PFT.groupby(['PFT','Validation_percentage']).apply(lambda x: NBSS_stats_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         NBSS_1a_PFT =  ocean_label_func(NBSS_1a_PFT.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        NBSS_1a_PFT = NBSS_1a_PFT.dropna(subset=['PFT']).sort_values(['year', 'month', 'latitude', 'longitude', 'PFT', 'equivalent_circular_diameter_mean']).reset_index( drop=True)
 
         lin_fit_1b_PFT= lin_fit_PFT.groupby(['PFT','Validation_percentage']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         lin_fit_1b_PFT = ocean_label_func(lin_fit_1b_PFT.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        lin_fit_1b_PFT =lin_fit_1b_PFT.dropna(subset=['PFT']).sort_values(['PFT', 'year', 'month', 'latitude', 'longitude']).reset_index(drop=True)
 
-        # Save data levels
-        NBSS_1a_PFT.sort_values(['year','month','latitude','longitude','PFT','equivalent_circular_diameter_mean']).to_csv(NBSSpath /'PFT' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
-        lin_fit_1b_PFT.sort_values(['PFT','year','month','latitude','longitude']).to_csv(NBSSpath / 'PFT' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        NBSS_1a_PFT.to_csv(NBSSpath /'PFT' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        lin_fit_1b_PFT.to_csv(NBSSpath / 'PFT' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
     if len(NBSS_raw_biomass):
         # Average at bin levels
         NBSS_1a_class_biomass = NBSS_raw_biomass.groupby(['Taxon','Validation_percentage','biomass_mid']).apply(lambda x: NBSS_stats_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_3']).rename(columns={'normalized_biovolume_mean':'normalized_biomass_mean','normalized_biovolume_sd':'normalized_biomass_sd'})
         NBSS_1a_class_biomass =  ocean_label_func(NBSS_1a_class_biomass.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        NBSS_1a_class_biomass = NBSS_1a_class_biomass.dropna(subset=['Taxon']).sort_values( ['year', 'month', 'latitude', 'longitude', 'Taxon', 'equivalent_circular_diameter_mean']).reset_index(drop=True)
 
-        lin_fit_1b_class_biomass= lin_fit_biomass.groupby(['Taxon','Validation_percentage','Total_biomass']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_3'])
+        lin_fit_1b_class_biomass= lin_fit_biomass.groupby(['Taxon','Validation_percentage']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         lin_fit_1b_class_biomass = ocean_label_func(lin_fit_1b_class_biomass.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        lin_fit_1b_class_biomass =lin_fit_1b_class_biomass.dropna(subset=['Taxon']).sort_values(['Taxon', 'year', 'month', 'latitude', 'longitude']).reset_index(drop=True)
 
-        NBSS_1a_class_biomass.sort_values(['year','month','latitude','longitude','Taxon','equivalent_circular_diameter_mean']).to_csv(NBSSpath /'Class' / str(instrument + '_1a_Biomass-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
-        lin_fit_1b_class_biomass.sort_values(['Taxon','year','month','latitude','longitude']).to_csv(NBSSpath / 'Class' / str(instrument + '_1b_Biomass-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        NBSS_1a_class_biomass.to_csv(NBSSpath /'Class' / str(instrument + '_1a_Biomass-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        lin_fit_1b_class_biomass.to_csv(NBSSpath / 'Class' / str(instrument + '_1b_Biomass-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+
+
+
     if len(NBSS_raw_biomass_PFT):
         NBSS_1a_biomass_PFT = NBSS_raw_biomass_PFT.groupby(['PFT','Validation_percentage','biomass_mid']).apply(lambda x: NBSS_stats_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_3']).rename(columns={'normalized_biovolume_mean':'normalized_biomass_mean','normalized_biovolume_sd':'normalized_biomass_sd'})
         NBSS_1a_biomass_PFT =  ocean_label_func(NBSS_1a_biomass_PFT.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        NBSS_1a_biomass_PFT=NBSS_1a_biomass_PFT.sort_values(['year', 'month', 'latitude', 'longitude', 'PFT', 'equivalent_circular_diameter_mean']).reset_index(drop=True)
 
-        lin_fit_1b_biomass_PFT= lin_fit_biomass_PFT.groupby(['PFT','Validation_percentage','Total_biomass']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_3'])
+        lin_fit_1b_biomass_PFT= lin_fit_PFT_biomass.groupby(['PFT','Validation_percentage']).apply(lambda x: stats_linfit_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_2'])
         lin_fit_1b_biomass_PFT = ocean_label_func(lin_fit_1b_biomass_PFT.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
+        lin_fit_1b_biomass_PFT =lin_fit_1b_biomass_PFT.sort_values(['PFT', 'year', 'month', 'latitude', 'longitude']).reset_index(drop=True)
 
         # Save data levels
-        NBSS_1a_biomass_PFT.sort_values(['year','month','latitude','longitude','PFT','equivalent_circular_diameter_mean']).to_csv(NBSSpath /'PFT' / str(instrument + '_1a_Biomass-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
-        lin_fit_1b_biomass_PFT.sort_values(['PFT','year','month','latitude','longitude']).to_csv(NBSSpath / 'PFT' / str(instrument + '_1b_Biomass-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        NBSS_1a_biomass_PFT.to_csv(NBSSpath /'PFT' / str(instrument + '_1a_Biomass-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+        lin_fit_1b_biomass_PFT.to_csv(NBSSpath / 'PFT' / str(instrument + '_1b_Biomass-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
