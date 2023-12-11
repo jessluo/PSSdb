@@ -10,6 +10,14 @@ try:
     from funcs_standardize_annotations import *
 except:
     from scripts.funcs_standardize_annotations import *
+
+try:
+    from funcs_read import *
+    from funcs_NBS import *
+except:
+    from scripts.funcs_read import *
+    from scripts.funcs_NBS import *
+
 import ast
 import yaml# requires installation of PyYAML package
 from pathlib import Path
@@ -28,14 +36,24 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 from plotnine import * # Python equivalent to ggplot2. Use pip install plotnine. Do not execute in Pycharm (bug- no fix yet): https://youtrack.jetbrains.com/issue/PY-42390
 from colorspace import sequential_hcl # Use: pip install git+https://github.com/retostauffer/python-colorspace
-
+import itertools
+#fig=report_product(biovolume_spectra,biomass_spectra,taxo_group='PFT')
 def report_product(biovolume_spectra,biomass_spectra,taxo_group='Taxon'):
-    subplot_specs = [[{"type": "scattergeo"}, {"type": "scatter"}], [{"type": "scattergeo"}, {"type": "scatter"}]]
-    subplot_titles = ['Biovolume integral', '','Biomass integral', '']
-    fig_class = make_subplots(rows=2, cols=2,specs=subplot_specs, subplot_titles=subplot_titles, column_widths=[0.6, 0.4], row_heights=[0.5, 0.5], vertical_spacing=0.1)
+    subplot_specs = [[{"type": "scattergeo", "rowspan": 2}, {"type": "scatter", "rowspan": 2}, {"type": "xy", "rowspan": 1,"secondary_y": True}, {"type": "xy", "rowspan": 1,"secondary_y": True}],[None, None, {"type": "xy", "rowspan": 1,"secondary_y": True}, {"type": "xy", "rowspan": 1,"secondary_y": True}], [{"type": "scattergeo", "rowspan": 2}, {"type": "scatter", "rowspan": 2}, {"type": "xy", "rowspan": 1,"secondary_y": True}, {"type": "xy", "rowspan": 1,"secondary_y": True}],[None, None, {"type": "xy", "rowspan": 1,"secondary_y": True}, {"type": "xy", "rowspan": 1,"secondary_y": True}]]
+    subplot_titles = ['', 'Spectra', 'Indian','Mediterranean','North Atlantic','North Pacific','','','South Atlantic','North Atlantic','Arctic','Southern']
+    fig_class = make_subplots(rows=4, cols=4,specs=subplot_specs, subplot_titles=subplot_titles, column_widths=[0.4, 0.3,0.1,0.1], row_heights=[0.5]*4, vertical_spacing=0.05,horizontal_spacing = 0.03)
+    fig_class.update_annotations(font=dict(family="Time New Roman", size=10))
     fig_class.update_yaxes(type="log", row=1, col=2)
-    fig_class.update_yaxes(type="log", row=2, col=2)
-    fig_class.update_xaxes(type="log", row=2, col=2, ticks="inside")
+    fig_class.update_yaxes(type="log", row=3, col=2)
+    fig_class.update_yaxes(tickangle=90, row=1, col=3)
+    fig_class.update_yaxes(tickangle=90, row=1, col=4)
+    fig_class.update_yaxes(tickangle=90, row=2, col=3)
+    fig_class.update_yaxes(tickangle=90, row=2, col=4)
+    fig_class.update_yaxes(tickangle=90, row=3, col=3)
+    fig_class.update_yaxes(tickangle=90, row=3, col=4)
+    fig_class.update_yaxes(tickangle=90, row=4, col=3)
+    fig_class.update_yaxes(tickangle=90, row=4, col=4)
+    fig_class.update_xaxes(type="log", row=3, col=2, ticks="inside")
     fig_class.update_xaxes(type="log", row=1, col=2, ticks="inside")
     fig_class.for_each_xaxis(lambda x: x.update(showgrid=False))
     fig_class.for_each_yaxis(lambda x: x.update(showgrid=False, ticks="inside"))
@@ -48,24 +66,46 @@ def report_product(biovolume_spectra,biomass_spectra,taxo_group='Taxon'):
     biovolume_spectra = pd.merge(biovolume_spectra,biovolume_spectra.drop_duplicates(subset=group + [taxo_group, 'min_depth', 'max_depth'], ignore_index=True)[group + [taxo_group, 'min_depth', 'max_depth']].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left',on=group + [taxo_group, 'min_depth', 'max_depth']) if 'Group_index' not in biovolume_spectra.columns else biovolume_spectra
     nbss = biovolume_spectra.groupby('Group_index').apply(lambda x: x.append( x.tail(1).assign(equivalent_circular_diameter_mean=np.nan, normalized_biovolume_mean=np.nan))).reset_index( drop=True)
 
-    fig_class.add_trace(go.Scatter(y=nbss.normalized_biovolume_mean, x=nbss.equivalent_circular_diameter_mean,line=dict(color='grey', width=0.15),name='All taxa (biovolume)',mode='lines', showlegend=True, visible=True), row=1, col=2)
-    fig_class.add_trace(go.Scatter(y=nbss[nbss[taxo_group]==nbss[taxo_group].unique()[0]].normalized_biovolume_mean, x=nbss[nbss[taxo_group]==nbss[taxo_group].unique()[0]].equivalent_circular_diameter_mean, line=dict(color='black', width=0.5), name='taxa_biovolume', mode='lines', showlegend=True,visible=True), row=1, col=2)
+    fig_class.add_trace(go.Scatter(y=nbss.normalized_biovolume_mean, x=nbss.equivalent_circular_diameter_mean,line=dict(color='grey', width=0.15),name='All taxa (biovolume)',mode='lines', showlegend=False, visible=True), row=1, col=2)
+    fig_class.add_trace(go.Scatter(y=nbss[nbss[taxo_group]==nbss[taxo_group].unique()[0]].normalized_biovolume_mean, x=nbss[nbss[taxo_group]==nbss[taxo_group].unique()[0]].equivalent_circular_diameter_mean, line=dict(color='black', width=0.5), name='taxa_biovolume', mode='lines', showlegend=False,visible=True), row=1, col=2)
 
-    biomass_spectra['Group_NBSS'] = biomass_spectra.groupby(['year', 'month', 'latitude', 'longitude', taxo_group], dropna=False).normalized_biomass_mean.transform(sum)
-    biomass_spectra['Total_NBSS'] = biomass_spectra.groupby(['year', 'month', 'latitude', 'longitude'], dropna=False).normalized_biomass_mean.transform( sum)
 
     # Add spectrum
+    biomass_spectra['Group_NBSS'] = biomass_spectra.groupby(['year', 'month', 'latitude', 'longitude', taxo_group], dropna=False).normalized_biomass_mean.transform(sum)
+    biomass_spectra['Total_NBSS'] = biomass_spectra.groupby(['year', 'month', 'latitude', 'longitude'], dropna=False).normalized_biomass_mean.transform( sum)
     biomass_spectra= pd.merge(biomass_spectra, biomass_spectra.drop_duplicates( subset=group + [taxo_group, 'min_depth', 'max_depth'], ignore_index=True)[ group + [taxo_group, 'min_depth', 'max_depth']].reset_index().rename({'index': 'Group_index'}, axis='columns'),how='left', on=group + [taxo_group, 'min_depth','max_depth']) if 'Group_index' not in biomass_spectra.columns else biomass_spectra
     nbss_biomass =biomass_spectra.groupby('Group_index').apply( lambda x: x.append(x.tail(1).assign(biomass_mid=np.nan, normalized_biomass_mean=np.nan))).reset_index(drop=True)
 
     fig_class.add_trace(go.Scatter(y=nbss_biomass.normalized_biomass_mean, x=nbss_biomass.biomass_mid,
-                                   line=dict(color='gray', width=0.15), name='All taxa (biomass)', mode='lines', showlegend=True,
-                                   visible=True), row=2, col=2)
+                                   line=dict(color='gray', width=0.15), name='All taxa (biomass)', mode='lines', showlegend=False,visible=True), row=3, col=2)
     fig_class.add_trace(go.Scatter(y=nbss_biomass[nbss_biomass[taxo_group]==nbss_biomass[taxo_group].unique()[0]].normalized_biomass_mean, x=nbss_biomass[nbss_biomass[taxo_group]==nbss_biomass[taxo_group].unique()[0]].biomass_mid,
-                                   line=dict(color='black', width=0.5), name='taxa_biomass', mode='lines', showlegend=True,
-                                   visible=True), row=2, col=2)
+                                   line=dict(color='black', width=0.5), name='taxa_biomass', mode='lines', showlegend=False, visible=True), row=3, col=2)
+    # Add climatology
+    biovolume_climatology=biovolume_spectra.groupby(['ocean','Group_index','month',taxo_group]).apply(lambda x:pd.DataFrame(regression(x.assign(logSize=np.log10(x.biovolume_size_class/x.biovolume_size_class.min()),logNB=np.log10(x.normalized_biovolume_mean)), 'logSize', 'logNB'),index=['Slope','Intercept','RMSE','r2']).T).reset_index()
+    df_summary_climatology=biovolume_climatology.groupby([taxo_group,'ocean','month'])[['Slope','Intercept']].agg(['mean','std']).reset_index()
+    df_summary_climatology.columns=["_".join(pair) if len(pair[1]) else pair[0] for pair in df_summary_climatology.columns]
+    df_summary_climatology['ocean']=pd.Categorical(df_summary_climatology.ocean,["Arctic Ocean","Southern Ocean","North Atlantic Ocean","South Atlantic Ocean","North Pacific Ocean","South Pacific Ocean","Mediterranean Region","Indian Ocean"])
+
+   # df_summary_climatology = pd.merge(df_summary_climatology, df_summary_climatology.drop_duplicates(subset=[taxo_group,'ocean','month'], ignore_index=True)[[taxo_group,'ocean','month']].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=[taxo_group,'ocean','month'])
+   # multiindex = pd.MultiIndex.from_product([list( df_summary_climatology.astype({column: 'category' for column in ['Group_index', taxo_group,'ocean','month']})[ column].cat.categories) for column in ['Group_index', taxo_group,'ocean','month']], names=['Group_index', taxo_group,'ocean','month'])
+   # df_summary_climatology= df_summary_climatology.set_index(['Group_index', taxo_group,'ocean','month']).reindex(multiindex,fill_value=pd.NA).reset_index()
+
+    space_dict={0:[1,3],1:[1,4],2:[2,3],3:[2,4],4:[3,3],5:[3,4],6:[4,3],7:[4,4]}
+    for ind,basin in enumerate(df_summary_climatology.ocean.unique()):
+        fig_class.add_trace(go.Scatter(
+            y=df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group].unique()[0]].Slope_mean,
+           # error_y=dict( width=0,type='data',array=df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group].unique()[0]].Slope_std,visible=True),
+            x=df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group].unique()[0]].month,
+            marker=dict(color='black',size=6), name=basin, mode='lines+markers', showlegend=False, visible=True), row=int(np.floor(ind/2)+1), col=space_dict[ind][1], secondary_y=False)
+        fig_class.add_trace(go.Scatter(
+            y=df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group].unique()[0]].Intercept_mean,
+           # error_y=dict( width=0,type='data',array=df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group].unique()[0]].Intercept_std,visible=True),
+            x=df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group].unique()[0]].month,
+            marker=dict(color='rgba(145,43,111,0.2)',size=6), name=basin, mode='lines+markers', showlegend=False, visible=True), row=int(np.floor(ind/2)+1), col=space_dict[ind][1], secondary_y=True)
+
 
     # Button should be defined before geo traces to fix bug
+    """
     button_scatter1 = [dict(method="update",  # argument to change data
                             args=[{'lon': [biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().longitude, biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().longitude],
                                    'lat':  [biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().latitude, biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().latitude],
@@ -77,37 +117,62 @@ def report_product(biovolume_spectra,biomass_spectra,taxo_group='Taxon'):
                                    'name':['all taxa (biomass)','taxa_biomass','all taxa (biovolume)','taxa_biovolume','',''],
                                    'visible': [True]*len(fig_class.data)},{'traces': [0,1, 2,3,4,5]}],# visible should have the same length as number of subplots, second argument specifies which subplot is updated
                             label=taxa) for taxa in list(set(biovolume_spectra[taxo_group].unique()).intersection(set(biomass_spectra[taxo_group].unique())))]
+    """
+    button_scatter1 = [dict(method="update",  # argument to change data
+                            args=[{'lon': [biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().longitude, biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().longitude],
+                                   'lat':  [biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().latitude, biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index().latitude],
+                                  'x': [nbss.equivalent_circular_diameter_mean,nbss[nbss[taxo_group]==taxa].equivalent_circular_diameter_mean,nbss_biomass.biomass_mid,nbss_biomass[nbss_biomass[taxo_group]==taxa].biomass_mid]+[pd.concat([df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==taxa].month]*2) for basin in df_summary_climatology.ocean.unique() for var in ['Slope_mean','Intercept_mean']],#+[df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==taxa].month  for basin in df_summary_climatology.ocean.unique()], #
+                                  'y':[nbss.normalized_biovolume_mean,nbss[nbss[taxo_group]==taxa].normalized_biovolume_mean,nbss_biomass.normalized_biomass_mean,nbss_biomass[nbss_biomass[taxo_group]==taxa].normalized_biomass_mean]+[df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==taxa][var]  for basin in df_summary_climatology.ocean.unique() for var in ['Slope_mean','Intercept_mean']],#+[df_summary_climatology.query('ocean=="{}"'.format(basin))[df_summary_climatology.query('ocean=="{}"'.format(basin))[taxo_group] ==taxa].Intercept_mean  for basin in df_summary_climatology.ocean.unique()], #
+                                  'xaxis':['x','x','x6','x6','x2','x2','x3','x3','x4','x4','x5','x5','x7','x7','x8','x8','x9','x9','x10','x10'],'yaxis':['y','y','y10','y10','y2','y3','y4','y5','y6','y7','y8','y9','y11','y12','y13','y14','y15','y16','y17','y18'],
+                                   'marker.color':[np.log10(biovolume_spectra[biovolume_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index()['Group_NBSS']),np.log10(biomass_spectra[biomass_spectra[taxo_group] == taxa].groupby( ['latitude', 'longitude']).Group_NBSS.mean().reset_index()[ 'Group_NBSS'])]+['black','rgba(145,43,111,0.2)']*4 ,
+                                  'line.color':['gray','black', 'gray','black']+['black']*16+['gray','gray'],
+                                   'visible': [True]*len(fig_class.data)},{'traces': np.arange(0,len(fig_class.data)+1)}],# visible should have the same length as number of subplots, second argument specifies which subplot is updated
+                            label=taxa)  for taxa in list(set(biovolume_spectra[taxo_group].unique()).intersection(set(biomass_spectra[taxo_group].unique())))]
+
 
     fig_class.update_layout(updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
-        xaxis={'title': u'Equivalent circular diameter (\u03BCm)', 'tickfont': dict(size=10),'titlefont': dict(size=12)},
-        xaxis2={'title': u'Wet weight (g)', 'tickfont': dict(size=10), 'titlefont': dict(size=12)},
-        yaxis={"tickmode": "array",'title': u'Normalized Biovolume Size Spectrum <br> (\u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3)', 'tickfont': dict(size=10), 'titlefont': dict(size=12)},
-        yaxis2={"tickmode": "array",'title': u'Normalized Biomass Size Spectrum <br> (g dm\u207B\u00b3 g\u207B\u00b9)','tickfont': dict(size=10), 'titlefont': dict(size=12)})
+        xaxis={'title': u'Equivalent circular diameter (\u03BCm)', 'tickfont': dict(size=10,family='Times New Roman'),'titlefont': dict(size=12,family='Times New Roman')},
+        xaxis6={'title': u'Wet weight (g)', 'tickfont': dict(size=10,family='Times New Roman'), 'titlefont': dict(size=12,family='Times New Roman')},
+        yaxis={"tickmode": "array",'title': u'<br>Normalized Biovolume Size Spectrum  (\u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3)', 'tickfont': dict(size=10,family='Times New Roman'), 'titlefont': dict(size=12,family='Times New Roman'),'tickangle':90},
+        yaxis10={"tickmode": "array",'title': u'<br>Normalized Biomass Size Spectrum  (g dm\u207B\u00b3 g\u207B\u00b9)','tickfont': dict(size=10,family='Times New Roman'), 'titlefont': dict(size=12,family='Times New Roman'),'tickangle':90})
     df_summary = biovolume_spectra.groupby(['latitude', 'longitude']).Total_NBSS.mean().reset_index()
     data_geo = dict(type='scattergeo',name='',
                     lon=df_summary.dropna(subset=['latitude', 'longitude']).longitude,
                     lat=df_summary.dropna(subset=['latitude', 'longitude']).latitude,
-                    marker=dict(color=np.log10(df_summary.dropna(subset=['latitude', 'longitude'])['Total_NBSS']),colorbar=dict(titleside="top", outlinecolor="rgba(68, 68, 68, 0)", x=0.15,ticks="inside", orientation='h', title='$log_{10} particles per L$',len=0.3, xanchor='left'), colorscale=px.colors.sequential.Teal_r + px.colors.sequential.Reds, opacity=0.7,size=2 * (1 + np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS) - min(np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS)))),
+                    marker=dict(color=np.log10(df_summary.dropna(subset=['latitude', 'longitude'])['Total_NBSS']),colorbar=dict(titleside="top", outlinecolor="rgba(68, 68, 68, 0)", x=0.05,y=0.9,ticks="inside", orientation='h', title='$log_{10} particles per L$',len=0.3, xanchor='left'), colorscale=px.colors.sequential.Teal_r + px.colors.sequential.Reds, opacity=0.7,size=2 * (1 + np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS) - min(np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS)))),
                     geojson="natural earth", showlegend=False, geo='geo')
     layout = dict()
-    layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80])
+    layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],domain=dict(x=[0.0, 0.2], y=[0.5, 0.8]))
     # go.Figure(data=data_geo, layout=layout)
     fig_class.add_trace(data_geo, row=1, col=1).update_layout(go.Figure(data=data_geo, layout=layout).layout)
     df_summary = biomass_spectra.groupby(['latitude', 'longitude']).Total_NBSS.mean().reset_index()
     data_geo = dict(type='scattergeo',name='',lon=df_summary.dropna(subset=['latitude', 'longitude']).longitude, lat=df_summary.dropna(subset=['latitude', 'longitude']).latitude,
-                    marker=dict(color=np.log10(df_summary.dropna(subset=['latitude', 'longitude'])['Total_NBSS']),colorbar=dict(titleside="top", outlinecolor="rgba(68, 68, 68, 0)", x=0.15, y=-0.15,ticks="inside", orientation='h', title='$log_{10} particles per L$',len=0.3, xanchor='left'),colorscale=px.colors.sequential.Teal_r + px.colors.sequential.Reds, opacity=0.7,size=2 * (1 + np.log10( df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS) - min(np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS)))), geojson="natural earth", showlegend=False, geo='geo')
+                    marker=dict(color=np.log10(df_summary.dropna(subset=['latitude', 'longitude'])['Total_NBSS']),colorbar=dict(titleside="top", outlinecolor="rgba(68, 68, 68, 0)", x=0.05, y=-0.05,ticks="inside", orientation='h', title='$log_{10} particles per L$',len=0.3, xanchor='left'),colorscale=px.colors.sequential.Teal_r + px.colors.sequential.Reds, opacity=0.7,size=2 * (1 + np.log10( df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS) - min(np.log10(df_summary.dropna(subset=['latitude', 'longitude']).Total_NBSS)))), geojson="natural earth", showlegend=False, geo='geo')
     layout = dict()
     layout['geo2'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80])
     # go.Figure(data=data_geo, layout=layout)
     data_geo.update({'geo': 'geo2'})
 
-    fig_class.add_trace(data_geo, row=2, col=1)
-    fig_class.layout['geo2']={'domain': {'x': [0.1, 0.5], 'y': [0.0, 0.45]}}
-    fig_class.layout['geo']['domain']['x']=[0.1, 0.5]
-
+    fig_class.add_trace(data_geo, row=3, col=1)
+    fig_class.layout['geo2']={'domain': {'x': [0.0, 0.35], 'y': [0.1, 0.5]}}
+    fig_class.layout['geo']['domain']={'x': [0.0, 0.35], 'y': [0.5,0.9]}
+    fig_class.layout['margin']=dict(l=0, r=0, t=0, b=0)
+    fig_class.update_layout(yaxis3=dict(title="", titlefont=dict(size=12,color="rgba(145,43,111,0.2)",family='Times New Roman'), tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis2=dict(title="<br><br>Slope (dm\u207B\u00b3 \u03BCm\u207B\u00b3)",titlefont=dict(size=12,color="black", family='Times New Roman'),tickfont=dict(size=10,color="black",family='Times New Roman')),
+                            yaxis6=dict(title="<br>Slope (dm\u207B\u00b3 \u03BCm\u207B\u00b3)",titlefont=dict(size=12,color="black", family='Times New Roman'), tickfont=dict(size=10,color="black",family='Times New Roman')),
+                            yaxis11=dict(title="<br>Slope (dm\u207B\u00b3 \u03BCm\u207B\u00b3)", titlefont=dict(size=12,color="black", family='Times New Roman'), tickfont=dict(size=10,color="black",family='Times New Roman')),
+                            yaxis15=dict(title="<br>Slope (dm\u207B\u00b3 \u03BCm\u207B\u00b3)",titlefont=dict(size=12,color="black", family='Times New Roman'),tickfont=dict(size=10,color="black",family='Times New Roman')),
+                            yaxis5=dict(title="log<sub>10</sub> Intercept (dm\u207B\u00b3)", titlefont=dict(size=12,color="rgba(145,43,111,0.2)",family='Times New Roman'), tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis7=dict(title="", titlefont=dict(size=12,color="rgba(145,43,111,0.2)", family='Times New Roman'),tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis9=dict(title="log<sub>10</sub> Intercept (dm\u207B\u00b3)",titlefont=dict(size=12,color="rgba(145,43,111,0.2)", family='Times New Roman'),tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis12=dict(title="",titlefont=dict(size=12,color="rgba(145,43,111,0.2)", family='Times New Roman'),tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis14=dict(title="log<sub>10</sub> Intercept (dm\u207B\u00b3)",titlefont=dict(size=12,color="rgba(145,43,111,0.2)", family='Times New Roman'),tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis16=dict(title="",titlefont=dict(size=12,color="rgba(145,43,111,0.2)", family='Times New Roman'), tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            yaxis18=dict(title="log<sub>10</sub> Intercept (dm\u207B\u00b3)", titlefont=dict(size=10,color="rgba(145,43,111,0.2)", family='Times New Roman'),tickfont=dict(size=10,color="rgba(145,43,111,0.2)",family='Times New Roman')),
+                            xaxis9=dict(title="Month", titlefont=dict(size=12,color="black", family='Times New Roman'),tickfont=dict(size=10,color="black",family='Times New Roman')),
+                            xaxis10 = dict(title="Month",titlefont=dict(size=12, color="black", family='Times New Roman'),tickfont=dict(size=10, color="black", family='Times New Roman')))
 
     return fig_class
-fig=report_product(biovolume_spectra=NBSS_1a_class, biomass_spectra=NBSS_1a_class_biomass, taxo_group='PFT')
 import pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
@@ -117,17 +182,11 @@ from multiprocessing.pool import ThreadPool # Use: pip install multiprocess
 chunk=1000
 import statistics as st
 import os
-from datetime import datetime
+import datetime
 
 from glob import glob
 import shutil
 # Config modules
-try:
-    from funcs_read import *
-    from funcs_NBS import *
-except:
-    from scripts.funcs_read import *
-    from scripts.funcs_NBS import *
 
 from natsort import natsorted
 import pint # Use pip install pint
@@ -169,7 +228,7 @@ data_bins = pd.DataFrame({'sizeClasses': pd.cut(Ecopart_bins.biovol_um3.to_numpy
                         'range_biomass_bin':np.concatenate(np.diff(np.resize(np.append(biomass_bins[0], np.append(np.repeat(biomass_bins[1:-1], repeats=2), biomass_bins[len(biomass_bins) - 1])), (len(biomass_bins) - 1, 2)), axis=1)), # in g
                         'biomass_mid':stats.gmean(np.resize( np.append(biomass_bins[0], np.append(np.repeat(biomass_bins[1:-1], repeats=2), biomass_bins[len(biomass_bins) - 1])), (len(biomass_bins) - 1, 2)), axis=1) #in g
 })
-
+data_bins['biomassClasses']=pd.cut(biomass_bins, biomass_bins).categories.values.astype(str)
 # Convert all size units to cubic micrometers and mass units to gram
 df_allometry['C_Intercept']=df_allometry['C_Intercept']*(df_allometry.Size_unit.apply(lambda x: PQ(1,'cubic_micrometer').to(x).magnitude)).values/(df_allometry.Elemental_mass_unit.apply(lambda x: PQ(1,'gram').to(x).magnitude)).values
 df_allometry['Size_unit']='cubic_micrometer'
@@ -217,6 +276,7 @@ else:
     quit()
 df_taxonomy=pd.read_excel(path_to_taxonomy)
 df_taxonomy['Taxon']=df_taxonomy.Taxon.str.replace(" ","_")
+df_allometry['Taxon']=df_allometry.Taxon.str.replace(" ","_")
 #2: Loop through instrument-specific gridded files and compute class- and functional types-specifc Normalized Biovolume Size Spectra
 for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']))[1:2]:
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
@@ -230,11 +290,11 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
 
     biovol = 'Biovolume_area'
     print ('\ngenerating PSSdb biovolume/biomass products for ' +instrument+' based on ' + biovol)
-    NBSS_binned_all,NBSS_binned_all_PFT,NBSS_binned_all_biomass,NBSS_binned_all_biomass_PFT = pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame()  # NBSS dataset
-    lin_fit_data,lin_fit_data_PFT,lin_fit_data_biomass,lin_fit_data_biomass_PFT = pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
+    NBSS_binned_all,NBSS_binned_all_PFT,NBSS_binned_all_biomass,NBSS_binned_all_biomass_PFT,NBSS_binned_all_weight,NBSS_binned_all_biomass_weight = pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame()   # NBSS dataset
+    lin_fit_data,lin_fit_data_PFT,lin_fit_data_biomass,lin_fit_data_biomass_PF,lin_fit_data_weight,lin_fit_data_weight_PFTT = pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
     # Compute Normalized Biovolume Size Spectra
     with ThreadPool() as pool:
-        for result in pool.map(lambda path: NB_SS_func( pd.merge(pd.merge(pd.read_csv(path),df_taxonomy[['Category', 'Taxon','PFT']], how='left', on='Category').assign(diameter=lambda x: ((x[biovol]*6)/m.pi)**(1./3.),sizeClasses=lambda x: pd.cut(x[biovol], bins=Ecopart_bins.biovol_um3.to_numpy()).astype(str)).rename(columns={'diameter':'diameter_from_{}'.format(biovol)}),data_bins,how='left',on='sizeClasses').assign(PFT=lambda x: np.where(x['PFT'] == 'Phytoplankton', pd.cut(x.ECD_mid,[0,2,20,200,20000],labels=['Pico','Nano','Micro','Meso']).astype(str)+x.PFT.astype(str).str.lower(), x.PFT)),data_bins, biovol_estimate=biovol, sensitivity=sensitivity,group=['Taxon','PFT'],thresholding=False)[0], file_list, chunksize=chunk):
+        for result in pool.map(lambda path: NB_SS_func( pd.merge(pd.merge(pd.read_csv(path).astype({'Category':str}),df_taxonomy[['Category', 'Taxon','PFT']].astype({'Category':str}), how='left', on='Category').assign(diameter=lambda x: ((x[biovol].astype({biovol:float})*6)/m.pi)**(1./3.),sizeClasses=lambda x: pd.cut(x[biovol].astype({biovol:float}), bins=Ecopart_bins.biovol_um3.to_numpy()).astype(str)).rename(columns={'diameter':'diameter_from_{}'.format(biovol)}),data_bins.astype({'sizeClasses':str}),how='left',on='sizeClasses').assign(PFT=lambda x: np.where(x['PFT'].astype({'PFT':str}) == 'Phytoplankton', pd.cut(x.ECD_mid.astype({'ECD_mid':float}),[0,2,20,200,20000],labels=['Pico','Nano','Micro','Meso']).astype(str)+x.PFT.astype(str).str.lower(), x.PFT.astype(str))),data_bins, biovol_estimate=biovol, sensitivity=sensitivity,group=['Taxon','PFT'],thresholding=False)[0], file_list, chunksize=chunk):
             NBSS_binned_all = pd.concat([NBSS_binned_all, result], axis=0)
     if len(NBSS_binned_all):
         NBSS_binned_all =NBSS_binned_all.reset_index(drop=True)
@@ -262,37 +322,70 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
         Path(NBSSpath / 'PFT').mkdir(exist_ok=True, parents=True)
         NBSS_binned_all_PFT.to_csv(NBSSpath / 'PFT' / str(instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
 
-    # Compute Normalized Biomass Size Spectra
+    # Compute Normalized Biomass Size Spectra using wet weight
     with ThreadPool() as pool:
-        for result in pool.map(lambda path: NB_SS_func( pd.merge(pd.merge(pd.merge(pd.read_csv(path),df_taxonomy[['Category', 'Taxon','PFT']], how='left', on='Category').assign(diameter=lambda x: ((x[biovol]*6)/m.pi)**(1./3.),sizeClasses=lambda x: pd.cut(x[biovol], bins=Ecopart_bins.biovol_um3.to_numpy()).astype(str)).rename(columns={'diameter':'diameter_from_{}'.format(biovol)}),data_bins,how='left',on='sizeClasses'), df_allometry.query('Size_proxy=="Biovolume"')[['Taxon','Size_unit','Elemental_mass_unit','C_Intercept','C_Slope']],how='left',on=['Taxon']).assign(Biomass_area=lambda x: x['C_Intercept']*(x[biovol]**x['C_Slope']),PFT=lambda x: np.where(x['PFT'] == 'Phytoplankton', pd.cut(x.ECD_mid,[0,2,20,200,20000],labels=['Pico','Nano','Micro','Meso']).astype(str)+x.PFT.astype(str).str.lower(), x.PFT)).drop(columns=['range_size_bin']).assign(range_size_bin=lambda x: x.range_biomass_bin),data_bins.drop(columns=['size_class_mid']).assign(size_class_mid=data_bins.biomass_mid/data_bins.biomass_mid[0]), biovol_estimate='Biomass_area', sensitivity=sensitivity,group=['Taxon','PFT'],thresholding=False)[0], file_list, chunksize=chunk):
-            NBSS_binned_all_biomass = pd.concat([NBSS_binned_all_biomass, result], axis=0)
-    if len(NBSS_binned_all_biomass):
-        NBSS_binned_all_biomass =NBSS_binned_all_biomass.rename(columns={'Biovolume_mean':'Biomass_mean'}).reset_index(drop=True)
-        NBSS_binned_all_biomass = pd.merge(NBSS_binned_all_biomass.astype({'sizeClasses':str}),data_bins.astype({'sizeClasses':str})[['sizeClasses', 'range_biomass_bin', 'biomass_mid']], how='left', on=['sizeClasses'])
+        for result in pool.map(lambda path: NB_SS_func( pd.merge(pd.merge(pd.merge(pd.read_csv(path).astype({'Category':str}),df_taxonomy[['Category', 'Taxon','PFT']].astype({'Category':str}), how='left', on='Category').assign(diameter=lambda x: ((x[biovol].astype({biovol:float})*6)/m.pi)**(1./3.),sizeClasses=lambda x: pd.cut(x[biovol].astype({biovol:float}), bins=Ecopart_bins.biovol_um3.to_numpy()).astype(str)).rename(columns={'diameter':'diameter_from_{}'.format(biovol)}),data_bins.astype({'sizeClasses':str}),how='left',on='sizeClasses'), df_allometry.astype({'Taxon':str}).query('Size_proxy=="Biovolume"')[['Taxon','Size_unit','Elemental_mass_unit','C_Intercept','C_Slope']],how='left',on=['Taxon']).assign(Biomass_area=lambda x: x['C_Intercept'].astype(float)*(x[biovol].astype(float)**x['C_Slope'].astype(float)),PFT=lambda x: np.where(x['PFT'].astype(str) == 'Phytoplankton', pd.cut(x.ECD_mid.astype(float),[0,2,20,200,20000],labels=['Pico','Nano','Micro','Meso']).astype(str)+x.PFT.astype(str).str.lower(), x.PFT.astype(str))).drop(columns=['range_size_bin']).assign(range_size_bin=lambda x: x.range_biomass_bin),data_bins.drop(columns=['size_class_mid']).assign(size_class_mid=data_bins.biomass_mid/data_bins.biomass_mid[0]), biovol_estimate='Biomass_area', sensitivity=sensitivity,group=['Taxon','PFT'],thresholding=False)[0], file_list, chunksize=chunk):
+            NBSS_binned_all_weight = pd.concat([NBSS_binned_all_weight, result], axis=0)
+    if len(NBSS_binned_all_weight):
+        NBSS_binned_all_weight =NBSS_binned_all_weight.rename(columns={'Biovolume_mean':'Biomass_mean'}).reset_index(drop=True)
+        NBSS_binned_all_weight = pd.merge(NBSS_binned_all_weight.astype({'sizeClasses':str}),data_bins.astype({'sizeClasses':str})[['sizeClasses', 'range_biomass_bin', 'biomass_mid']], how='left', on=['sizeClasses'])
 
         group = ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon']
         ## Add empty size classes, threshold, and compute linear fit based on Taxon only
-        NBSS_binned_all_biomass.sizeClasses = pd.Categorical( NBSS_binned_all_biomass.sizeClasses, data_bins.sizeClasses.astype(str), ordered=True)  # this generates a categorical index for the column, this index can have a different lenght that the actual number of unique values, especially here since the categories come from df_bins
+        NBSS_binned_all_weight.sizeClasses = pd.Categorical( NBSS_binned_all_weight.sizeClasses, data_bins.sizeClasses.astype(str), ordered=True)  # this generates a categorical index for the column, this index can have a different lenght that the actual number of unique values, especially here since the categories come from df_bins
+        NBSS_binned_all_weight = pd.merge(NBSS_binned_all_weight,   NBSS_binned_all_weight.drop_duplicates(subset=group, ignore_index=True)[ group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
+        multiindex = pd.MultiIndex.from_product([list( NBSS_binned_all_weight.astype({column: 'category' for column in ['Group_index', 'sizeClasses']})[ column].cat.categories) for column in ['Group_index', 'sizeClasses']], names=['Group_index', 'sizeClasses'])
+        NBSS_binned_all_weight_thres = pd.merge( NBSS_binned_all_weight.drop_duplicates(['Group_index'])[group + ['Group_index', 'Validation_percentage']],NBSS_binned_all_weight.set_index(['Group_index', 'sizeClasses']).reindex(multiindex, fill_value=pd.NA).reset_index().drop(columns=group + ['Validation_percentage', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD']), how='right', on=['Group_index']).sort_values( ['Group_index']).reset_index(drop=True).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'sizeClasses']).reset_index(drop=True)
+        NBSS_binned_all_weight_thres =pd.merge(NBSS_binned_all_weight_thres.astype({'sizeClasses': str}), data_bins[['sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD']].astype({'sizeClasses': str}), how='left', on='sizeClasses').astype({'size_class_mid': float}).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'size_class_mid']).reset_index(drop=True)
+        NBSS_binned_all_weight=NBSS_binned_all_weight_thres.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage']).apply(lambda x: threshold_func(x)).reset_index(drop=True).sort_values( ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon','size_class_mid']).reset_index(drop=True)
+        NBSS_binned_all_weight['Total_biomass'] = NBSS_binned_all_weight.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage'], dropna=False).apply(lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
+        lin_fit_weight = NBSS_binned_all_weight.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage']).apply(lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / data_bins.biomass_mid[0])))).reset_index().drop(columns='level_' + str( len(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon'] + [ 'Validation_percentage']))).sort_values( ['Taxon','date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).reset_index(drop=True)
+
+        ## Sum Taxon-specific NBSS to obtain PFT-specifc NBSS
+        NBSS_binned_all_thres_PFT_weight = NBSS_binned_all_weight_thres.dropna(subset=['NB']).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD', 'biomass_mid', 'range_biomass_bin', 'PFT']).apply(lambda x: pd.Series({ 'Validation_percentage': np.round(np.nansum((x.Validation_percentage.astype(float) * x.ROI_number_sum.astype( float)) / x.ROI_number_sum.astype(float).sum()), 2),'Biomass_mean': np.nansum((x.Biomass_mean.astype(float) * x.ROI_number_sum) / np.nansum(x.ROI_number_sum)),'size_class_pixel': np.nanmean(x.size_class_pixel.astype(float)), 'ROI_number_sum': np.nansum(x.ROI_number_sum.astype( float)),'ROI_abundance_mean': np.nansum(( x.ROI_abundance_mean.astype(float) * x.ROI_number_sum.astype(float)) / np.nansum(x.ROI_number_sum.astype(float))),'NB': np.nansum(x.NB.astype( float)), 'PSD': np.nansum(x.PSD.astype(float)), 'count_uncertainty': poisson.pmf( k=np.nansum(x.ROI_number_sum.astype( float)), mu=np.nansum(x.ROI_number_sum.astype( float))),'size_uncertainty': np.nanmean( x.size_uncertainty.astype(float)), 'logNB': np.log10( np.nansum(x.NB.astype( float))), 'logSize': np.log10( x.size_class_mid.astype( float).unique()[0]),'logPSD': np.log10( np.nansum(x.PSD.astype( float))), 'logECD': np.log10(x.ECD_mid.astype( float).unique()[0])})).reset_index().sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'size_class_mid']).reset_index(drop=True)
+        NBSS_binned_all_PFT_weight=NBSS_binned_all_thres_PFT_weight.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply(lambda x: threshold_func(x)).reset_index(drop=True).sort_values( ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT','size_class_mid']).reset_index(drop=True)
+        NBSS_binned_all_PFT_weight['Total_biomass'] = NBSS_binned_all_PFT_weight.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage'], dropna=False).apply(lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
+        lin_fit_PFT_weight = NBSS_binned_all_PFT_weight.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply(lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / data_bins.biomass_mid[0])))).reset_index().drop(columns='level_' + str( len(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT'] + [ 'Validation_percentage']))).sort_values( ['PFT','date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).reset_index(drop=True)
+        ## Save subbin datafiles
+        NBSS_raw_weight = NBSS_binned_all_weight.filter(['date_bin', 'midLatBin', 'midLonBin','Taxon','PFT','Validation_percentage','biomass_mid','range_biomass_bin', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth','Total_biomass'], axis=1)
+        NBSS_raw_weight_PFT = NBSS_binned_all_PFT_weight.filter(['date_bin', 'midLatBin', 'midLonBin','PFT','Validation_percentage','biomass_mid','range_biomass_bin', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth','Total_biomass'], axis=1)
+        Path(NBSSpath / 'Class').mkdir(exist_ok=True, parents=True)
+        NBSS_binned_all_weight.to_csv(NBSSpath / 'Class' / str(instrument + '_Weight-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'), index=False)
+        Path(NBSSpath / 'PFT').mkdir(exist_ok=True, parents=True)
+        NBSS_binned_all_PFT_weight.to_csv(NBSSpath / 'PFT' / str(instrument + '_Weight-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+
+    # Compute Noramlized Biomass Size Spectra using C biomass
+    with ThreadPool() as pool:
+        for result in pool.map(lambda path: NB_SS_func( pd.merge(pd.merge(pd.merge(pd.merge(pd.read_csv(path),df_taxonomy[['Category', 'Taxon','PFT']], how='left', on='Category').assign(diameter=lambda x: ((x[biovol]*6)/m.pi)**(1./3.),sizeClasses=lambda x: pd.cut(x[biovol], bins=Ecopart_bins.biovol_um3.to_numpy()).astype(str)).rename(columns={'diameter':'diameter_from_{}'.format(biovol)}),data_bins[['sizeClasses','ECD_mid','size_range_ECD']],how='left',on='sizeClasses'), df_allometry.query('Size_proxy=="Biovolume"')[['Taxon','Size_unit','Elemental_mass_unit','C_Intercept','C_Slope']],how='left',on=['Taxon']).assign(Biomass_area=lambda x: x['C_Intercept']*(x[biovol]**x['C_Slope']),PFT=lambda x: np.where(x['PFT'] == 'Phytoplankton', pd.cut(x.ECD_mid,[0,2,20,200,20000],labels=['Pico','Nano','Micro','Meso']).astype(str)+x.PFT.astype(str).str.lower(), x.PFT)).assign(biomassClasses=lambda x:pd.cut(x.Biomass_area.to_numpy(), biomass_bins).astype(str)),data_bins[['biomassClasses','biomass_mid','range_biomass_bin']],how='left',on='biomassClasses').drop(columns=['sizeClasses']).assign(sizeClasses=lambda x:x.biomassClasses,size_class_mid=lambda x:x.biomass_mid/data_bins.biomass_mid[0],range_size_bin=lambda x: x.range_biomass_bin),data_bins.drop(columns=['size_class_mid','sizeClasses']).assign(sizeClasses=data_bins.biomassClasses,range_size_bin=data_bins.range_biomass_bin,size_class_mid=data_bins.biomass_mid/data_bins.biomass_mid[0]), biovol_estimate='Biomass_area', sensitivity=sensitivity,group=['Taxon','PFT'],thresholding=False)[0], file_list, chunksize=chunk):
+            NBSS_binned_all_biomass = pd.concat([NBSS_binned_all_biomass, result], axis=0)
+    if len(NBSS_binned_all_biomass):
+        NBSS_binned_all_biomass =NBSS_binned_all_biomass.rename(columns={'Biovolume_mean':'Biomass_mean','sizeClasses':'biomassClasses'}).reset_index(drop=True)
+        NBSS_binned_all_biomass = pd.merge(NBSS_binned_all_biomass.astype({'biomassClasses':str}),data_bins.astype({'biomassClasses':str})[['biomassClasses', 'range_biomass_bin', 'biomass_mid']], how='left', on=['biomassClasses'])
+
+        group = ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon']
+        ## Add empty size classes, threshold, and compute linear fit based on Taxon only
+        NBSS_binned_all_biomass.biomassClasses = pd.Categorical( NBSS_binned_all_biomass.biomassClasses, data_bins.biomassClasses.astype(str), ordered=True)  # this generates a categorical index for the column, this index can have a different lenght that the actual number of unique values, especially here since the categories come from df_bins
         NBSS_binned_all_biomass = pd.merge(NBSS_binned_all_biomass,   NBSS_binned_all_biomass.drop_duplicates(subset=group, ignore_index=True)[ group].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=group)
-        multiindex = pd.MultiIndex.from_product([list( NBSS_binned_all_biomass.astype({column: 'category' for column in ['Group_index', 'sizeClasses']})[ column].cat.categories) for column in ['Group_index', 'sizeClasses']], names=['Group_index', 'sizeClasses'])
-        NBSS_binned_all_biomass_thres = pd.merge( NBSS_binned_all_biomass.drop_duplicates(['Group_index'])[group + ['Group_index', 'Validation_percentage']],NBSS_binned_all_biomass.set_index(['Group_index', 'sizeClasses']).reindex(multiindex, fill_value=pd.NA).reset_index().drop(columns=group + ['Validation_percentage', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD']), how='right', on=['Group_index']).sort_values( ['Group_index']).reset_index(drop=True).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'sizeClasses']).reset_index(drop=True)
-        NBSS_binned_all_biomass_thres =pd.merge(NBSS_binned_all_biomass_thres.astype({'sizeClasses': str}), data_bins[['sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD']].astype({'sizeClasses': str}), how='left', on='sizeClasses').astype({'size_class_mid': float}).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'size_class_mid']).reset_index(drop=True)
-        NBSS_binned_all_biomass=NBSS_binned_all_biomass_thres.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage']).apply(lambda x: threshold_func(x)).reset_index(drop=True).sort_values( ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon','size_class_mid']).reset_index(drop=True)
+        multiindex = pd.MultiIndex.from_product([list( NBSS_binned_all_biomass.astype({column: 'category' for column in ['Group_index', 'biomassClasses']})[ column].cat.categories) for column in ['Group_index', 'biomassClasses']], names=['Group_index', 'biomassClasses'])
+        NBSS_binned_all_biomass_thres = pd.merge( NBSS_binned_all_biomass.drop_duplicates(['Group_index'])[group + ['Group_index', 'Validation_percentage']],NBSS_binned_all_biomass.set_index(['Group_index', 'biomassClasses']).reindex(multiindex, fill_value=pd.NA).reset_index().drop(columns=group + ['Validation_percentage', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD']), how='right', on=['Group_index']).sort_values( ['Group_index']).reset_index(drop=True).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'biomassClasses']).reset_index(drop=True)
+        NBSS_binned_all_biomass_thres =pd.merge(NBSS_binned_all_biomass_thres.astype({'biomassClasses': str}), data_bins[['biomassClasses', 'ECD_mid', 'size_range_ECD']].astype({'biomassClasses': str}), how='left', on='biomassClasses').astype({'ECD_mid': float}).sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'ECD_mid']).reset_index(drop=True)
+        NBSS_binned_all_biomass=NBSS_binned_all_biomass_thres.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage']).apply(lambda x: threshold_func(x)).reset_index(drop=True).sort_values( ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon','ECD_mid']).reset_index(drop=True)
         NBSS_binned_all_biomass['Total_biomass'] = NBSS_binned_all_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage'], dropna=False).apply(lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
         lin_fit_biomass = NBSS_binned_all_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon', 'Validation_percentage']).apply(lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / data_bins.biomass_mid[0])))).reset_index().drop(columns='level_' + str( len(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'Taxon'] + [ 'Validation_percentage']))).sort_values( ['Taxon','date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).reset_index(drop=True)
 
         ## Sum Taxon-specific NBSS to obtain PFT-specifc NBSS
-        NBSS_binned_all_thres_PFT_biomass = NBSS_binned_all_biomass_thres.dropna(subset=['NB']).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','sizeClasses', 'size_class_mid', 'range_size_bin', 'ECD_mid', 'size_range_ECD', 'biomass_mid', 'range_biomass_bin', 'PFT']).apply(lambda x: pd.Series({ 'Validation_percentage': np.round(np.nansum((x.Validation_percentage.astype(float) * x.ROI_number_sum.astype( float)) / x.ROI_number_sum.astype(float).sum()), 2),'Biomass_mean': np.nansum((x.Biomass_mean.astype(float) * x.ROI_number_sum) / np.nansum(x.ROI_number_sum)),'size_class_pixel': np.nanmean(x.size_class_pixel.astype(float)), 'ROI_number_sum': np.nansum(x.ROI_number_sum.astype( float)),'ROI_abundance_mean': np.nansum(( x.ROI_abundance_mean.astype(float) * x.ROI_number_sum.astype(float)) / np.nansum(x.ROI_number_sum.astype(float))),'NB': np.nansum(x.NB.astype( float)), 'PSD': np.nansum(x.PSD.astype(float)), 'count_uncertainty': poisson.pmf( k=np.nansum(x.ROI_number_sum.astype( float)), mu=np.nansum(x.ROI_number_sum.astype( float))),'size_uncertainty': np.nanmean( x.size_uncertainty.astype(float)), 'logNB': np.log10( np.nansum(x.NB.astype( float))), 'logSize': np.log10( x.size_class_mid.astype( float).unique()[0]),'logPSD': np.log10( np.nansum(x.PSD.astype( float))), 'logECD': np.log10(x.ECD_mid.astype( float).unique()[0])})).reset_index().sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'size_class_mid']).reset_index(drop=True)
-        NBSS_binned_all_PFT_biomass=NBSS_binned_all_thres_PFT_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply(lambda x: threshold_func(x)).reset_index(drop=True).sort_values( ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT','size_class_mid']).reset_index(drop=True)
+        NBSS_binned_all_thres_PFT_biomass = NBSS_binned_all_biomass_thres.dropna(subset=['NB']).groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth','biomassClasses', 'biomass_mid', 'range_biomass_bin', 'ECD_mid', 'size_range_ECD', 'PFT']).apply(lambda x: pd.Series({ 'Validation_percentage': np.round(np.nansum((x.Validation_percentage.astype(float) * x.ROI_number_sum.astype( float)) / x.ROI_number_sum.astype(float).sum()), 2),'Biomass_mean': np.nansum((x.Biomass_mean.astype(float) * x.ROI_number_sum) / np.nansum(x.ROI_number_sum)),'size_class_pixel': np.nanmean(x.size_class_pixel.astype(float)), 'ROI_number_sum': np.nansum(x.ROI_number_sum.astype( float)),'ROI_abundance_mean': np.nansum(( x.ROI_abundance_mean.astype(float) * x.ROI_number_sum.astype(float)) / np.nansum(x.ROI_number_sum.astype(float))),'NB': np.nansum(x.NB.astype( float)), 'PSD': np.nansum(x.PSD.astype(float)), 'count_uncertainty': poisson.pmf( k=np.nansum(x.ROI_number_sum.astype( float)), mu=np.nansum(x.ROI_number_sum.astype( float))),'size_uncertainty': np.nanmean( x.size_uncertainty.astype(float)), 'logNB': np.log10( np.nansum(x.NB.astype( float))), 'logSize': np.log10( x.biomass_mid.astype( float).unique()[0]/data_bins.biomass_mid[0]),'logPSD': np.log10( np.nansum(x.PSD.astype( float))), 'logECD': np.log10(x.ECD_mid.astype( float).unique()[0])})).reset_index().sort_values( ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'ECD_mid']).reset_index(drop=True)
+        NBSS_binned_all_PFT_biomass=NBSS_binned_all_thres_PFT_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply(lambda x: threshold_func(x)).reset_index(drop=True).sort_values( ['date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT','ECD_mid']).reset_index(drop=True)
         NBSS_binned_all_PFT_biomass['Total_biomass'] = NBSS_binned_all_PFT_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage'], dropna=False).apply(lambda x: pd.DataFrame({'Total_biomass': 1e+06 * np.nansum(x.NB * x.range_biomass_bin)}, index=list( x.index))).reset_index().Total_biomass.values  # in microgram per liters or milligram per cubic meters
         lin_fit_PFT_biomass = NBSS_binned_all_PFT_biomass.groupby(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT', 'Validation_percentage']).apply(lambda x: linear_fit_func(x.drop(columns=['logSize']).assign(logSize=np.log10(x.biomass_mid / data_bins.biomass_mid[0])))).reset_index().drop(columns='level_' + str( len(['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth', 'PFT'] + [ 'Validation_percentage']))).sort_values( ['PFT','date_bin', 'Station_location','midLatBin', 'midLonBin', 'Min_obs_depth', 'Max_obs_depth']).reset_index(drop=True)
         ## Save subbin datafiles
-        NBSS_raw_biomass = NBSS_binned_all_biomass.filter(['date_bin', 'midLatBin', 'midLonBin','Taxon','PFT','Validation_percentage', 'size_class_mid', 'ECD_mid','biomass_mid', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth','Total_biomass'], axis=1)
-        NBSS_raw_biomass_PFT = NBSS_binned_all_PFT_biomass.filter(['date_bin', 'midLatBin', 'midLonBin','PFT','Validation_percentage', 'size_class_mid', 'ECD_mid','biomass_mid', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth','Total_biomass'], axis=1)
+        NBSS_raw_biomass = NBSS_binned_all_biomass.filter(['date_bin', 'midLatBin', 'midLonBin','Taxon','PFT','Validation_percentage','biomass_mid','range_biomass_bin', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth','Total_biomass'], axis=1)
+        NBSS_raw_biomass_PFT = NBSS_binned_all_PFT_biomass.filter(['date_bin', 'midLatBin', 'midLonBin','PFT','Validation_percentage','biomass_mid','range_biomass_bin', 'NB', 'PSD','Min_obs_depth', 'Max_obs_depth','Total_biomass'], axis=1)
         Path(NBSSpath / 'Class').mkdir(exist_ok=True, parents=True)
         NBSS_binned_all_biomass.to_csv(NBSSpath / 'Class' / str(instrument + '_Biomass-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'), index=False)
         Path(NBSSpath / 'PFT').mkdir(exist_ok=True, parents=True)
         NBSS_binned_all_PFT_biomass.to_csv(NBSSpath / 'PFT' / str(instrument + '_Biomass-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+
 
     # Saving final dataframes and interactive report
     if len(NBSS_raw):
@@ -319,9 +412,10 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
 
         NBSS_1a_PFT.to_csv(NBSSpath /'PFT' / str(instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
         lin_fit_1b_PFT.to_csv(NBSSpath / 'PFT' / str(instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
+
     if len(NBSS_raw_biomass):
         # Average at bin levels
-        NBSS_1a_class_biomass = NBSS_raw_biomass.groupby(['Taxon','Validation_percentage','biomass_mid']).apply(lambda x: NBSS_stats_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_3']).rename(columns={'normalized_biovolume_mean':'normalized_biomass_mean','normalized_biovolume_sd':'normalized_biomass_sd'})
+        NBSS_1a_class_biomass = NBSS_raw_biomass.groupby(['Taxon','Validation_percentage','biomass_mid','range_biomass_bin']).apply(lambda x: NBSS_stats_func(x.assign(size_class_mid=x.biomass_mid,ECD_mid=x.biomass_mid), bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_4','biovolume_size_class','equivalent_circular_diameter_mean','normalized_abundance_mean','normalized_abundance_std']).rename(columns={'normalized_biovolume_mean':'normalized_biomass_mean','normalized_biovolume_sd':'normalized_biomass_sd'})
         NBSS_1a_class_biomass =  ocean_label_func(NBSS_1a_class_biomass.assign(month_int=lambda x: x.astype({'month':int}).month,year_int=lambda x: x.year.astype(int)).sort_values(by=['year_int', 'month_int']).drop(['year_int', 'month_int'], axis=1), 'longitude', 'latitude')
         NBSS_1a_class_biomass = NBSS_1a_class_biomass.dropna(subset=['Taxon']).sort_values( ['year', 'month', 'latitude', 'longitude', 'Taxon', 'equivalent_circular_diameter_mean']).reset_index(drop=True)
 
@@ -331,8 +425,7 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
 
         NBSS_1a_class_biomass.to_csv(NBSSpath /'Class' / str(instrument + '_1a_Biomass-distribution_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
         lin_fit_1b_class_biomass.to_csv(NBSSpath / 'Class' / str(instrument + '_1b_Biomass-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv'),index=False)
-
-
+        #fig = report_product(biovolume_spectra=NBSS_1a_class, biomass_spectra=NBSS_1a_class_biomass, taxo_group='PFT')
 
     if len(NBSS_raw_biomass_PFT):
         NBSS_1a_biomass_PFT = NBSS_raw_biomass_PFT.groupby(['PFT','Validation_percentage','biomass_mid']).apply(lambda x: NBSS_stats_func(x, bin_loc=bin_loc, group_by=group_by)).reset_index().drop(columns=['level_3']).rename(columns={'normalized_biovolume_mean':'normalized_biomass_mean','normalized_biovolume_sd':'normalized_biomass_sd'})

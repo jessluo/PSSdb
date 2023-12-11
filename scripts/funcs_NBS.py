@@ -304,6 +304,46 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
 
     return binned_data_filt
 
+def regression(df1, X_var, Y_var):
+    '''
+    :param Y_var: string that identifies the column header of the df1 dataframe to use as Y variable
+    '''
+    try:
+        X = df1[X_var].values#.reshape(-1, 1)
+        Y = df1[Y_var].values#.reshape(-1, 1)
+        # Mean X and Y
+        mean_x = np.mean(X)
+        mean_y = np.mean(Y)
+        # Total number of values
+        n = len(X)
+        # Model 1 -linear model : Y = m*X + b
+        numer = 0 # numerator
+        denom = 0 # denominator
+
+        for i in range(n):
+            numer += (X[i] - mean_x) * (Y[i] - mean_y)
+            denom += (X[i] - mean_x) ** 2
+        m = numer / denom # slope
+        b = mean_y - (m * mean_x) # intercept
+        #print("Coefficients")
+        #print(m, c)
+        # Calculating Root Mean Squares Error and R2 score
+        rmse = 0 # root mean square error
+        ss_tot = 0 # total sum of squares
+        ss_res = 0 # total sum of squares of residuals
+        for i in range(n):
+            y_pred = b + m * X[i]
+            rmse += (Y[i] - y_pred) ** 2
+            ss_tot += (Y[i] - mean_y) ** 2
+            ss_res += (Y[i] - y_pred) ** 2
+        rmse = np.sqrt(rmse / n)
+        #print("RMSE")
+        #print(rmse)
+        R2 = 1 - (ss_res / ss_tot)
+    except:
+        m, b, rmse, R2=pd.NA,pd.NA,pd.NA,pd.NA
+    return m,b,rmse,R2
+
 def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     """
     Objective: perform linear fit of NBSS. method of linear fit might change, current one is Least squares regression
@@ -333,45 +373,6 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     df1 = df1[df1['NB'].notna()].reset_index()
 
     # extract x and y
-    def regression(df1, X_var, Y_var):
-        '''
-        :param Y_var: string that identifies the column header of the df1 dataframe to use as Y variable
-        '''
-        try:
-            X = df1[X_var].values#.reshape(-1, 1)
-            Y = df1[Y_var].values#.reshape(-1, 1)
-            # Mean X and Y
-            mean_x = np.mean(X)
-            mean_y = np.mean(Y)
-            # Total number of values
-            n = len(X)
-            # Model 1 -linear model : Y = m*X + b
-            numer = 0 # numerator
-            denom = 0 # denominator
-
-            for i in range(n):
-                numer += (X[i] - mean_x) * (Y[i] - mean_y)
-                denom += (X[i] - mean_x) ** 2
-            m = numer / denom # slope
-            b = mean_y - (m * mean_x) # intercept
-            #print("Coefficients")
-            #print(m, c)
-            # Calculating Root Mean Squares Error and R2 score
-            rmse = 0 # root mean square error
-            ss_tot = 0 # total sum of squares
-            ss_res = 0 # total sum of squares of residuals
-            for i in range(n):
-                y_pred = b + m * X[i]
-                rmse += (Y[i] - y_pred) ** 2
-                ss_tot += (Y[i] - mean_y) ** 2
-                ss_res += (Y[i] - y_pred) ** 2
-            rmse = np.sqrt(rmse / n)
-            #print("RMSE")
-            #print(rmse)
-            R2 = 1 - (ss_res / ss_tot)
-        except:
-            m, b, rmse, R2=pd.NA,pd.NA,pd.NA,pd.NA
-        return m,b,rmse,R2
 
     m_NB, b_NB, rmse_NB, R2_NB = regression(df1, 'logSize','logNB')
     m_PSD, b_PSD, rmse_PSD, R2_PSD = regression(df1, 'logECD', 'logPSD')
