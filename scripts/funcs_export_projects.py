@@ -442,6 +442,7 @@ def metadata_dict(dashboard, pid_id):
     assert r.ok
     record = r.json()
     return {
+        'tags':record['tags'],
         'scale': record['scale'],
         'datetime': record['timestamp_iso'],
         'previous_bin': record['previous_bin_id'],
@@ -520,6 +521,7 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
     import numpy as np
     import time
     start = time.time()
+    tags_remove = ['bad', 'bad_flow', 'bad flow', 'bubble', 'Bubble', 'bad_focus', 'bad focus', 'artefact', 'artifact','incomplete', 'lab', 'culture', 'test', 'beads']
     METRIC = 'temperature'  # needs to be defined based on Karina's script
     # use the file list to download data and store it locally
     if update_project == 'FULL':
@@ -539,9 +541,15 @@ def IFCB_dashboard_export(dashboard_url, Project_source, Project_ID, path_downlo
             #print(pid_id)
             features_filename = dashboard_url + Project_ID + '/' + pid_id + '_features.csv'
             try:
+                met_dict = metadata_dict(dashboard=dashboard_url, pid_id=pid_id)
+
+                if any(x in sub for sub in met_dict['tags'] for x in tags_remove)== True:
+                    print(pid_id + ' was flagged as faulty in the IFCB dashboard')
+                    pass
+                else:
+                    continue
                 features_df = df_from_url(features_filename)
                 # obtain metadata
-                met_dict = metadata_dict(dashboard=dashboard_url, pid_id=pid_id)
                 sample_desc = ifcb_config(dashboard_url=dashboard_url, Project_ID =Project_ID, pid_id=pid_id)
                 features_clean = pd.DataFrame()
 
