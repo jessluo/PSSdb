@@ -42,7 +42,14 @@ import ecotaxa_py_client
 # Data portal-specific web scraping functions to export projects
 from sys import argv
 import requests
-from funcs_export_projects import *
+
+try:
+    from funcs_export_projects import *
+
+except:
+    from scripts.funcs_export_projects import *
+
+
 
 # Workflow starts here
 
@@ -129,39 +136,65 @@ path_to_projects=Path(project_list.at[0,'Project_localpath']).expanduser()
 
 # query pattern to restrict file download is different due to the structure of IFCB dashboard datasets,
 
-testing = input (' Do you want to download all projects or just the test? \n Enter all or test ')
-if testing == 'test':
-    timeseries_data = project_list[project_list['Project_test'] == True].reset_index(drop=True)
-elif testing == 'all':
-    timeseries_data = project_list
+while True:
+    testing = input (' Do you want to download all projects or just the test? \n Enter all or test ')
+    if testing == 'test':
+        timeseries_data = project_list[project_list['Project_test'] == True].reset_index(drop=True)
+        break
+    elif testing == 'all':
+        timeseries_data = project_list
+        break
+    else:
+        print('error! select all or test')
+        continue
 
-
-subset = input (' Do you want to get data for all the time series or a date range or the test dates? \n Enter all, range or test ')
-if subset == 'range':
-    start_date= input(' enter starting date of the data as YYYYMMDD')
-    start_date= int(start_date)
-    end_date = input(' enter final date of the data as YYYYMMDD')
-    end_date = int(end_date)
-elif subset == 'all':
-    start_date = 20000101
-    end_date = 21000101
-elif subset == 'test':
-    start_date = 20180825
-    end_date = 20180825
-
-dashboard = input (' Do you want to get data from WHOI or CALOOS dashboards? \n Enter WHOI or CALOOS ')
-if dashboard == 'CALOOS':
-    timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb.caloos.org/'].reset_index(drop=True)
-    timeseries_data
-if dashboard == 'WHOI':
-    timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb-data.whoi.edu/'].reset_index(drop=True)
-
-specify_proj = input (' Would you like to automatically download all data or data of just one project? \n Enter ALL or ONE ')
-
-update_project = input ('Are the full dataset being downloaded or are the projects being updated with the latest data? \n Enter FULL or UPDATE')
+while True:
+    subset = input (' Do you want to get data for all the time series or a date range or the test dates? \n Enter all, range or test ')
+    if subset == 'range':
+        start_date= input(' enter starting date of the data as YYYYMMDD')
+        start_date= int(start_date)
+        end_date = input(' enter final date of the data as YYYYMMDD')
+        end_date = int(end_date)
+        break
+    elif subset == 'all':
+        start_date = 20000101
+        end_date = 21000101
+        break
+    elif subset == 'test':
+        start_date = 20180825
+        end_date = 20180825
+        break
+    else:
+        print('error! select all, range or test')
+        continue
+while True:
+    dashboard = input (' Do you want to get data from WHOI or CALOOS dashboards? \n Enter WHOI or CALOOS ')
+    if dashboard == 'CALOOS':
+        timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb.caloos.org/'].reset_index(drop=True)
+        break
+    if dashboard == 'WHOI':
+        timeseries_data = timeseries_data.loc[timeseries_data['dashboard_url'] == 'https://ifcb-data.whoi.edu/'].reset_index(drop=True)
+        break
+    else:
+        print('error! select CALOOS or WHOI')
+        continue
+while True:
+    specify_proj = input (' Would you like to automatically download all data or data of just one project? \n Enter ALL or ONE ')
+    if specify_proj =='ALL' or specify_proj =='ONE':
+        break
+    else:
+        print('error! type ALL or ONE')
+        continue
+while True:
+    update_project = input ('Are the full dataset being downloaded or are the projects being updated with the latest data? \n Enter FULL or UPDATE')
+    if update_project =='FULL' or specify_proj =='UPDATE':
+        break
+    else:
+        print('error! type FULL or UPDATE')
+        continue
 
 if specify_proj == 'ONE':
-    Project_ID= input(' Would you like to automatically download all data or data of just one project? \n Enter project ID ')
+    Project_ID= input('Enter project ID ')
     Project_source = timeseries_data.loc[timeseries_data['Project_ID'] == Project_ID, 'Project_source'].iloc[0]
     Project_localpath = timeseries_data.loc[timeseries_data['Project_ID'] == Project_ID, 'Project_localpath'].iloc[0]
     dashboard_url = timeseries_data.loc[timeseries_data['Project_ID'] == Project_ID, 'dashboard_url'].iloc[0]
