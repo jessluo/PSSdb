@@ -1,0 +1,33 @@
+# goal: to produce a merged product that uses Soviadan et al. (in review) method of selecting the maximum NBSS for a given sample
+# Python modules and path specifications:
+import warnings
+warnings.filterwarnings('ignore')
+import pandas as pd
+import numpy as np
+try:
+    from stitching_func import *
+    from funcs_NBS import *
+except:
+    from scripts.stitching_func import *
+    from scripts.funcs_NBS import *
+import yaml# requires installation of PyYAML package
+from pathlib import Path
+#open config file and extract parameters:
+path_to_git=Path('~/GIT/PSSdb').expanduser()
+path_to_config = path_to_git /'scripts'/'configuration_masterfile.yaml'
+import statistics as st
+import os
+import datetime
+
+from glob import glob
+import shutil
+
+from tqdm import tqdm
+
+# Processing here:
+#1) merge PFT products calculated with different size metrics
+merged_raw_list = merge_taxa_products(grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT'])
+
+#2) Calculate NBSS for each of these products
+
+
