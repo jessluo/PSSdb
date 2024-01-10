@@ -4,7 +4,6 @@ warnings.filterwarnings('ignore')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from glob import glob
 try:
     from funcs_NBS import *
@@ -46,14 +45,14 @@ def merge_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'mid
             for k in col_names:
                 d[k]=merged_df_test[k].iloc[i]
             row_val =pd.DataFrame(d, index=[0])
-            row_val.columns = row_val.columns.str.rstrip(str_subset_cols)
+            row_val.columns = row_val.columns.str.removesuffix(str_subset_cols)
             merged_df_final = pd.concat([merged_df_final, row_val])
         merged_df_final.to_csv(str(merged_prod_path) + '/' + s + '_Merged_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
     merged_raw_list = glob(str(merged_prod_path) +'/*')
     return merged_raw_list
 
 
-'/Users/mc4214/GIT/PSSdb/raw/NBSS_data/PFT/Scanner_Size-distribution_all_var_v2023-12.csv'
+
 
 
 IFCB_dict={}
