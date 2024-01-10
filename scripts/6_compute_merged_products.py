@@ -5,10 +5,10 @@ warnings.filterwarnings('ignore')
 import pandas as pd
 import numpy as np
 try:
-    from stitching_func import *
+    from funcs_merged_products import *
     from funcs_NBS import *
 except:
-    from scripts.stitching_func import *
+    from scripts.funcs_merged_products import *
     from scripts.funcs_NBS import *
 import yaml# requires installation of PyYAML package
 from pathlib import Path
