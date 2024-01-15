@@ -77,6 +77,15 @@ dtypes_dict_all = dict(
              str, str, float, float, int, str]))
 
 def regress_nbss(nbss,threshold_count=0.2,threshold_size=0.2,n_bins=3):
+    """
+    Objective: This function computes the parameters (slope, intercept, coefficient of determination) of thresholded Normalized Biomass Size Spectrum using a log-linear regression.\n
+    The function also returns the indices selected after thresholding, based on a threshold for count and size uncertainty (default is 20%) and a fixed number of empty bins (n=3)
+    :param nbss: Sample-specific NBSS (2nd output, aka nbss_sum) returned by the function process_nbss_standardized_files. Attention, the dataframe should be sample-specific,otherwise it will not work. If it is not the case, use df.groupby(['Sample']).apply(lambda x: regress_nbss(x)).reset_index()
+    :param threshold_count: Threshold for count uncertainty based on the number of ROI assigned to each size class. Default is 20% uncertainty. All size classes above this threshold will display empty NB (reset to NA) to account for these classes for the empty bins number
+    :param threshold_size: Threshold for size uncertainty based on the instrument pixel size. Default is 20% uncertainty. All size classes above this threshold will display empty NB (reset to NA) to account for these classes for the empty bins number
+    :param n_bins: Number of consecutive empty bins needed to identify the last size class for reliable regression. Default is 3 empty bins. All size classes greater than the last one recording this much empty bins  will be discarded as they are too close to the instrument detection limit.
+    :return: Returns a dictionary including the total and selected abundance (NBSS integral), selected indices, and NBSS parameters
+    """
 
     nbss = nbss.astype(dict(zip(['size_class_mid', 'NBSS'], [float] * 2))).sort_values(['size_class_mid']).reset_index().rename(columns={'index':'native_index'})
 
@@ -111,7 +120,7 @@ def process_nbss_standardized_files(path=None,df=None,category=[],depth_selectio
     """
     if (path) and (not df):
         columns=pd.read_table(path,sep=",", nrows=0).columns
-        df=pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Sample','Sampling_type','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_analyzed','Volume_imaged','ROI','ROI_number','Area','Category','Sampling_lower_size','Sampling_upper_size'] if column in columns],dtype=dtypes_dict_all)
+        df=pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Station','Sample','Sampling_type','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_analyzed','Volume_imaged','ROI','ROI_number','Area','Category','Pixel','Sampling_lower_size','Sampling_upper_size'] if column in columns],dtype=dtypes_dict_all)
     instrument=df.Instrument.unique()[0]
     if (instrument in ['IFCB', 'Zooscan']) and ('ROI_number' not in df.columns):
         df = df.assign(ROI_number=1)
@@ -140,7 +149,7 @@ def process_nbss_standardized_files(path=None,df=None,category=[],depth_selectio
 
     df_subset = df[(df.Depth_selected == True) & (df.Sampling_type.str.lower().isin(['test', 'exp', 'junk', 'culture'])==False) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))] if depth_selection else df[(df.Sampling_type.str.lower().isin(['test', 'exp', 'junk', 'culture'])==False) & (df.Category.str.lower().apply(lambda annotation: len( re.findall(r'bead|bubble|artefact|artifact|not-living', annotation)) == 0 if str(annotation) != 'nan' else True))]
 
-    if len(df_subset) & any(df_subset.ECD!=0):
+    if len(df_subset)>0 & any(df_subset.ECD!=0):
         # Assign size bins and grouping index for each sample
         df_subset = df_subset.assign(sizeClasses=pd.cut(df_subset['ECD'], bins, include_lowest=True))
         df_subset = pd.merge(df_subset, df_bins, how='left', on=['sizeClasses'])
