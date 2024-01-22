@@ -15,10 +15,98 @@ path_to_config = path_to_git /'scripts'/'configuration_masterfile.yaml'
 with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
 
-def merge_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT']):
+def merge_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin']):
     """
-    objective: read Scanner and UVP 1a products with taxonomic information, and merge the products
-    NOTE: check why there are duplicate column uncertainties in the products
+    objective: read Scanner and UVP 1a products with taxonomic information, sum all biomass/biovolume by size to obtain a merged NBSS without adjustments.
+    """
+    currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
+    currentYear = str(datetime.datetime.now().year)
+    file_list = [x for x in glob(str(Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'PFT') + '/*distribution_all_var*.csv', recursive=True) if 'IFCB' not in x]
+    merged_prod_path = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'PFT' / 'merged_products'
+    if not os.path.exists(merged_prod_path):
+        os.mkdir(merged_prod_path)
+    for s in ['Biomass', 'Size', 'Weight']:
+        UVP_df = pd.read_csv([x for x in file_list if 'UVP' in x and s in x][0], sep=',')
+        print('UVP ' + s + 'length is ' + str(len(UVP_df)))
+        Scanner_df = pd.read_csv([x for x in file_list if 'Scanner' in x and s in x][0], sep=',')
+        print('Scanner ' + s + 'length is ' + str(len(Scanner_df)))
+        df_merged = pd.concat([UVP_df, Scanner_df]).reset_index(drop=True)
+        if s == 'Biomass':
+            group_factors = grouping_factors +['biomassClasses']
+            df_merged = df_merged.astype(dict(zip(['midLatBin', 'midLonBin','biomassClasses'], [str]*3))).groupby(group_factors).apply(lambda x: pd.Series({'Min_obs_depth': np.nanmin(x.Min_obs_depth),
+                                                                                                                                    'Max_obs_depth': np.nanmax(x.Max_obs_depth),
+                                                                                                                                    'biomass_mid':x.biomass_mid.unique()[0],
+                                                                                                                                    'range_biomass_bin': x.range_biomass_bin.unique()[0],
+                                                                                                                                    #'size_range_ECD': x.size_range_ECD.unique()[0],
+                                                                                                                                    'biomass_mid': x.biomass_mid.unique()[0],
+                                                                                                                                    'range_biomass_bin': x.range_biomass_bin.unique()[0],
+                                                                                                                                    'Total_biomass': np.nansum(x.Total_biomass),
+                                                                                                                                    'Biomass_mean': np.nanmean(x.Biomass_mean),
+                                                                                                                                    #'size_class_pixel': np.nanmean(x.size_class_pixel),
+                                                                                                                                    'ROI_number_sum':np.nansum(x.ROI_number_sum),
+                                                                                                                                    'ROI_abundance_mean': np.nanmean(x.ROI_abundance_mean),
+                                                                                                                                    'NB':np.nansum(x.NB),
+                                                                                                                                    #'PSD':np.nansum(x.PSD),
+                                                                                                                                    'count_uncertainty': np.nanmax(x.count_uncertainty),
+                                                                                                                                    'size_uncertainty': np.nanmax(x.size_uncertainty)})).reset_index()
+            del group_factors
+            df_merged['logNB'] = np.log10(df_merged['NB'])
+            df_merged['logSize'] = np.log10(df_merged['biomass_mid'].astype(float))
+        elif s == 'Size':
+            group_factors = grouping_factors + ['sizeClasses']
+            df_merged = pd.concat([UVP_df, Scanner_df]).reset_index().groupby(group_factors).apply(lambda x: pd.Series({'Min_obs_depth': np.nanmin(x.Min_obs_depth),
+                                                                                                                                    'Max_obs_depth': np.nanmax(x.Max_obs_depth),
+                                                                                                                                    'size_class_mid': x.size_class_mid.unique()[0],
+                                                                                                                                    'range_size_bin': x.range_size_bin.unique()[0],
+                                                                                                                                    'ECD_mid': x.ECD_mid.unique()[0],
+                                                                                                                                    'size_range_ECD':x.size_range_ECD.unique()[0],
+                                                                                                                                    'Biovolume_mean': np.nanmean(x.Biovolume_mean),
+                                                                                                                                    'size_class_pixel': np.nanmean(x.size_class_pixel),
+                                                                                                                                    'ROI_number_sum': np.nansum(x.ROI_number_sum),
+                                                                                                                                    'ROI_abundance_mean': np.nanmean(x.ROI_abundance_mean),
+                                                                                                                                    'NB': np.nansum(x.NB),
+                                                                                                                                    'PSD':np.nansum(x.PSD),
+                                                                                                                                    'count_uncertainty': np.nanmax(x.count_uncertainty),
+                                                                                                                                    'size_uncertainty': np.nanmax(x.size_uncertainty)})).reset_index()
+
+            del group_factors
+            df_merged['logNB'] = np.log10(df_merged['NB'])
+            df_merged['logSize'] = np.log10(df_merged['size_class_mid'].astype(float))
+            df_merged['logPSD'] = np.log10(df_merged['PSD'])
+            df_merged['logECD'] = np.log10(df_merged['ECD_mid'].astype(float))
+
+        elif s =='Weight':
+            group_factors = grouping_factors + ['sizeClasses']
+            df_merged = pd.concat([UVP_df, Scanner_df]).reset_index().groupby(group_factors).apply(lambda x: pd.Series({'Min_obs_depth': np.nanmin(x.Min_obs_depth),
+                                                                                                                                    'Max_obs_depth': np.nanmax(x.Max_obs_depth),
+                                                                                                                                    'size_class_mid':x.size_class_mid.unique()[0],
+                                                                                                                                    'range_size_bin': x.range_size_bin.unique()[0],
+                                                                                                                                    'ECD_mid': x.ECD_mid.unique()[0],
+                                                                                                                                    'size_range_ECD': x.size_range_ECD.unique()[0],
+                                                                                                                                    'biomass_mid': x.biomass_mid.unique()[0],
+                                                                                                                                    'range_biomass_bin': x.biomass_mid.unique()[0],
+                                                                                                                                    'Total_biomass': np.nansum(x.Total_biomass),
+                                                                                                                                    'size_class_pixel': np.nanmean(x.size_class_pixel),
+                                                                                                                                    'ROI_number_sum':np.nansum(x.ROI_number_sum),
+                                                                                                                                    'ROI_abundance_mean': np.nanmean(x.ROI_abundance_mean),
+                                                                                                                                    'NB':np.nansum(x.NB),
+                                                                                                                                    'PSD':np.nansum(x.PSD),
+                                                                                                                                    'count_uncertainty': np.nanmax(x.count_uncertainty),
+                                                                                                                                    'size_uncertainty':np.nanmax(x.size_uncertainty)})).reset_index()
+            del group_factors
+            df_merged['logNB'] = np.log10(df_merged['NB'])
+            df_merged['logSize'] = np.log10(df_merged['size_class_mid'].astype(float))
+            df_merged['logPSD'] = np.log10(df_merged['PSD'])
+            df_merged['logECD'] = np.log10(df_merged['ECD_mid'].astype(float))
+
+        df_merged.to_csv(str(merged_prod_path) + '/' + s + '_Merged_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv', index=False)
+    merged_raw_list = glob(str(merged_prod_path) + '/*_Merged_*')
+    return merged_raw_list
+
+
+def merge_adjust_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT', 'sizeClasses']):
+    """
+    objective: read Scanner and UVP 1a products with taxonomic information, correct and merge products based on Soviadan et al.
     """
     currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
     currentYear = str(datetime.datetime.now().year)
@@ -47,8 +135,8 @@ def merge_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'mid
             row_val =pd.DataFrame(d, index=[0])
             row_val.columns = row_val.columns.str.removesuffix(str_subset_cols)
             merged_df_final = pd.concat([merged_df_final, row_val])
-        merged_df_final.to_csv(str(merged_prod_path) + '/' + s + '_Merged_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-    merged_raw_list = glob(str(merged_prod_path) +'/*')
+        merged_df_final.to_csv(str(merged_prod_path) + '/' + s + '_Merged-Adjusted_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+    merged_raw_list = glob(str(merged_prod_path) +'/*Merged-Adjusted*')
     return merged_raw_list
 
 
