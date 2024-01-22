@@ -25,8 +25,17 @@ import shutil
 from tqdm import tqdm
 
 # Processing here:
-#1) merge PFT products calculated with different size metrics
-merged_raw_list = merge_taxa_products(grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT'])
+
+#1) calculate NBSS products no adjustments, and without considering plankton functional groups
+merged_raw_list = merge_taxa_products(grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin'])
+
+
+
+
+
+#2) merge PFT products calculated with different size metrics and calculate
+merged_adjusted_raw_list = merge_adjust_taxa_products(grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT'])
+
 
 #2) Calculate NBSS for each of these products
 
