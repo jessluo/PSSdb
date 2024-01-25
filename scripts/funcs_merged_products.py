@@ -119,13 +119,14 @@ def merge_adjust_taxa_products (grouping_factors= ['date_bin', 'Station_location
         print('UVP ' + s+ 'length is ' + str(len(UVP_df)))
         Scanner_df = pd.read_csv([x for x in file_list if 'Scanner' in x and s in x][0], sep = ',')
         print('Scanner ' + s + 'length is ' + str(len(Scanner_df)))
+        #remove rows from these datasets that have a particle count <5
         #max_nb_list = pd.concat([UVP_df, Scanner_df]).groupby(grouping_factors, sort = False).apply(lambda x : pd.Series({'max_NB': np.nanmax(x.NB)})) # this only selects
-        merged_df_test = pd.merge(UVP_df, Scanner_df, how= 'outer',  on=grouping_factors)
+        merged_df_test = pd.merge(UVP_df, Scanner_df, how= 'inner',  on=grouping_factors) # merged products will contain data only for grid cells with both instruments, thus how = inner
         merged_df_final = pd.DataFrame()
         print ('merging UVP and Scanner NBSS based on ' + s)
         for i in tqdm(range(0,len(merged_df_test))):
             for c in merged_df_test.columns:
-                if np.nanmax([merged_df_test.NB_x[i], merged_df_test.NB_y[i]]) == merged_df_test[c].iloc[i]:
+                if np.nanmax([merged_df_test.NB_x[i], merged_df_test.NB_y[i]]) == merged_df_test[c].iloc[i]: # replace x and y with UVP and Scanner
                     col_name = c
             str_subset_cols = '_'+col_name.split('_')[-1]
             col_names = grouping_factors + [c for c in merged_df_test.columns if str_subset_cols in c]
