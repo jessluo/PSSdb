@@ -126,3 +126,5 @@ for standardizer in natsorted(standardizer_files)[::-1]:
             except Exception as e:
                 print('\nSkipping flagging of project ',str(project),'\n',e,sep='')
             ok = bar.update(n=1)
+
+print('\nStandardization and flagging processes finished.\n Please check project standardization (under figures/standardizer) to verify column names and units were correctly specified in the corresponding standardizer spreadsheet.\n Please send the flagging report (under reports) and flag tables (optional, under raw/flags) to individual PI before releasing the products. This is to ensure that samples have been correctly located and flagged, or alternatively, that certain flags should be overruled (use the overrule column in the flag table).')

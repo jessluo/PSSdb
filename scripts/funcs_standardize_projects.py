@@ -917,7 +917,7 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
     else:
         print('\nNo project datafile found.')
 
-# Function (4): Perform EcoTaxa export files standardization and harmonization based on standardizer spreadsheets
+# Function (4): Perform export files standardization and harmonization based on standardizer spreadsheets
 #standardization_func(standardizer_path='~/GIT/PSSdb/raw/project_IFCB_standardizer.xlsx',project_id=2248)
 def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df_taxonomy):
     """
@@ -1238,7 +1238,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 # Append summary
                 df_standardized = df_standardized[(df_standardized.Longitude <= 180) & (df_standardized.Longitude >= -180) & (df_standardized.Latitude <= 90) & (df_standardized.Latitude >= -90)]
 
-                if len(df_standardized):
+                if len(df_standardized)>0:
                     df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
                     df_standardized['Station'] = df_standardized['Station'].astype(str)  # Required to pass groupby if missing
                     df_standardized['Sample'] = df_standardized['Sample'].astype( str)  # Required to pass groupby if missing

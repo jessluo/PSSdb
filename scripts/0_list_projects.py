@@ -164,8 +164,8 @@ if len(existing_project_path) != 0:
         elif confirmation=='N':
             df_ifcb_list={'data':df_ifcb}
         else:
-        print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
-        quit()
+            print('Input not conformed. Quitting, please re-run the script and type optional input as it appears.')
+            quit()
 
     else:
         print("Creating list of IFCB projects. Please wait")
