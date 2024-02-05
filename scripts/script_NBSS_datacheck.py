@@ -102,7 +102,7 @@ def regress_nbss(nbss,threshold_count=0.2,threshold_size=0.2,n_bins=3):
     nbss=nbss.drop(index=nbss[nbss.selected==False].index).dropna(subset=['NBSS'])
     selected_abundance=np.nansum(nbss.NBSS)
     try:
-        y,x=nbss.NBSS.to_numpy(),((1/6)*np.pi*nbss.size_class_mid**3).to_numpy()
+        y,x=np.log10(nbss.NBSS.to_numpy()),np.log10(((1/6)*np.pi*nbss.size_class_mid**3).to_numpy())
         x=sm.add_constant(x)
         wls_model =sm.WLS(y, x )
         reg =  wls_model.fit()

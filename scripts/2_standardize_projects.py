@@ -104,7 +104,6 @@ for standardizer in natsorted(standardizer_files)[::-1]:
 
             try:
                 standardization_func(standardizer_path=standardizer, project_id=project,plot='nbss')
-
             except Exception as e:
                 print('\nSkipping standardization of project ', str(project),'\n',e, sep='')
             ok = bar.update(n=1)
