@@ -279,17 +279,20 @@ def threshold_func(binned_data, empty_bins = 3,threshold_count=0.2,threshold_siz
     else:
         binned_data_filt = binned_data.iloc[binned_data.NB.idxmax():len(binned_data), :].reset_index(drop=True)#a ask if its better to just remove all data
         binned_data_filt['NB'] = binned_data_filt['NB'].replace(0, np.NaN)
-        """
+        '''        
         binned_data_filt['PSD'] = binned_data_filt['PSD'].replace(0, np.NaN)
         binned_data_filt['logNB'] = binned_data_filt['logNB'].replace(0, np.NaN)
         binned_data_filt['logPSD'] = binned_data_filt['logPSD'].replace(0, np.NaN)
-        """
+        '''
+
+
         #binned_data_filt = binned_data_filt.loc[0: max(binned_data_filt['NB'].isnull()[binned_data_filt['NB'].isnull() == False].index.to_numpy())] # cut dataframe to include only size classes up to the largest observed particle
 
         empty_SC = binned_data_filt['NB'].isnull()  # get row indices with empty size bins
         sum_empty = empty_SC.ne(empty_SC.shift()).cumsum() # add a value each time there is a shift in true/false
-        cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
-        if empty_bins in cum_empty.to_numpy():
+        cum_empty = sum_empty.map(sum_empty.value_counts()).where(empty_SC).fillna(0).astype(int) # add occurrences of a value if the row is nan (based on empty SC) and find if the empty_bins (consecutive empty bins) is in the array
+        #binned_data_filt = binned_data_filt[binned_data_filt.cum_empty < empty_bins].reset_index(drop=True)
+        if any (cum_empty.to_numpy() >= empty_bins):
             binned_data_filt = binned_data_filt.loc[0:(min(cum_empty[cum_empty >=empty_bins].index.to_numpy())-1)].reset_index(drop=True)
         else:
             binned_data_filt = binned_data_filt.loc[0:max(empty_SC.index[empty_SC==False])].reset_index(drop=True)
