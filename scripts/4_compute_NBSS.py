@@ -89,6 +89,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         NBSS_1a_full = NBSS_1a_full.drop(['year_int', 'month_int'], axis=1)
         NBSS_1a_full = ocean_label_func(NBSS_1a_full, 'longitude', 'latitude')
 
+        lin_fit_1b_full = QC_1b(lin_fit_1b_full)
         lin_fit_1b_full['month_int'] = lin_fit_1b_full['month'].astype(int)
         lin_fit_1b_full['year_int'] = lin_fit_1b_full['year'].astype(int)
         lin_fit_1b_full = lin_fit_1b_full.sort_values(by=['year_int', 'month_int'])
