@@ -345,7 +345,7 @@ def regression(df1, X_var, Y_var):
         R2 = 1 - (ss_res / ss_tot)
     except:
         m, b, rmse, R2=pd.NA,pd.NA,pd.NA,pd.NA
-    return m,b,rmse,R2
+    return m,b,rmse,R2, len(df1[X_var].values)
 
 def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     """
@@ -377,8 +377,8 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
 
     # extract x and y
 
-    m_NB, b_NB, rmse_NB, R2_NB = regression(df1, 'logSize','logNB')
-    m_PSD, b_PSD, rmse_PSD, R2_PSD = regression(df1, 'logECD', 'logPSD')
+    m_NB, b_NB, rmse_NB, R2_NB, N_bins = regression(df1, 'logSize','logNB')
+    m_PSD, b_PSD, rmse_PSD, R2_PSD, N_bins = regression(df1, 'logECD', 'logPSD')
 
     lin_fit.loc[0, 'NBSS_slope'] = m_NB
     lin_fit.loc[0, 'NBSS_intercept'] = b_NB
@@ -390,6 +390,7 @@ def linear_fit_func(df1, light_parsing = False, depth_parsing = False):
     lin_fit.loc[0, 'PSD_rmse'] = rmse_PSD
     lin_fit.loc[0, 'PSD_r2'] = R2_PSD
 
+    lin_fit.loc[0, 'N_bins'] = N_bins
 
     return (lin_fit)
 
@@ -477,6 +478,8 @@ def reshape_date_func(df, group_by ='yyyymm'):
 
 
 
+
+
 def NBSS_stats_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm'):
     """
 
@@ -556,12 +559,12 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
         lin_fit_stats = df.groupby(['Station_location', 'date_bin', 'light_condition']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin':'first', 'min_depth': 'first', 'max_depth':'first',
              'NBSS_slope': ['count', 'mean', 'std'], 'NBSS_intercept': ['count', 'mean', 'std'], 'NBSS_r2': ['count', 'mean', 'std'],
-             'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std']}).reset_index()
+             'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std'],'N_bins': ['min']}).reset_index()
     else:
         lin_fit_stats = df.groupby(['Station_location', 'date_bin']).agg(
             {'year': 'first', 'month': 'first', 'midLatBin': 'first', 'midLonBin': 'first', 'min_depth': 'first','max_depth': 'first',
              'NBSS_slope': ['count', 'mean', 'std'], 'NBSS_intercept': ['count', 'mean', 'std'], 'NBSS_r2': ['count', 'mean', 'std'],
-             'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std']}).reset_index()
+             'PSD_slope': ['count', 'mean', 'std'], 'PSD_intercept': ['count', 'mean', 'std'], 'PSD_r2': ['count', 'mean', 'std'], 'N_bins': ['min']}).reset_index()
 
     lin_fit_stats.columns = lin_fit_stats.columns.map('_'.join).str.removesuffix("first")
     lin_fit_stats.columns = lin_fit_stats.columns.str.removesuffix("_")
@@ -573,5 +576,20 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     return lin_fit_stats
 
 
+def QC_1b(df_1b):
+    '''
+    Objective: create QC based on standard deviation of slope values, # of size bins and R2 values
+    '''
+    #standard deviation
+    sd_NB_slope = np.std(df_1b.NBSS_slope_mean)
+    mean_NB_slope = np.mean(df_1b.NBSS_slope_mean)
+    df_1b['QC_3std_dev'] =0
+    df_1b.loc[(df_1b.NBSS_slope_mean <(mean_NB_slope-(sd_NB_slope*3))) | (df_1b.NBSS_slope_mean >(mean_NB_slope+(sd_NB_slope*3))), 'QC_3std_dev']=1
+    # of size bins
+    df_1b['QC_min_n_size_bins'] = 0
+    df_1b.loc[df_1b.N_bins_min <= 4, 'QC_min_n_size_bins'] = 1
+    # R2< 70%
+    df_1b['QC_R2'] = 0
+    df_1b.loc[df_1b.NBSS_r2_mean <= 0.8, 'QC_R2'] = 1
 
-
+    return df_1b
