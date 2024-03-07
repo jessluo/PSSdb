@@ -576,10 +576,11 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     return lin_fit_stats
 
 
-def QC_1b(df_1b):
+def QC_1b(df_1a, df_1b, grouping_factors=['year', 'month', 'latitude', 'longitude', 'ocean']):
     '''
     Objective: create QC based on standard deviation of slope values, # of size bins and R2 values
     '''
+
     #standard deviation
     sd_NB_slope = np.std(df_1b.NBSS_slope_mean)
     mean_NB_slope = np.mean(df_1b.NBSS_slope_mean)
@@ -588,8 +589,19 @@ def QC_1b(df_1b):
     # of size bins
     df_1b['QC_min_n_size_bins'] = 0
     df_1b.loc[df_1b.N_bins_min <= 4, 'QC_min_n_size_bins'] = 1
-    # R2< 70%
+    # R2< 80%
     df_1b['QC_R2'] = 0
     df_1b.loc[df_1b.NBSS_r2_mean <= 0.8, 'QC_R2'] = 1
+    # merge dataframes to propagate the QC values to the 1a product
+    df_all = pd.merge(df_1a, df_1b, how= 'outer',  on=grouping_factors)
+    df_1a = df_all.filter(grouping_factors+['min_depth_x','max_depth_x','n_x',
+                                               'biovolume_size_class', 'normalized_biovolume_mean', 'normalized_biovolume_std',
+                                                'equivalent_circular_diameter_mean', 'normalized_abundance_mean', 'normalized_abundance_std',
+                                                'QC_3std_dev', 'QC_min_n_size_bins', 'QC_R2'] , axis=1).rename(columns={'min_depth_x':'min_depth','max_depth_x':'max_depth','n_x':'n'}).drop_duplicates()
 
-    return df_1b
+    df_1b = df_all.filter(grouping_factors +['min_depth_y','max_depth_y','n_y',
+                                                'NBSS_slope_mean', 'NBSS_slope_std', 'NBSS_intercept_mean', 'NBSS_intercept_std', 'NBSS_r2_mean', 'NBSS_r2_std',
+                                                'PSD_slope_mean', 'PSD_slope_std', 'PSD_intercept_mean', 'PSD_intercept_std', 'PSD_r2_mean', 'PSD_r2_std',
+                                                'QC_3std_dev', 'QC_min_n_size_bins', 'QC_R2'], axis=1).rename(columns={'min_depth_y':'min_depth','max_depth_y':'max_depth','n_y':'n'}).drop_duplicates()
+
+    return df_1a, df_1b
