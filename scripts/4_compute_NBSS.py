@@ -41,15 +41,14 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
     grid_list = [re.search('N_(.+?).csv', file) for file in file_list]#group_gridded_files_func(instrument, already_gridded='Y')
-    NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data'
-    if not os.path.exists(NBSSpath):
-        os.mkdir(NBSSpath)
+    currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
+    currentYear = str(datetime.datetime.now().year)
+    NBSSpath = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'NBSS_ver_{}_{}'.format(currentMonth,currentYear)
+    Path(NBSSpath / 'Raw').mkdir(parents=True, exist_ok=True)
     if sensitivity == True:
         if not os.path.exists((NBSSpath / 'Sensitivity_analysis')):
             os.mkdir((NBSSpath / 'Sensitivity_analysis'))
 
-    currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
-    currentYear = str(datetime.datetime.now().year)
     #set the list of biovolume estimates when doing the sensitivity analysis
     if sensitivity == True:
         print ('NOTE: products for Sensitivity analyses will be generated, this process will take longer')
@@ -102,8 +101,8 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             NBSS_1a_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1a_' + biovol + '_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv',index=False)
             lin_fit_1b_full.to_csv(str(NBSSpath) + '/Sensitivity_analysis/' + instrument + '_1b_' + biovol + '_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
         else:
-            NBSS_binned_all.to_csv(str(NBSSpath) + '/' + instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-            NBSS_1a_full.to_csv(str(NBSSpath) + '/' + instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv',index=False)
-            lin_fit_1b_full.to_csv(str(NBSSpath) + '/' + instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_binned_all.to_csv(str(NBSSpath) + '/Raw/' + instrument + '_Size-distribution_all_var_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            NBSS_1a_full.to_csv(str(NBSSpath) + '/Raw/' + instrument + '_1a_Size-distribution_v' + currentYear + '-' + currentMonth + '.csv',index=False)
+            lin_fit_1b_full.to_csv(str(NBSSpath) + '/Raw/' + instrument + '_1b_Size-spectra-fit_v' + currentYear + '-' + currentMonth + '.csv',index=False)
 
 
