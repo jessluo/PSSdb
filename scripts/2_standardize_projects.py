@@ -46,7 +46,7 @@ path_to_standardizer=Path(cfg['raw_dir']).expanduser()
 standardizer_files=list(path_to_standardizer.glob('project_*_standardizer.xlsx'))
 standardizer_files=[path for path in standardizer_files if 'dashboard' not in str(path)]
 
-#1) Update taxonomic annotations for Ecotaxa projects to ensure good validation control quality check
+#1) Update taxonomic annotations for Ecotaxa projects to ensure good validation quality control check
 confirmation=input("Do you wish to update the taxonomic annotations of Ecotaxa projects before proceeding to project control quality check? Enter Y or N\n")
 if confirmation=='Y':
     print('Updating taxonomic annotations of Ecotaxa projects before control quality check, please wait')
@@ -76,10 +76,18 @@ else:
 print('Consolidating UVP particle sizes (Ecotaxa: Large particles + Ecopart: Small particles), please wait\n')
 standardizer=[standardizer for standardizer in standardizer_files if 'UVP' in str(standardizer.stem)][0]
 df_standardizer = pd.read_excel(standardizer, index_col=0,sheet_name='ecotaxa')
-with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(list(df_standardizer.index)), bar_format='{desc}{bar}', position=0, leave=True) as bar:
-    for project in list(df_standardizer.index):
+path_existing_project=df_standardizer.index[(df_standardizer.Project_localpath + "/ecotaxa_export_" + df_standardizer.index.astype(str) + "_*").map(lambda path: len(list((Path(path).parent).expanduser().glob(Path(path).name))) >0)]
+confirmation=input("Do you wish to consolidate new projects only or all (can be useful if taxonomic annotations have been updated recently) projects? Enter new or all\n")
+if confirmation=='new':
+    projects=list(set(list(df_standardizer.index))-set(path_existing_project))
+    print('\nConsolidating new projects only\n')
+else:
+    projects = list(df_standardizer.index)
+    print('\nConsolidating all projects\n')
+with tqdm(desc='{} dataset'.format(standardizer.name.split('_')[1]), total=len(projects), bar_format='{desc}{bar}', position=0, leave=True) as bar:
+    for project in projects:
         df_standardizer = pd.read_excel(standardizer, index_col=0,sheet_name='ecotaxa') # Standardizer should be updated for each loop iteration
-        percent = np.round(100 * (bar.n / len(list(df_standardizer.index))), 1)
+        percent = np.round(100 * (bar.n / len(projects)), 1)
         bar.set_description('{} dataset ID {} (%s%%)'.format(standardizer.name.split('_')[1], project) % percent, refresh=True)
 
         if len(list(Path(df_standardizer.at[project,'Project_localpath']).expanduser().glob('ecotaxa_export_{}_*.tsv'.format(str(project))))):

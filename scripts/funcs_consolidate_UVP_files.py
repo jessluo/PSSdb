@@ -218,7 +218,7 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
        path_to_external_project = path_to_project.parent / {'ecotaxa':'ecopart','ecopart':'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name]
        path_external_export=list(itertools.chain.from_iterable([path_to_external_project.rglob('**/{}_export_*_{}_*.tsv'.format({'ecotaxa': 'ecopart', 'ecopart': 'ecotaxa',path_to_extended_file.stem:"ecopart"}[path_to_project.name].lower(),project)) for project in str(standardizer.at[project_id, "External_project"]).split(';')]))
        # Add small particles (area<=sm_zoo) to Ecotaxa/Ecopart and save to export_*_extended.tsv:
-       if (path_to_external_project.name=='ecopart') and len(path_external_export) and all(pd.Series(str(standardizer.at[project_id, "External_project"]).split(';')).isin(list(df_standardizer_ecopart.index.astype(str)))):
+       if (path_to_external_project.name=='ecopart') and len(path_external_export) and any(pd.Series(str(standardizer.at[project_id, "External_project"]).split(';')).isin(list(df_standardizer_ecopart.index.astype(str)))):
            path_ecopart_par_export =[path for path in path_external_export if ('_particles.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            path_ecopart_zoo_export = [path for path in path_external_export if ('_zooplankton.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
            path_ecopart_metadata = [path for path in path_external_export if ('_metadata.tsv' in path.name) & ('ecopart_export_raw' in path.name)]
@@ -238,9 +238,10 @@ def consolidate_ecotaxa_project(project_id,standardizer=df_standardizer_ecotaxa,
            df_ecopart = pd.merge(df_ecopart, depthprofile, how='left', on='profileid')
            df_ecopart['object_corrected_max_depth_bin']=np.where(df_ecopart.organizedbydepth==False,df_ecopart['object_corrected_min_depth_bin'],df_ecopart['object_corrected_min_depth_bin']+1)
            df_ecopart=pd.merge(df_ecopart,df_metadata[list(set(fields_from_ecopart.values()))].drop_duplicates(),how='left',on='profileid')
+           # Multiply the number of frames times the effective volume of a frame to assign the volume imaged in any given bin (1m depth or time intervals)
            df_ecopart['object_volume_bin']=df_ecopart.acq_volimage*df_ecopart.object_imgcount_bin
            df_ecopart['datetime']=df_ecopart['datetime'] if 'datetime' in df_ecopart.columns else pd.to_datetime(df_ecopart[fields_from_ecopart['Sampling_time']],format=df_standardizer_ecopart.loc[df_standardizer_ecopart.index.astype(str).isin( str(standardizer.at[project_id, "External_project"]).split(';')),'Sampling_time_format'].values[0]).dt.strftime('%Y%m%d%H%M%S')
-           df_ecopart['sampledate'] = np.where(df_ecopart.organizedbydepth == False, pd.to_datetime(df_ecopart['datetime'],format='%Y%m%d%H%M%S').dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecopart['profileid'],df_metadata[['profileid','sampledate']].drop_duplicates(),how='left')['sampledate'])
+           df_ecopart['sampledate'] = np.where(df_ecopart.organizedbydepth == False, pd.to_datetime(df_ecopart['datetime'],format='%Y%m%d%H%M%S').dt.strftime('%Y-%m-%d %H:%M:%S'), pd.merge(df_ecopart[['Project_ID','profileid']],df_metadata[['Project_ID','profileid','sampledate']].drop_duplicates(),how='left',on=['Project_ID','profileid'])['sampledate'])
 
            if Path(path_to_export).is_file() and len(df_ecopart) and len(df_metadata):
               df_ecotaxa_columns=pd.read_table(path_to_export,nrows=0).columns

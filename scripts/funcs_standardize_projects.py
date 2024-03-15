@@ -944,8 +944,8 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     if project_id not in df_standardizer.index:
         print('\nProject ID is not included in standardizer. Quitting')
         return
-    if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','ZooCam','IFCB','UVP','Other','Scanner']:
-        print('\nStandardization only applies to Zooscan, ZooCam, IFCB, UVP and other scanners projects. Quitting')
+    if df_standardizer.loc[project_id]['Instrument'] not in ['Zooscan','ZooCam','IFCB','UVP','Other','Scanner','FlowCam','PlanktoScope']:
+        print('\nStandardization only applies to Zooscan, ZooCam, IFCB, UVP, FlowCam, PlanktoScope and other scanners projects. Quitting')
         return
 
     # Retrieve fields to standardize in standardizer (indicated by variable_field)
@@ -959,6 +959,10 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     fields_of_interest =  dict((key.replace("_field", ""), value) for key, value in fields_of_interest.items() if isinstance(value, str))
     fields_of_interest_list = list(( key, field) for key, value in fields_of_interest.items() for field in value.split(','))
     fields_of_interest_series =pd.Series(list(value[1] for value in fields_of_interest_list),list(value[0] for value in fields_of_interest_list))
+    dilution=''
+    if df_standardizer.loc[project_id]['Instrument'] in ['FlowCam','PlanktoScope']:
+        dilution=fields_of_interest_series['Dilution']
+        fields_of_interest_series['Dilution']=tuple(set(tuple(filter(None,tuple(map(str,re.sub(r'[ \[.*? \].*? \>.*? \+.*? \<.*? \=.*? ]','',re.sub(r'[*  / ( ) > < = + - ]',";",re.sub(r'[0-9]',"",fields_of_interest_series['Dilution']))).split(";"))))))) if fields_of_interest_series['Dilution'].find("/")!=-1 else fields_of_interest_series['Dilution']
 
     # Retrieve flagged samples/profiles. Deprecated: Standardization is now performed regardless of the QC flags
     """
@@ -995,7 +999,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
 
     if len(path_files_list)>0: # Check for native format datafile
-        columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))
+        columns_dict=dict(zip(list(fields_of_interest_series.values),list(fields_of_interest_series.index)))#dict(zip(list(chain(*(i if isinstance(i, tuple) else (i,) for i in fields_of_interest_series.values))),list(chain(*((key,)+(key,) if isinstance(i, tuple) else (key,) for key,i in fields_of_interest_series.items())))))
         columns_dict['object_number'] = 'object_number'  # Adding this column for UVP consolidated projects
         dtypes_dict_all = dict(zip(['Cruise', 'Station', 'Profile', 'Sample', 'Latitude', 'Longitude', 'Depth_min', 'Depth_max', 'Sampling_date', 'Sampling_time', 'Volume_analyzed', 'ROI', 'Area', 'Pixel', 'Minor', 'Biovolume', 'ESD', 'Category', 'Annotation', 'Sampling_type', 'Sampling_lower_size', 'Sampling_upper_size', 'object_number', 'Sampling_description'],[str, str, str, str, float, float, float, float, str, str, float, str, int, float, float, float, float, str, str, str, float, float, int, str]))
         dtypes_dict = {fields_of_interest_series.loc[key]: value for key, value in dtypes_dict_all.items() if key in fields_of_interest_series.index}
@@ -1059,7 +1063,9 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         print('\nSaving standardized datafile(s) to', path_to_standard_dir, sep=' ')
         with tqdm(desc='', total=len(remaining_raw_files), bar_format=format, position=0, leave=True) as bar:
             for file in natsorted(remaining_raw_files):
-                df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(fields_of_interest_series.values) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path).astype({key:value for key,value in  dtypes_dict_all.items() if key in columns}))[-1],[file])).reset_index(drop=True)
+                df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(chain(*(i if isinstance(i, tuple) else (i,) for i in fields_of_interest_series.values))) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path).astype({key:value for key,value in  dtypes_dict_all.items() if key in columns}))[-1],[file])).reset_index(drop=True)
+                df['Dilution']=df.Dilution if ('Dilution' in df.columns) & (len(dilution)==0) else df.eval(dilution, engine='python')#getattr(np, 'min'.format())(df[['acq_raw_image_total', 'process_nb_images']], axis=1)
+                df['Volume_analyzed']=df.Volume_analyzed.str.replace(r'[a-zA-Z_]','').astype(float) if ('Volume_analyzed' in df.columns) & (df.dtypes['Volume_analyzed']=='O') else df.Volume_analyzed.values
                 old_columns = df.columns
                 # Standardize column names
                 #df.columns = [(list(fields_of_interest_series.index)[list(fields_of_interest_series.values).index(value)]) for value in  old_columns.drop('File_path')] + ['File_path'] # pd.MultiIndex.from_arrays([[list(fields_of_interest.keys())[list(fields_of_interest.values()).index(value)] for value in df.columns],df.columns])
