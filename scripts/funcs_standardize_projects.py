@@ -1078,7 +1078,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],[file])).drop_duplicates().reset_index(drop=True)
                 df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
                 df_method[fields_for_description.index]=df_method[fields_for_description.index].apply(lambda x:x.name+":"+x.astype(str))
-
+                df_method=df_method.astype({'Sample': str})
                 # Remove flagged samples/profiles
                 df=df[df['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
                 df_method=df_method[df_method['Sample'].astype(str).isin(flagged_samples)==False].reset_index(drop=True)
