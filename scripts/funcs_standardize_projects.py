@@ -642,7 +642,7 @@ def quality_control_func(standardizer_path,project_id,report_path,validation_thr
              flagged_df=overruled_df
 
          else:
-             df = pd.concat(map(lambda path:  pd.read_table(path,sep=',',usecols=list(set(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if ('field' in column) & (column!='Dilution_field')]].dropna().index.str.replace('_field',''))+['Sampling_lower_size','Sampling_upper_size','Sampling_date','Sampling_time','Depth_max','Depth_min','ROI_number'])),dtype=dtypes_dict_all,parse_dates={'datetime':['Sampling_date','Sampling_time']}).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')), project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True#pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
+             df = pd.concat(map(lambda path:  pd.read_table(path,sep=',',usecols=list(set(list(df_standardizer.loc[ project_id, [column for column in df_standardizer.columns if ('field' in column) & (column!='Dilution_field')]].dropna().index.str.replace('_field',''))+['Volume_imaged','Sampling_lower_size','Sampling_upper_size','Sampling_date','Sampling_time','Depth_max','Depth_min','ROI_number'])),dtype=dtypes_dict_all,parse_dates={'datetime':['Sampling_date','Sampling_time']}).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')), project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True#pd.concat(map(lambda path: (columns := pd.read_table(path, nrows=0).columns, pd.read_table(path, usecols=[header for  header in ['object_number']+list(df_standardizer.loc[project_id, [  column  for column in df_standardizer.columns if 'field' in column]].dropna().values) if columns.isin([header]).any()]).assign(Sample_localpath=str(path).replace(str(Path.home()),'~')).rename(columns=columns_dict))[ -1], project_path)).reset_index(drop=True) #, na_values=na, keep_default_na=True
              if 'ROI_number' not in df.columns:
                  df['ROI_number']=1
          if len(flagged_df) == 0:
@@ -940,7 +940,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
     df_standardizer = pd.read_excel(standardizer_path,sheet_name=sheet,index_col=0)
 
-    # Control. Standardization only works for IFCB, scanners, and UVP projects at the moment
+    # Control. Standardization only works for IFCB, FlowCam, PlanktoScope, scanners, and UVP projects at the moment
     if project_id not in df_standardizer.index:
         print('\nProject ID is not included in standardizer. Quitting')
         return
@@ -962,7 +962,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
     dilution=''
     if df_standardizer.loc[project_id]['Instrument'] in ['FlowCam','PlanktoScope']:
         dilution=fields_of_interest_series['Dilution']
-        fields_of_interest_series['Dilution']=tuple(set(tuple(filter(None,tuple(map(str,re.sub(r'[ \[.*? \].*? \>.*? \+.*? \<.*? \=.*? ]','',re.sub(r'[*  / ( ) > < = + - ]',";",re.sub(r'[0-9]',"",fields_of_interest_series['Dilution']))).split(";"))))))) if fields_of_interest_series['Dilution'].find("/")!=-1 else fields_of_interest_series['Dilution']
+        fields_of_interest_series['Dilution']=tuple(set(tuple(filter(None,tuple(map(str,re.sub(r'[ \[.*? \].*? \>.*? \+.*? \<.*? \=.*? ]','',re.sub(r'[*  / ( ) > < = + - ]',";",re.sub(r'[0-9]',"",fields_of_interest_series['Dilution'].replace(".isna()","")))).split(";"))))))) if fields_of_interest_series['Dilution'].find("/")!=-1 else fields_of_interest_series['Dilution']
 
     # Retrieve flagged samples/profiles. Deprecated: Standardization is now performed regardless of the QC flags
     """
@@ -1010,7 +1010,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         path_to_standard_plot[-1].parent.mkdir(parents=True, exist_ok=True)
         if len(path_to_standard_file):
             #dtypes_dict_all['Area'] = float  # Replacing the data type of Area after converting pixel to micrometer-metric
-            #df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all,usecols=['Sample','Category']))[-1],natsorted(path_to_standard_file)))#pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all))[-1],natsorted(path_to_standard_file)))
+            #df_standardized_existing = pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all,usecols=['Sample','Category']))[-1],natsorted(path_to_standard_file)))#pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,sep=",",dtype=dtypes_dict_all).assign(Path=str(path.name))[-1],natsorted(path_to_standard_file)))
             remaining_raw_files =[path for path in path_files_list if not Path(path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(path.stem)[str(path.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( path.stem))].replace( '_features', ''))).exists()]
             df_standardized_existing =pd.DataFrame({})
             if len(remaining_raw_files):
@@ -1063,8 +1063,8 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
         print('\nSaving standardized datafile(s) to', path_to_standard_dir, sep=' ')
         with tqdm(desc='', total=len(remaining_raw_files), bar_format=format, position=0, leave=True) as bar:
             for file in natsorted(remaining_raw_files):
-                df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in ['object_number']+list(chain(*(i if isinstance(i, tuple) else (i,) for i in fields_of_interest_series.values))) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path).astype({key:value for key,value in  dtypes_dict_all.items() if key in columns}))[-1],[file])).reset_index(drop=True)
-                df['Dilution']=df.Dilution if ('Dilution' in df.columns) & (len(dilution)==0) else df.eval(dilution, engine='python')#getattr(np, 'min'.format())(df[['acq_raw_image_total', 'process_nb_images']], axis=1)
+                df = pd.concat(map(lambda path: (columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,dtype=dtypes_dict,usecols=[header for header in ['object_number']+list(chain(*(i if isinstance(i, tuple) else (i,) for i in fields_of_interest_series.values))) if columns.isin([header]).any()]).rename(columns=columns_dict).assign(File_path=path))[-1],[file])).reset_index(drop=True)
+                df['Dilution']=df.Dilution if ('Dilution' in df.columns) & (len(dilution)==0) else 1 if ('Dilution' not in df.columns) & (len(dilution)==0) else df.eval(dilution, engine='python')#getattr(np, 'min'.format())(df[['acq_raw_image_total', 'process_nb_images']], axis=1)
                 df['Volume_analyzed']=df.Volume_analyzed.str.replace(r'[a-zA-Z_]','').astype(float) if ('Volume_analyzed' in df.columns) & (df.dtypes['Volume_analyzed']=='O') else df.Volume_analyzed.values
                 old_columns = df.columns
                 # Standardize column names
@@ -1073,7 +1073,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 if any(index_duplicated_fields):
                      # Append duplicated fields
                      df = pd.concat([df.reset_index(drop=True), pd.DataFrame(dict( zip(list(pd.Series(fields_of_interest.keys())[index_duplicated_fields]), list(map(lambda item: df.loc[:, columns_dict[item]].values.tolist() if columns_dict[item] in df.columns else pd.NA, list(pd.Series( fields_of_interest.values())[index_duplicated_fields])))))).reset_index(drop=True)], axis=1)
-
+                df=df.astype({key:value for key,value in  dtypes_dict_all.items() if key in df.columns}) # Attention, used to be within df concat loop
                 # Load variables used to describe the sampling collection, method, refs, etc. (Last column)
                 df_method= pd.concat(map(lambda path:(columns:=pd.read_table(path,nrows=0).columns,pd.read_table(path,usecols=[header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()]).rename(columns=dict(zip([header for header in [fields_of_interest_series['Sample']]+fields_for_description.values.tolist() if columns.isin([header]).any()],[(['Sample']+fields_for_description.index.tolist())[index] for index,header in enumerate(pd.Series([fields_of_interest_series['Sample']]+fields_for_description.values.tolist())) if columns.isin([header]).any()]))))[-1],[file])).drop_duplicates().reset_index(drop=True)
                 df_method[fields_for_description.index] = df_method[fields_for_description.index].apply(lambda x: PA(x, dtype=ureg[dict(units_for_description)[x.name]].units) if x.name in dict(units_for_description).keys() else x)
@@ -1226,7 +1226,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 # Convert volume analyzed to volume imaged to account for samples dilution or fractionation
                 if 'Dilution' in df.columns:
                     dilution_factor = df.Dilution#np.where(df.Dilution > 1, df.Dilution, 1 / df.Dilution)
-                    dilution_factor[pd.Series(dilution_factor).isna()] = 1  # Replace NA values with 1
+                    dilution_factor[pd.Series(dilution_factor).isna()] = 1 if instrument not in ['PlanktoScope','FlowCam'] else np.nan # Replace NA values with 1
                 else:
                     dilution_factor=1
 
@@ -1239,10 +1239,11 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
                 df_standardized['object_number']=df_standardized['object_number'] if 'object_number' in df_standardized.columns else np.repeat(1,len(df_standardized))
                 df_standardized=df_standardized.rename(columns={'object_number':'ROI_number'})
                 df_standardized=df_standardized[['Project_ID','Cruise','Instrument','Sampling_type', 'Station', 'Profile','Sample', 'Latitude', 'Longitude', 'Sampling_date', 'Sampling_time','Depth_min', 'Depth_max', 'Volume_analyzed', 'Volume_imaged', 'ROI','ROI_number', 'Annotation','Category', 'Minor_axis', 'Major_axis', 'ESD', 'Area', 'Biovolume','Pixel','Sampling_lower_size','Sampling_upper_size','Sampling_description']]
-                df_standardized.to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(file.stem)[str(file.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( file.stem))].replace( '_features', '')), sep=",", index=False)
-                df_standardized_new=pd.concat([df_standardized_new,df_standardized],axis=0)
+                if any(df_standardized.Area.isna()==False):
+                    df_standardized.to_csv( path_to_standard_dir / 'standardized_project_{}_{}.csv'.format(project_id,str(file.stem)[str(file.stem).rfind('_' + str(project_id) + '_') + 2 + len( str(project_id)):len(str( file.stem))].replace( '_features', '')), sep=",", index=False)
+                    df_standardized_new=pd.concat([df_standardized_new,df_standardized],axis=0)
                 # Append summary
-                df_standardized = df_standardized[(df_standardized.Longitude <= 180) & (df_standardized.Longitude >= -180) & (df_standardized.Latitude <= 90) & (df_standardized.Latitude >= -90)]
+                df_standardized = (df_standardized[(df_standardized.Longitude.astype(float) <= 180) & (df_standardized.Longitude.astype(float) >= -180) & (df_standardized.Latitude.astype(float) <= 90) & (df_standardized.Latitude.astype(float) >= -90)]).query('Area.isna()==False')
 
                 if len(df_standardized)>0:
                     df_standardized['Profile'] = df_standardized['Profile'].astype(str)  # Required to pass groupby if missing
@@ -1262,7 +1263,7 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
 
                     summary_df_standardized_all=pd.concat([summary_df_standardized_all,summary_df_standardized],axis=0).reset_index(drop=True)
                     if plot=='nbss':
-                        nbss_sample=pd.concat(map(lambda sample: process_nbss_standardized_files(path=None, df=df_standardized.astype({'Category':str,'Sampling_type':str}).query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x: np.where(x.ROI.isna(), 'all', 'vignettes')), category=['type_particles'],depth_selection=False)[1],df_standardized.Sample.unique()))
+                        nbss_sample=pd.concat(map(lambda sample: process_nbss_standardized_files(path=None, df=df_standardized.astype({'Category':str,'Sampling_type':str,'Sample':str}).query('Sample=="{}"'.format(sample)).assign(type_particles=lambda x: np.where(x.ROI.isna(), 'all', 'vignettes')), category=['type_particles'],depth_selection=False)[1],df_standardized.astype({'Profile':str,'Sample':str}).Sample.unique()))
                         df_nbss=pd.concat([df_nbss,nbss_sample],axis=0).reset_index(drop=True)
                 bar.set_description('Saving standardized datafile(s)', refresh=True)
                 ok = bar.update(n=1)
@@ -1287,8 +1288,8 @@ def standardization_func(standardizer_path,project_id,plot='nbss',df_taxonomy=df
             fig.write_html(path_to_standard_plot)
             print('Saving standardized export plot to', path_to_standard_plot, sep=' ')
         elif ((plot=='nbss') and len(summary_df_standardized_all)>0):
-            df_nbss=df_nbss.assign(Instrument=df_standardizer.at[project_id,'Instrument'],Project_ID=project_id)
-            group=['Instrument', 'Project_ID', 'Sample']
+            df_nbss=df_nbss.assign(Instrument=df_standardizer.at[project_id,'Instrument'],Project_ID=project_id).astype({'Profile':str})
+            group=['Instrument', 'Project_ID','Profile', 'Sample','type_particles']
             nbss=pd.merge(df_nbss.drop(columns=['Group_index']), df_nbss.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename( {'index': 'Group_index'}, axis='columns'), how='left', on=group)
             # Using report function defined below
             if (instrument == 'IFCB') & (len(path_files_list)> 1): # group dataset by 6 month intervals and save

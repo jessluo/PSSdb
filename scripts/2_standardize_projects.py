@@ -129,7 +129,7 @@ for standardizer in natsorted(standardizer_files)[::-1]:
             report_file='report_project_'+str(project)+'.html'
             report_path=path_to_standardizer.parent / cfg['report_subdir']
             try:
-                quality_control_func(standardizer_path=standardizer, project_id=project,report_path=report_path,validation_threshold=0.95)
+                quality_control_func(standardizer_path=standardizer, project_id=project,report_path=report_path,validation_threshold=cfg['validation_threshold'])
             except Exception as e:
                 print('\nSkipping flagging of project ',str(project),'\n',e,sep='')
             ok = bar.update(n=1)
