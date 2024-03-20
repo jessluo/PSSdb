@@ -22,7 +22,7 @@ try:
     from script_NBSS_datacheck import *
 except:
     from scripts.script_NBSS_datacheck import *
-
+from scipy import stats
 # Functions for plotting:
 from plotnine import *
 import seaborn as sns
@@ -50,7 +50,7 @@ colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
 
 ## Workflow starts here:
 
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_10_2023'
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_03_2024' / 'Raw'
 path_files= list(path_to_datafile.glob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.glob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
@@ -58,39 +58,46 @@ df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path
 df_cor=df[['NBSS_slope_mean','PSD_slope_mean','NBSS_intercept_mean','PSD_intercept_mean','NBSS_r2_mean','PSD_r2_mean']].corr(method='spearman')
 grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
 df = pd.merge(df, df.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
+
+# Table 1: Spatio-temporal range of instrument-specific datasets
+df[['latitude', 'longitude', 'Instrument']].drop_duplicates().groupby(['Instrument']).describe()
+df[['year', 'Instrument']].drop_duplicates().groupby(['Instrument']).describe()
+
+# Table 2: Spatio-temporal range of instrument-specific datasets
 df_stat=df.groupby(['Instrument'])[['NBSS_slope_mean','PSD_slope_mean','NBSS_intercept_mean','PSD_intercept_mean','NBSS_r2_mean','PSD_r2_mean']].describe()
+df.assign(NBSS_intercept_absolute=lambda x: 10**x.NBSS_intercept_mean, PSD_intercept_absolute=lambda x:10**x.PSD_intercept_mean).groupby(['Instrument']).apply(lambda x: pd.DataFrame({'geometric_mean':stats.gmean(x[['NBSS_intercept_absolute','PSD_intercept_absolute']]),'first_quartile':x[['NBSS_intercept_absolute','PSD_intercept_absolute']].quantile(q=0.25).values,'third_quartile':x[['NBSS_intercept_absolute','PSD_intercept_absolute']].quantile(q=0.75).values},index=['NBSS','PSD']))
 df_1a = pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files_1a)).drop_duplicates().reset_index(drop=True)
 grouping = ['year', 'month', 'latitude', 'longitude', 'Instrument']
 df_1a = pd.merge(df_1a, df_1a.drop_duplicates(subset=grouping, ignore_index=True)[grouping].reset_index().rename({'index': 'Group_index'}, axis='columns'), how='left', on=grouping)
-
+df_1a.groupby('Instrument').equivalent_circular_diameter_mean.describe()
 # Generate maps and heatmap of the spatio-temporal coverage for PSSdb products 1
-
-
 # Fig 2. Spatial coverage
 df_summary=df.groupby(['Instrument','latitude','longitude']).agg({'Group_index':'count'}).reset_index().rename(columns={'Group_index':'count'})
-plot=(ggplot(data=df_summary)+
+plot=(ggplot(data=df_summary,mapping=aes(x="longitude",y="latitude"))+
   facet_wrap('~Instrument', nrow=1)+
-  geom_point( aes(x="longitude",y="latitude",fill='count'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1) +
+  plotnine.stat_bin_2d(data=df,mapping=aes(x="longitude",y="latitude"),bins=50).to_layer()+
+  #geom_point( aes(x="longitude",y="latitude",fill='count'),shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1) +
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
- labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)') +
+ labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)',fill='Number of bins') +
  scale_fill_gradientn(trans='log',colors=palette)+
-theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(10.5,3)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Spatial_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+theme_paper).draw(show=True)
+plot.set_size_inches(7,3)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Spatial_coverage_PSSdb.svg'.format(str(Path.home())), dpi=600)
 
 # Fig 2. Temporal coverage
 
 df_summary=df.groupby(['Instrument','month','year']).agg({'Group_index':'count'}).reset_index().rename(columns={'Group_index':'count'})
 plot=(ggplot(data=df_summary)+
   facet_wrap('~Instrument', nrow=1)+
-  geom_point( aes(x="month",y="year",fill='count'),size=5,shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1) +
+      #plotnine.stat_bin_2d(data=df, mapping=aes(x="month", y="year"), bins=50).to_layer() +
+      geom_point( aes(x="month",y="year",fill='count'),size=5,shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0),alpha=1) +
  labs(x=r'Month', y=r'Year)') +
  scale_fill_gradientn(trans='log10',colors=palette)+scale_y_continuous(breaks=[1,4,7,10],labels=['Jan','Apr','Jul','Oct'])+
-theme_paper).draw(show=False, return_ggplot=True)
+theme_paper).draw(show=True)
 
-plot[0].set_size_inches(6.5,2.8)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plot.set_size_inches(6.5,2.8)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
 
 #Fig. 3a  Average NBSS and supplemental figure 2 Average PSD
 # Normalized biovolume vs size
@@ -101,10 +108,10 @@ plot = (ggplot(data=df_1a)+
         labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
         scale_color_manual(values = colors)+
         scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
-        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(4.5,3)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSS.pdf'.format(str(Path.home())), dpi=300)
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in l])+
+        theme_paper).draw(show=True)
+plot.set_size_inches(3.5,3)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSS.pdf'.format(str(Path.home())), dpi=300)
 
 
 #Normalized abundance vs size
@@ -115,10 +122,10 @@ plot = (ggplot(data=df_1a)+
         labs(y=r'Normalized Abundance (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'Equivalent circular diameter ($\mu$m)')+
         scale_color_manual(values = colors)+
         scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
-        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(4.5,3)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD.pdf'.format(str(Path.home())), dpi=300)
+        scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in l])+
+        theme_paper).draw(show=True)
+plot.set_size_inches(3.5,3)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD.pdf'.format(str(Path.home())), dpi=300)
 plot = (ggplot(data=df_1a)+
         geom_line(df_1a,aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument',group='Group_index'), alpha=0.02, size = 0.1) +
         geom_point(aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument'),size = 0.05, alpha=0.01, shape = 'o')+
@@ -127,9 +134,9 @@ plot = (ggplot(data=df_1a)+
         scale_color_manual(values = colors)+
         scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         scale_x_log10(labels=lambda bk: [f'{int(size):,}'  for size in bk])+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(4.5,3)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD_biovolume.pdf'.format(str(Path.home())), dpi=100)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3.5,3)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD_biovolume.pdf'.format(str(Path.home())), dpi=100)
 
 
 #Comparison between NBSS and PSD slope
@@ -138,29 +145,29 @@ plot = (ggplot(data=df)+
         geom_abline(slope=slope, intercept=intercept, alpha=0.1) +
         geom_point(aes(x='NBSS_slope_mean', y='PSD_slope_mean', color='Instrument'),size = 1, alpha=0.1, shape = 'o')+
         #geom_smooth(aes(x='NBSS_slope_mean', y='PSD_slope_mean'), method='lm', linetype='dashed', size = 0.5)+
-        labs(y='PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
+        labs(y='PSD slope ( L$^{-1}$ $\mu$m$^{-2}$)', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
         annotate('text', label='y = '+str(np.round(slope, 2))+'x '+str(np.round(intercept, 2))+ ', R$^{2}$ = '+str(np.round(r_value, 3)),  x = np.nanquantile(df.NBSS_slope_mean,[0.95]),y = np.nanquantile(df.PSD_slope_mean,[0.95]),ha='right')+
         scale_color_manual(values = colors)+scale_x_continuous(limits=np.nanquantile(df.NBSS_slope_mean,[0.05,0.95]))+
         scale_y_continuous(limits=np.nanquantile(df.PSD_slope_mean,[0.05,0.95]))+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(3,3)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_slopes.svg'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3,3)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_slopes.svg'.format(str(Path.home())), dpi=600)
 # Add density
 plot = (ggplot(data=df.dropna(subset=['NBSS_slope_mean']).query('(NBSS_slope_mean>={}) & (NBSS_slope_mean<={})'.format(np.nanquantile(df.NBSS_slope_mean,0.05),np.nanquantile(df.NBSS_slope_mean,0.95))))+
         geom_histogram(aes(x='NBSS_slope_mean', fill='Instrument'),color='#ffffff00', alpha=0.3)+
         labs(y='Count', x=r'NBSS slope ( L$^{-1}$ $\mu$m$^{-3}$)')+
         scale_fill_manual(values = colors)+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(3,1)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSslopes_density.svg'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3,1.5)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSslopes_density.svg'.format(str(Path.home())), dpi=600)
 plot = (ggplot(data=df.query('(PSD_slope_mean>={}) & (PSD_slope_mean<={})'.format(np.nanquantile(df.PSD_slope_mean,0.05),np.nanquantile(df.PSD_slope_mean,0.95))))+
         geom_histogram(aes(x='PSD_slope_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)')+
         scale_fill_manual(values = colors)+
         #coord_flip()+ flipping messes up the rendering
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(3,1)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDslopes_density.svg'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3,1.5)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDslopes_density.svg'.format(str(Path.home())), dpi=600)
 
 #Comparison between NBSS and PSD intercept
 
@@ -173,37 +180,37 @@ plot = (ggplot(data=df)+
         scale_color_manual(values = colors)+
         scale_x_continuous(limits=np.nanquantile(df.NBSS_intercept_mean,[0.05,0.95]),labels=lambda bk:['10$^{%s}$'% int(size) for size in bk])+
         scale_y_continuous(limits=np.nanquantile(df.PSD_intercept_mean,[0.05,0.95]),labels=lambda bk:['10$^{%s}$'% int(size) for size in bk])+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(3,3)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_intercepts.svg'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3,3)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_intercepts.svg'.format(str(Path.home())), dpi=600)
 # Add density
 plot = (ggplot(data=df.query('(NBSS_intercept_mean>={}) & (NBSS_intercept_mean<={})'.format(np.nanquantile(df.NBSS_intercept_mean,0.05),np.nanquantile(df.NBSS_intercept_mean,0.95))))+
         geom_histogram(aes(x='NBSS_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'NBSS intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)')+
         scale_fill_manual(values = colors)+
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(3,1)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSintercepts_density.svg'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3,1.5)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSintercepts_density.svg'.format(str(Path.home())), dpi=600)
 plot = (ggplot(data=df.query('(PSD_intercept_mean>={}) & (PSD_intercept_mean<={})'.format(np.nanquantile(df.PSD_intercept_mean,0.05),np.nanquantile(df.PSD_intercept_mean,0.95))))+
         geom_histogram(aes(x='PSD_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'PSD intercept (particles L$^{-1}$ $\mu$m$^{-1}$)')+
         scale_fill_manual(values = colors)+
         #coord_flip()+ flipping messes up the rendering
-        theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(3,1)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDintercepts_density.svg'.format(str(Path.home())), dpi=600)
+        theme_paper).draw(show=True)
+plot.set_size_inches(3,1.5)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDintercepts_density.svg'.format(str(Path.home())), dpi=600)
 
 
 # Fig 5. Latitudinal trends
 plot=(ggplot(data=df.melt(id_vars=['Instrument','year', 'month', 'longitude','latitude', 'min_depth', 'max_depth'],value_vars=['NBSS_slope_mean',  'NBSS_intercept_mean','NBSS_r2_mean']))+
        facet_grid('Instrument~pd.Categorical(variable,["NBSS_slope_mean","NBSS_intercept_mean","NBSS_r2_mean"])',scales='free')+
-       stat_summary( aes(x="latitude",y="value"),alpha=1,size=0.05) +
+       stat_summary( aes(x="latitude",y="value"),alpha=1,size=0.5) +
        labs(y=r'', x=r'Latitude ($^{\circ}$N)') +scale_x_continuous(limits=[-90,90], breaks = np.arange(-90, 100, 10))+
        scale_color_manual(values={'IFCB':'#{:02x}{:02x}{:02x}'.format(111, 145 , 111),'UVP':'#{:02x}{:02x}{:02x}'.format(147,167,172),'Scanner':'#{:02x}{:02x}{:02x}'.format(95,141,211)})+
        coord_flip()+
-       theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches(8,12)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figure_5.pdf'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
+       theme_paper).draw(show=True)
+plot.set_size_inches(8,10.9)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figure_5.pdf'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
 
 
 # Fig 6. Climatology per basin
@@ -221,9 +228,9 @@ labs(x=r'', y=r'') +
 scale_color_manual(values=colors)+
 scale_fill_manual(values=colors)+
 scale_x_continuous(breaks=np.arange(1,13,3),labels=[calendar.month_abbr[month] for month in np.arange(1,13,3)])+
-theme_paper).draw(show=False, return_ggplot=True)
-plot[0].set_size_inches( 8,6)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figures_6.svg'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
+theme_paper).draw(show=True)
+plot.set_size_inches( 8,6)
+plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figures_6.svg'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
 
 
 

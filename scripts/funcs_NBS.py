@@ -576,7 +576,7 @@ def stats_linfit_func(df, light_parsing = False, bin_loc = 1, group_by = 'yyyymm
     return lin_fit_stats
 
 
-def QC_1b(df_1a, df_1b, grouping_factors=['year', 'month', 'latitude', 'longitude', 'ocean']):
+def QC_products(df_1a, df_1b, grouping_factors=['year', 'month', 'latitude', 'longitude', 'ocean']):
     '''
     Objective: create QC based on standard deviation of slope values, # of size bins and R2 values
     '''
