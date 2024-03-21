@@ -120,7 +120,7 @@ def process_nbss_standardized_files(path=None,df=None,category=[],depth_selectio
     """
     if (path) and (not df):
         columns=pd.read_table(path,sep=",", nrows=0).columns
-        df=pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Station','Sample','Sampling_type','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_analyzed','Volume_imaged','ROI','ROI_number','Area','Category','Pixel','Sampling_lower_size','Sampling_upper_size'] if column in columns],dtype=dtypes_dict_all)
+        df=pd.read_table(path,sep=",",usecols=[column for column in ['Project_ID','Instrument','Longitude','Latitude','Station','Sample','Profile','Sampling_type','Sampling_date','Sampling_time','Depth_min','Depth_max','Volume_analyzed','Volume_imaged','ROI','ROI_number','Area','Category','Pixel','Sampling_lower_size','Sampling_upper_size'] if column in columns],dtype=dtypes_dict_all)
     instrument=df.Instrument.unique()[0]
     if (instrument in ['IFCB', 'Zooscan']) and ('ROI_number' not in df.columns):
         df = df.assign(ROI_number=1)
