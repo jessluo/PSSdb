@@ -109,7 +109,10 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 from plotnine import * # Python equivalent to ggplot2. Use pip install plotnine. Do not execute in Pycharm (bug- no fix yet): https://youtrack.jetbrains.com/issue/PY-42390
 from colorspace import sequential_hcl # Use: pip install git+https://github.com/retostauffer/python-colorspace
-
+import matplotlib
+import colorsys
+import seaborn as sns
+from colormap import rgb2hex
 
 import warnings
 warnings.filterwarnings('ignore', module='urllib3')
@@ -1325,18 +1328,18 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
     if len(df_summary):
         data_geo = dict(type='scattergeo',
                         name='',
-                        lon=df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude,
-                        lat=df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude,
+                        lon=df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude.astype(float),
+                        lat=df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude.astype(float),
                         # size=summary_df_standardized.Abundance,
-                        hovertext='Sample ID: ' + df_summary.dropna( subset=['Latitude', 'Longitude', 'Sample']).Sample,
+                        hovertext='Sample ID: ' + df_summary.dropna( subset=['Latitude', 'Longitude', 'Sample']).Sample.astype(str),
                         hoverinfo="text",
                         marker=dict(color='black', size=0.5), geojson="natural earth", showlegend=False, geo='geo')
         layout = dict()
         layout['geo2'] = dict(projection_rotation=dict(
-                lon=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude),
-                lat=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude),
-                roll=0),center=dict(lon=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude),
-                lat=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude)),
+                lon=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude.astype(float)),
+                lat=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude.astype(float)),
+                roll=0),center=dict(lon=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Longitude.astype(float)),
+                lat=np.nanmean(df_summary.dropna(subset=['Latitude', 'Longitude', 'Sample']).Latitude.astype(float))),
             projection_type='orthographic', lataxis_range=[-90, 90], lonaxis_range=[-180, 180],
             domain=dict(x=[0.02, 0.45], y=[0.0, 0.9]), bgcolor='rgba(0,0,0,0)')
         layout['geo'] = dict(lonaxis_range=[-180, 180], lataxis_range=[-80, 80],domain=dict(x=[0.0, 0.1], y=[0.0, 0.12]))
@@ -1362,14 +1365,17 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
         colors = sequential_hcl(h=[-220, 20], c=[0, 90, 0], l=[95, 30], power=[1.5, 1.5], rev=True)(len(df_nbss['Sample'].unique()))
         for i, sample in enumerate(np.sort(df_nbss.Sample.unique())):
             subset_nbss = df_nbss[df_nbss['Sample'] == sample]  # nbss#
-            for v in subset_nbss.Group_index.unique():  # subset_nbss.Volume_imaged.unique():
+            for j,v in enumerate(subset_nbss.Group_index.unique()):  # subset_nbss.Volume_imaged.unique():
                 nbss = subset_nbss[subset_nbss['Group_index'] == v].sort_values(['size_class_mid']).dropna()  # subset_nbss[subset_nbss['Volume_imaged'] == v].sort_values(['bin_gmean']).dropna()
                 show = True if v == subset_nbss.Group_index.unique()[0] else False
+                new_pal = matplotlib.colors.LinearSegmentedColormap.from_list(name='subpalette', colors=[colors[i], '#000000FF'],N=subset_nbss.Group_index.nunique() + 1)
+                hex_new_palette = sns.color_palette(new_pal(range(subset_nbss.Group_index.nunique())), subset_nbss.Group_index.nunique()).as_hex()  # sns.color_palette(colors,len(melt_df_taxonomy.Group.unique())).as_hex()
+                # sns.palplot(hex_new_palette)
 
                 fig.add_trace(go.Scatter(y=nbss.NBSS, x=nbss.size_class_mid,
-                         line=dict(color=colors[i]),
+                         line=dict(color=hex_new_palette[j]),
                          name=str(sample),
-                         hovertext='Sample ID: ' + nbss.Sample.astype(str) + '<br>Size bin: ' + np.round( nbss['size_class_mid'].astype(float), 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( nbss['NBSS'].astype(float), 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
+                         hovertext='Group ID: '+ nbss.Group_index.astype(str)+'<br>Sample ID: ' + nbss.Sample.astype(str) + '<br>Size bin: ' + np.round( nbss['size_class_mid'].astype(float), 1).astype(str) + ' \u03BCm<br>NBSS: ' + np.round( nbss['NBSS'].astype(float), 6).astype(str) + ' \u03BCm\u00b3 dm\u207B\u00b3 \u03BCm\u207B\u00b3',
                          hoverinfo="text",
                          legendrank=i,legendgroup=str(sample),
                          mode='lines', showlegend=show, visible=True), row=2, col=2)
@@ -1438,7 +1444,7 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
                                'y': [df_summary[cols[k]], 'undefined'],
                                'visible': [True, True, True]}, [2]],# visible should have the same length as number of subplots, second argument specifies which subplot is updated
                         label=cols_labels[k]) for k in np.where(np.isin(list(cols), ['Abundance', 'Average_diameter', 'Std_diameter']))[0]]
-    title =  r'<a href="{}">{}</a>'.format(df_standardized['Project_source'].unique()[0], 'Project ID:' + str(df_standardized['Project_ID'].unique()[0]))
+    title =  r'<a href="{}">{}</a>'.format(df_standardized['Project_source'].unique()[0], 'Project ID:' + str(df_standardized['Project_ID'].unique()[0])) if len(df_standardized)>0 else ''
     fig.update_layout(updatemenus=list([dict(active=0, buttons=button_scatter1, x=0.87, y=1.1, xanchor='left', yanchor='top')]),
     title={'text': title, 'xanchor': 'center', 'yanchor': 'top', 'x': 0.5},
     xaxis={'title': 'Sample ID', 'nticks': 2, 'tickangle': 0, 'tickfont': dict(size=10), 'titlefont': dict(size=12)},

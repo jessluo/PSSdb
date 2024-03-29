@@ -7,21 +7,57 @@ import pandas as pd
 from glob import glob
 try:
     from funcs_NBS import *
+    from script_NBSS_datacheck import regress_nbss
 except:
     from scripts.funcs_NBS import *
+    from scripts.script_NBSS_datacheck import regress_nbss
 
 path_to_git=Path('~/GIT/PSSdb').expanduser()
 path_to_config = path_to_git /'scripts'/'configuration_masterfile.yaml'
 with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
 
-def merge_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin']):
+dtypes_products={'PFT':str,'Validation_percentage':float,'ocean':str,'year':str,'month':str,'n':float,'min_depth':float,'max_depth':float,'biomass_mid':float,'range_biomass_bin':float,'normalized_biomass_mean':float,'normalized_biomass_std':float,'biovolume_size_class':float,'normalized_biovolume_mean':float,'normalized_biovolume_std':float,'equivalent_circular_diameter_mean':float,'normalized_abundance_mean':float,'normalized_abundance_std':float}
+dict_products_y={'Size':['normalized_biovolume_mean','normalized_abundance_mean'],'Biomass':'normalized_biomass_mean','Weight':'normalized_weight_mean'}
+dict_products_x={'Size':'biovolume_size_class','Biomass':'biomass_mid','Weight':'biomass_mid'}
+
+import geopandas as gpd
+oceans = gpd.read_file(list(Path(gpd.datasets.get_path("naturalearth_lowres")).expanduser().parent.parent.rglob('goas_v01.shp'))[0])
+
+# Append biomass bins
+from scipy import stats
+from natsort import natsorted
+bins=np.power(2, np.arange(0, np.log2(100000) + 1 / 3, 1 / 3))  # Fixed size(um) bins used for UVP/EcoPart data. See https://ecopart.obs-vlfr.fr/. 1/3 ESD increments allow to bin particle of doubled biovolume in consecutive bins. np.exp(np.diff(np.log((1/6)*np.pi*(EcoPart_extended_bins**3))))
+Ecopart_bins=pd.read_csv(Path(cfg['size_bins_path']).expanduser())
+bins=Ecopart_bins.ESD_um.to_numpy()
+path_to_allometry=path_to_git/cfg['allometry_lookup']
+
+df_allometry=pd.read_excel(path_to_allometry)
+df_allometry=df_allometry[df_allometry.Size_proxy=='Biovolume']
+
+biomass_bins=(1e-6*(df_allometry.loc[df_allometry.Taxon=='Living','C_Intercept'].values[0]*(1e-09*(1 / 6) * np.pi * bins ** 3)**(df_allometry.loc[df_allometry.Taxon=='Living','C_Slope'].values[0])))#(1e-12*(df_allometry.loc[df_allometry.Taxon=='Protozoa','C_Intercept'].values[0]*((1 / 6) * np.pi * bins ** 3)**(df_allometry.loc[df_allometry.Taxon=='Protozoa','C_Slope'].values[0])))
+df_bins = pd.DataFrame({'sizeClasses': pd.cut(Ecopart_bins.biovol_um3.to_numpy(), Ecopart_bins.biovol_um3.to_numpy()).categories.values.astype(str),  # Define bin categories (cubic micrometers)
+                        'sizeClasses_ECD': pd.cut(bins, bins).categories.values,  # Define bin categories (um)
+                        'size_range_ECD': np.diff(bins),  # Define width of individual bin categories (um)
+                        'range_size_bin': np.concatenate(np.diff((1 / 6) * np.pi * (np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1)),  # cubic micrometers
+                        'ECD_mid': stats.gmean(np.resize( np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)), axis=1), # Define geometrical mean of bin categories (um)
+                        'biovolume_size_class':stats.gmean((1 / 6) * np.pi * (np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1), # Define geometrical mean of bin categories (um)
+                        'range_biomass_bin':np.concatenate(np.diff(np.resize(np.append(biomass_bins[0], np.append(np.repeat(biomass_bins[1:-1], repeats=2), biomass_bins[len(biomass_bins) - 1])), (len(biomass_bins) - 1, 2)), axis=1)), # in g
+                        'biomass_mid':stats.gmean(np.resize( np.append(biomass_bins[0], np.append(np.repeat(biomass_bins[1:-1], repeats=2), biomass_bins[len(biomass_bins) - 1])), (len(biomass_bins) - 1, 2)), axis=1) #in g
+})
+
+def merge_products(path_to_products,grouping_factors= ['ocean','year','month','latitude','longitude']):
+    df_nbss = pd.concat(map(lambda path: pd.read_csv(path, dtype=dtypes_products).drop( columns=['Validation_percentage', 'QC_3std_dev', 'QC_min_n_size_bins', 'QC_R2']).assign(Instrument=path.name.split("_")[0]) if path.name.split("_")[2] != 'Weight-distribution' else pd.read_csv(path,dtype=dtypes_products).rename( columns={'normalized_biomass_mean': 'normalized_weight_mean', 'normalized_biomass_std': 'normalized_weight_std'}).drop( columns=['Validation_percentage', 'QC_3std_dev', 'QC_min_n_size_bins', 'QC_R2']).assign(Instrument=path.name.split("_")[0]), path_to_products)).reset_index(drop=True)  # reduce(lambda left,right:pd.merge(left,right,how='outer',on=['PFT','min_depth','max_depth','Instrument','n']+grouping_factor),list(map(lambda path: pd.read_csv(path,dtype=dtypes_products).drop(columns=['Validation_percentage','QC_3std_dev','QC_min_n_size_bins','QC_R2']).assign(Instrument=path.name.split("_")[0]) if path.name.split("_")[2]!='Weight-distribution' else pd.read_csv(path,dtype=dtypes_products).rename(columns={'normalized_biomass_mean':'normalized_weight_mean','normalized_biomass_std':'normalized_weight_std'}).drop(columns=['Validation_percentage','QC_3std_dev','QC_min_n_size_bins','QC_R2']).assign(Instrument=path.name.split("_")[0]),path_to_products)) ).reset_index(drop=True)
+    # Determine the bins with multiple instruments
+    df_nbss = pd.merge(df_nbss.astype(dict(zip(grouping_factors, [str] * len(grouping_factors)))), df_nbss.astype(dict(zip(grouping_factors, [str] * len(grouping_factors)))).groupby( grouping_factors).apply(lambda x: pd.Series({'n_instruments': x.Instrument.nunique(),'merged_instruments': "_".join(natsorted( x.Instrument.unique()))})).reset_index(), how='left', on=grouping_factors)
+
+    return df_nbss
+
+def merge_taxa_products (path_to_directory,grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin']):
     """
-    objective: read Scanner and UVP 1a products with taxonomic information, sum all biomass/biovolume by size to obtain a merged NBSS without adjustments.
+    Objective: read Scanner and UVP 1a products with taxonomic information, sum all biomass/biovolume by size to obtain a merged NBSS without adjustments.
     """
-    currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
-    currentYear = str(datetime.datetime.now().year)
-    file_list = [x for x in glob(str(Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'PFT') + '/*distribution_all_var*.csv', recursive=True) if 'IFCB' not in x]
+    file_list = [x for x in glob(str(Path(path_to_directory).expanduser()) + '/*distribution_all_var*.csv', recursive=True) if 'IFCB' not in x]
     merged_prod_path = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'PFT' / 'merged_products'
     if not os.path.exists(merged_prod_path):
         os.mkdir(merged_prod_path)
@@ -104,13 +140,11 @@ def merge_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'mid
     return merged_raw_list
 
 
-def merge_adjust_taxa_products (grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT', 'sizeClasses']):
+def merge_adjust_taxa_products (path_to_directory,grouping_factors= ['date_bin', 'Station_location', 'midLatBin', 'midLonBin', 'PFT', 'sizeClasses']):
     """
-    objective: read Scanner and UVP 1a products with taxonomic information, correct and merge products based on Soviadan et al.
+    Objective: read Scanner and UVP 1a products with taxonomic information, correct and merge products based on Soviadan et al.
     """
-    currentMonth = str(datetime.datetime.now().month).rjust(2, '0')
-    currentYear = str(datetime.datetime.now().year)
-    file_list = [x for x  in glob(str(Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'PFT') + '/*distribution_all_var*.csv',recursive=True) if 'IFCB' not in x]
+    file_list = [x for x  in glob(str(Path(path_to_directory).expanduser()) + '/*distribution_all_var*.csv',recursive=True) if 'IFCB' not in x]
     merged_prod_path = Path(cfg['raw_dir']).expanduser() / 'NBSS_data' / 'PFT'/ 'merged_products'
     if not os.path.exists(merged_prod_path):
         os.mkdir(merged_prod_path)
@@ -141,7 +175,7 @@ def merge_adjust_taxa_products (grouping_factors= ['date_bin', 'Station_location
     return merged_raw_list
 
 
-
+"""
 
 
 IFCB_dict={}
@@ -300,3 +334,5 @@ for n, area in enumerate([18, 28.5, 73.5]):
 
 plt.legend(bbox_to_anchor=(0.75, 0), ncol = 3, scatterpoints=1, frameon=False,
            labelspacing=1, title='intercept')
+
+"""

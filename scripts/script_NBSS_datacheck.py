@@ -99,7 +99,7 @@ def regress_nbss(nbss,threshold_count=0.2,threshold_size=0.2,n_bins=3):
         nbss.loc[(nbss.NBSS.isnull().astype(int).groupby(nbss.NBSS.notnull().astype(int).cumsum()).sum().index[np.argwhere(nbss.NBSS.isnull().astype(int).groupby(nbss.NBSS.notnull().astype(int).cumsum()).sum().to_numpy()>=n_bins+1)[0][0]]+1):,'selected']=False
     selection=nbss.sort_values(['native_index']).selected.to_numpy()
     total_abundance=np.nansum(nbss.NBSS)
-    nbss=nbss.drop(index=nbss[nbss.selected==False].index).dropna(subset=['NBSS'])
+    nbss=nbss.drop(index=nbss[(nbss.selected==False) | (nbss.NBSS==0)].index).dropna(subset=['NBSS'])
     selected_abundance=np.nansum(nbss.NBSS)
     try:
         y,x=np.log10(nbss.NBSS.to_numpy()),np.log10(((1/6)*np.pi*nbss.size_class_mid**3).to_numpy())

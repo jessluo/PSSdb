@@ -49,7 +49,10 @@ standardized_subdir : 'raw/raw_standardized'
 #binned datasets storage sub-subdirectory: contains gridded standardized datafiles
 gridded_subdir : 'gridded_data'
 
-#Summary datasets storage subdirectory: contains a summary of datasets samples location, timestamp, study area, and flag
+#size spectrum datasets storage subdirectory: contains the product levels to be released
+product_subdir : 'NBSS_data'
+
+#project's summary storage subdirectory: contains a summary table of the sample metadata (obsolete, now included in the flag tables)
 summary_subdir : 'summary'
 
 #Flag datasets storage subdirectory: contains project-specific datatables including the flag returned after control quality check

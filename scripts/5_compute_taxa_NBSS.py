@@ -31,6 +31,20 @@ path_to_taxonomy=path_to_git/cfg['annotations_lookup']
 
 
 # Plot module
+from plotnine import *
+theme_paper=theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              panel_border=element_rect(color='black'),
+              legend_title=element_text(family="serif", size=8),
+              legend_position='top',
+              legend_text=element_text(family="serif", size=8),
+              axis_title=element_text(family="serif", size=8),
+              axis_text_x=element_text(family="serif", size=8),
+              axis_text_y=element_text(family="serif", size=8, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))
+
 import plotly.express as px # Use pip install plotly==5.8.0
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
