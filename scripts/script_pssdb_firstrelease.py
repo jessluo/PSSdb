@@ -50,7 +50,7 @@ colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
 
 ## Workflow starts here:
 
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_03_2024' / 'Raw'
+path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_04_2024' / 'Raw'
 path_files= list(path_to_datafile.glob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.glob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
