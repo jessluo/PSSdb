@@ -28,8 +28,8 @@ except:
 ## Workflow starts here:
 
 # Load most recent NBSS taxa-specific products
-path_to_products=natsorted(list(natsorted(list(Path(path_to_git / cfg['dataset_subdir'] /cfg['product_subdir']).glob('NBSS_ver_*')))[0].rglob('PFT/*_1a_*')))
-grouping_factor=['ocean','year','month','latitude','longitude']
+path_to_products=natsorted(list((sorted(list(Path(path_to_git / cfg['dataset_subdir'] /cfg['product_subdir']).glob('NBSS_ver_*')),key = lambda fname:time.strptime(os.path.basename(fname),"NBSS_ver_%m_%Y"))[-1]).rglob('PFT/*-distribution_all_var_*'))) #rglob('PFT/*_1a_*')
+grouping_factor=['date_bin','Station_location','midLatBin','midLonBin']#['ocean','year','month','latitude','longitude']
 path_to_directory=Path(path_to_products[0].parent.parent / 'Merged')
 path_to_directory.mkdir(exist_ok=True)
 with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{bar}', position=0, leave=True) as bar:
@@ -37,12 +37,12 @@ with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{
         bar.set_description("Merging taxa-specific {} products".format(product), refresh=True)
         # Select the associated files
         path_to_files=[path for path in path_to_products if product in  path.name]
-        df_nbss=merge_products(path_to_products=path_to_files, grouping_factors=['ocean', 'year', 'month', 'latitude', 'longitude'])
+        df_nbss=merge_products(path_to_products=path_to_files, grouping_factors=grouping_factor)
         df = df_nbss[df_nbss.n_instruments > 1]
-        group = ['latitude', 'longitude', 'year', 'month']
+        group = grouping_factor
         df = pd.merge(df, df.drop_duplicates(subset=group, ignore_index=True)[group].reset_index().rename({'index': 'Group_station_index'}, axis='columns'), how='left', on=group)
-        df = df.assign(Sample=df.latitude.astype(str) + '_' + df.longitude.astype(str) + "_" + df.year.astype( str) + df.month.astype(str).str.zfill(2)).rename(columns={'longitude': 'Longitude', 'latitude': 'Latitude'})
-        ## Apply Soviadan et al. maximum selection method
+        df =df.assign(Sample=df.midLatBin.astype(str) + '_' + df.midLonBin.astype(str) + "_" + df.date_bin.astype( str)).rename(columns={'midLonBin': 'Longitude', 'midLatBin': 'Latitude'}) #df.assign(Sample=df.latitude.astype(str) + '_' + df.longitude.astype(str) + "_" + df.year.astype( str) + df.month.astype(str).str.zfill(2)).rename(columns={'longitude': 'Longitude', 'latitude': 'Latitude'})
+        ## Apply Soviadan et al. maximum selection method: https://doi.org/10.1101/2023.06.29.547051
         # Use class mid-point (biovolume, biomass, or weight) to assign the rest of the size classes information
         data_bins = df_bins.drop(columns=['sizeClasses']).assign(sizeClasses=pd.cut(np.append(0,df_bins[dict_products_x[product]].to_numpy()),np.append(0,df_bins[dict_products_x[product]].to_numpy())).categories.values.astype(str))
         df=pd.merge(df.drop(columns=[column for column in df.columns if column in data_bins.columns]).assign(sizeClasses=pd.cut(df[dict_products_x[product]],data_bins[dict_products_x[product]]).astype(str)),data_bins,how='left',on='sizeClasses')
