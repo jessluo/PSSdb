@@ -1366,7 +1366,7 @@ def standardization_report_func(df_summary,df_standardized,df_nbss,plot='diversi
         for i, sample in enumerate(np.sort(df_nbss.Sample.unique())):
             subset_nbss = df_nbss[df_nbss['Sample'] == sample]  # nbss#
             for j,v in enumerate(subset_nbss.Group_index.unique()):  # subset_nbss.Volume_imaged.unique():
-                nbss = subset_nbss[subset_nbss['Group_index'] == v].sort_values(['size_class_mid']).dropna()  # subset_nbss[subset_nbss['Volume_imaged'] == v].sort_values(['bin_gmean']).dropna()
+                nbss = subset_nbss[subset_nbss['Group_index'] == v].sort_values(['size_class_mid']).dropna(subset=['size_class_mid','NBSS'])  # subset_nbss[subset_nbss['Volume_imaged'] == v].sort_values(['bin_gmean']).dropna()
                 show = True if v == subset_nbss.Group_index.unique()[0] else False
                 new_pal = matplotlib.colors.LinearSegmentedColormap.from_list(name='subpalette', colors=[colors[i], '#000000FF'],N=subset_nbss.Group_index.nunique() + 1)
                 hex_new_palette = sns.color_palette(new_pal(range(subset_nbss.Group_index.nunique())), subset_nbss.Group_index.nunique()).as_hex()  # sns.color_palette(colors,len(melt_df_taxonomy.Group.unique())).as_hex()

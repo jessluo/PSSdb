@@ -16,6 +16,21 @@ path_to_git=Path('~/GIT/PSSdb').expanduser()
 path_to_config = path_to_git /'scripts'/'configuration_masterfile.yaml'
 with open(path_to_config, 'r') as config_file:
     cfg = yaml.safe_load(config_file)
+from plotnine import *
+theme_paper=theme(axis_ticks_direction="inout",
+              panel_grid=element_blank(),
+              axis_line = element_line(colour = "black"),
+              panel_background=element_rect(fill='white'),
+              panel_border=element_rect(color='black'),
+              legend_title=element_text(family="serif", size=8),
+              legend_position='top',
+              legend_text=element_text(family="serif", size=8),
+              strip_text=element_text(family="serif", size=8),
+              axis_title=element_text(family="serif", size=8),
+              axis_text_x=element_text(family="serif", size=8),
+              axis_text_y=element_text(family="serif", size=8, rotation=90),
+              plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))
+pal_instrument = { 'Scanner': '#6f918aff', 'UVP': 'red','IFCB': '#6f0058ff'}
 
 dtypes_products={'PFT':str,'Validation_percentage':float,'ocean':str,'year':str,'month':str,'n':float,'min_depth':float,'max_depth':float,'biomass_mid':float,'range_biomass_bin':float,'normalized_biomass_mean':float,'normalized_biomass_std':float,'biovolume_size_class':float,'normalized_biovolume_mean':float,'normalized_biovolume_std':float,'equivalent_circular_diameter_mean':float,'normalized_abundance_mean':float,'normalized_abundance_std':float}
 dict_products_y={'Size':['NB','PSD'],'Biomass':'NB','Weight':'NB'}#{'Size':['normalized_biovolume_mean','normalized_abundance_mean'],'Biomass':'normalized_biomass_mean','Weight':'normalized_weight_mean'}
@@ -41,11 +56,12 @@ df_bins = pd.DataFrame({'sizeClasses': pd.cut(Ecopart_bins.biovol_um3.to_numpy()
                         'size_range_ECD': np.diff(bins),  # Define width of individual bin categories (um)
                         'range_size_bin': np.concatenate(np.diff((1 / 6) * np.pi * (np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1)),  # cubic micrometers
                         'ECD_mid': stats.gmean(np.resize( np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)), axis=1), # Define geometrical mean of bin categories (um)
-                        'biovolume_size_class':stats.gmean((1 / 6) * np.pi * (np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1), # Define geometrical mean of bin categories (um)
+                        'biovolume_size_class':stats.gmean((1 / 6) * np.pi * (np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1), # Define geometrical mean of bin categories (cubic micrometer)
+                        'size_class_mid':stats.gmean((1 / 6) * np.pi * (np.resize(np.append(bins[0], np.append(np.repeat(bins[1:-1], repeats=2), bins[len(bins) - 1])), (len(bins) - 1, 2)) ** 3), axis=1), # Define geometrical mean of bin categories (cubic micrometer)
                         'range_biomass_bin':np.concatenate(np.diff(np.resize(np.append(biomass_bins[0], np.append(np.repeat(biomass_bins[1:-1], repeats=2), biomass_bins[len(biomass_bins) - 1])), (len(biomass_bins) - 1, 2)), axis=1)), # in g
                         'biomass_mid':stats.gmean(np.resize( np.append(biomass_bins[0], np.append(np.repeat(biomass_bins[1:-1], repeats=2), biomass_bins[len(biomass_bins) - 1])), (len(biomass_bins) - 1, 2)), axis=1) #in g
 })
-
+data_bins=pd.DataFrame({'biovolume_size_class':(1 / 6) * np.pi *(bins**3),'size_class_mid':(1 / 6) * np.pi *(bins**3),'biomass_mid':biomass_bins})
 def merge_products(path_to_products,grouping_factors= ['ocean','year','month','latitude','longitude']):
     df_nbss = pd.concat(map(lambda path: pd.read_csv(path, dtype=dtypes_products).assign(Instrument=path.name.split("_")[0]), path_to_products)).reset_index( drop=True)  # reduce(lambda left,right:pd.merge(left,right,how='outer',on=['PFT','min_depth','max_depth','Instrument','n']+grouping_factor),list(map(lambda path: pd.read_csv(path,dtype=dtypes_products).drop(columns=['Validation_percentage','QC_3std_dev','QC_min_n_size_bins','QC_R2']).assign(Instrument=path.name.split("_")[0]) if path.name.split("_")[2]!='Weight-distribution' else pd.read_csv(path,dtype=dtypes_products).rename(columns={'normalized_biomass_mean':'normalized_weight_mean','normalized_biomass_std':'normalized_weight_std'}).drop(columns=['Validation_percentage','QC_3std_dev','QC_min_n_size_bins','QC_R2']).assign(Instrument=path.name.split("_")[0]),path_to_products)) ).reset_index(drop=True)
 
