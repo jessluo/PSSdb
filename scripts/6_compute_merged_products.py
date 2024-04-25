@@ -25,25 +25,6 @@ except:
     from scripts.funcs_standardize_projects import *
     from scripts.funcs_merged_products import *
 
-import seaborn as sns
-def plot_unity(xdata, ydata, **kwargs):
-    mn = min(xdata.min(), ydata.min())
-    mx = max(xdata.max(), ydata.max())
-    points = np.linspace(mn, mx, 100)
-    plt.gca().plot(points, points, color='k', marker=None,
-            linestyle='--', linewidth=1.0)
-from scipy.stats import linregress
-def r2(x, y, ax=None, **kws):
-    ax = ax or plt.gca()
-    data=pd.DataFrame({'x':x,'y':y}).dropna(subset=['x','y'])
-    if len(data):
-        slope, intercept, r_value, p_value, std_err = linregress(x=data.x, y=data.y)
-        ax.annotate(f'$r^2 = {r_value ** 2:.2f}$\nEq: ${slope:.2f}x{intercept:+.2f}$',
-                    xy=(.05, .95), xycoords=ax.transAxes, fontsize=8,
-                    color='black', backgroundcolor='#FFFFFF99', ha='left', va='top')
-
-
-
 ## Workflow starts here:
 
 # Load most recent NBSS taxa-specific products
@@ -51,6 +32,7 @@ path_to_products=natsorted(list((sorted(list(Path(path_to_git / cfg['dataset_sub
 grouping_factor=['date_bin','Station_location','midLatBin','midLonBin']#['ocean','year','month','latitude','longitude']
 path_to_directory=Path(path_to_products[0].parent.parent / 'Merged')
 path_to_directory.mkdir(exist_ok=True)
+currentYear,currentMonth=path_to_directory.parent.stem.split("_")[-1],path_to_directory.parent.stem.split("_")[-2]
 with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{bar}', position=0, leave=True) as bar:
     for product in ['Size','Biomass','Weight']:
         bar.set_description("Merging taxa-specific {} products".format(product), refresh=True)
@@ -105,6 +87,10 @@ with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{
 
         # Check merged products along with original data after generating final product
         df_merged['Sample']=df_merged.Latitude.astype(str) + '_' + df_merged.Longitude.astype(str) + "_" + df_merged.date_bin.astype( str)
+
+        print('Saving all merged mutli-instruments sub-bin products to {}'.format(str(path_to_directory)).replace(str(Path.home()),'~'))
+        df_merged.to_csv(path_to_directory / str('Merged_multi-instruments_{}-distribution_all_var_v'.format(product) + currentYear + '-' + currentMonth + '.csv'),index=False)
+
         ## first, apply thresholding function, then average at bin level
         df_merged_thres=df_merged.groupby(['Sample','Latitude','Longitude','date_bin','min_depth','max_depth','Group_station_index','n_instruments','merged_instruments']).apply(lambda x: (threshold_func(binned_data=x.rename(columns=dict(zip((pd.Series(dict_products_y[product])+'_living').to_list(),(pd.Series(dict_products_y[product])).to_list()))).assign(count_uncertainty=0,size_uncertainty=0), empty_bins=3, threshold_count=0.2, threshold_size=0.2))).reset_index(drop=True)
         df_products_1a=NBSS_stats_func(df=df_merged_thres.rename(columns={'Latitude':'midLatBin','Longitude':'midLonBin','min_depth':'Min_obs_depth','max_depth':'Max_obs_depth'}).astype({'midLatBin':float,'midLonBin':float}), light_parsing=False, bin_loc=1, group_by='yyyymm')
@@ -112,7 +98,11 @@ with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{
         df_products_1b=df_merged_thres.rename(columns={'Latitude':'midLatBin','Longitude':'midLonBin','min_depth':'Min_obs_depth','max_depth':'Max_obs_depth'}).astype(dict(zip(['midLatBin','midLonBin','date_bin','Min_obs_depth','Max_obs_depth','n_instruments','merged_instruments'],[str]*7))).groupby(['midLatBin','midLonBin','date_bin','Min_obs_depth','Max_obs_depth','n_instruments','merged_instruments']).apply(lambda x:linear_fit_func(x.astype({'midLatBin':float,'midLonBin':float,'Min_obs_depth':float,'Max_obs_depth':float}).assign(logSize=np.log10(x[dict_products_x[product]]),logNB=np.log10(x[dict_products_y[product][0]]),logECD=np.log10(x.ECD_mid),logPSD=np.log10(x.PSD) if 'PSD' in x.columns else np.nan), light_parsing = False, depth_parsing = False)).reset_index()
         df_products_1b=pd.merge(stats_linfit_func(df=df_products_1b, light_parsing = False, bin_loc = 1, group_by = 'yyyymm'),df_products_1b.assign(latitude=lambda x:pd.cut(x.midLatBin.astype(float),bins=np.arange(-90,91,1),labels=np.arange(-90,91,0.5)[1:-1:2]).astype(str),longitude=lambda x:pd.cut(x.midLonBin.astype(float),bins=np.arange(-180,181,1),labels=np.arange(-180,181,0.5)[1:-1:2]).astype(str),year=lambda x:(x.date_bin.str[0:4]).astype(str),month=lambda x:(x.date_bin.str.split("_").str[-1]).astype(str)).astype(dict(zip(['latitude','longitude','year','month','Min_obs_depth','Max_obs_depth'],[str]*6))).groupby(['latitude','longitude','year','month','Min_obs_depth','Max_obs_depth']).apply(lambda x: pd.Series({'n_instruments':len(x.merged_instruments.unique()[0].split("_")),'merged_instruments':'_'.join(natsorted(x.merged_instruments.unique()[0].split("_")))})).reset_index().rename(columns={'Min_obs_depth':'min_depth','Max_obs_depth':'max_depth'}).astype({'latitude':float,'longitude':float,'year':str,'month':str,'min_depth':float,'max_depth':float}),how='left',on=['latitude','longitude','year','month','min_depth','max_depth'])
         df_products_merged=pd.merge(df_products_1a,df_products_1b,how='left',on=['merged_instruments','year','month','latitude','longitude','min_depth','max_depth','n'])
-
+        df_products_1a, df_products_1b =ocean_label_func(df=df_products_1a, Lon='longitude', Lat='latitude'),ocean_label_func(df=df_products_1b, Lon='longitude', Lat='latitude')
+        df_products_1a,df_products_1b=QC_products(df_products_1a,df_products_1b, grouping_factors=['year', 'month', 'latitude', 'longitude', 'ocean'])
+        print('Saving merged mutli-instruments products to {}'.format(str(path_to_directory)).replace(str(Path.home()),'~'))
+        df_products_1a.to_csv(path_to_directory / str('Merged_multi-instruments_1a_{}-distribution_v'.format(product) + currentYear + '-' + currentMonth + '.csv'),index=False)
+        df_products_1b.to_csv(path_to_directory / str('Merged_multi-instruments_1b_{}-spectra-fit_v'.format( product) + currentYear + '-' + currentMonth + '.csv'), index=False)
 
         #x=df.loc[list(df.groupby(group+['Sample','sizeClasses']).groups.values())[3]]
         df_summary=df.groupby(group+['Sample','Instrument','sizeClasses']).apply(lambda x:pd.Series({**dict(zip((pd.Series(dict_products_y[product])+'_living').to_list(),x.query('PFT!="Detritus"')[dict_products_y[product]].sum(axis=0))),**dict(zip((pd.Series(dict_products_y[product])+'_nonliving').to_list(),x.query('PFT=="Detritus"')[dict_products_y[product]].sum(axis=0)))})).reset_index()#.apply(lambda x:pd.Series({**dict(zip((pd.Series(dict_products_y[product])+'_living').to_list(),x.query('PFT!="Detritus"')[dict_products_y[product]].sum(axis=0))),**dict(zip((pd.Series(dict_products_y[product]).str.replace('_mean','_std')+'_living').to_list(),((x.query('PFT!="Detritus"')[(pd.Series(dict_products_y[product]).str.replace('_mean','_std')).to_list()]**2).sum(axis=0))**0.5)),**dict(zip((pd.Series(dict_products_y[product])+'_nonliving').to_list(),x.query('PFT=="Detritus"')[dict_products_y[product]].sum(axis=0))),**dict(zip((pd.Series(dict_products_y[product]).str.replace('_mean','_std')+'_nonliving').to_list(),((x.query('PFT=="Detritus"')[(pd.Series(dict_products_y[product]).str.replace('_mean','_std')).to_list()]**2).sum(axis=0))**0.5))})).reset_index()
@@ -137,7 +127,7 @@ with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{
                                                                                                                                                                                      'Average_diameter': np.nanmean( x['normalized_biovolume_mean'].astype(float)* x.equivalent_circular_diameter_mean.astype(float)),# micrometer
                                                                                                                                                                                      'Std_diameter': np.nanstd( x['normalized_biovolume_mean'].astype(float) * x.equivalent_circular_diameter_mean.astype(float))})).reset_index(),
             df_standardized=pd.DataFrame({}), df_nbss=df_all.dropna(subset=['NBSS_slope_mean']).rename( columns={'normalized_biovolume_mean': 'NBSS', 'equivalent_circular_diameter_mean': 'size_class_mid'}),plot='nbss')
-        fig.write_html(Path(path_to_directory/'Merged_product_{}_living_multiinstruments.html'.format(product)))
+        fig.write_html(Path(path_to_directory/'Merged_product_{}_living_multi-instruments.html'.format(product)))
 
         """
         # Compute slope and intercept (reference at 100 micrometers to be comparable) to append to Group_index
@@ -167,30 +157,49 @@ with tqdm(desc='Merging taxa-specific {} products', total=3, bar_format='{desc}{
         # Plot the selection for each PFT
         df_pivot=df_stats_summary.pivot_table(values=['slope','intercept', 'r2'],columns=['merged_instruments'],index=['Latitude', 'Longitude', 'Sample', 'year','month', 'Group_station_index']).reset_index()
         df_pivot.columns=['_'.join(col) if (type(col) is tuple) & (col[1]!='') else col[0] for col in df_pivot.columns.values]
-
-        g = sns.pairplot(df_pivot[[column for column in df_pivot.columns if 'slope' in column]],kind='scatter',corner=True,diag_kind='kde',plot_kws=dict(marker="o",size=.3, color='black'),diag_kws=dict(color='black'))
-        g.map_offdiag(plot_unity)
-        g.map_offdiag(r2)
+        # Plot and save slope pairplots
+        slope_color = "#528787ab"
+        g = sns.pairplot(df_pivot[[column for column in df_pivot.columns if 'slope' in column]].rename(columns={column:' / '.join(column.replace("slope_",'').split("_")) for column in df_pivot.columns if 'slope' in column}),kind='scatter',corner=True,diag_kind='kde',plot_kws=dict(marker="o",size=.3, color=slope_color),diag_kws=dict(color=slope_color))
+        g.map_offdiag(seaborn_plot_unity)
+        g.map_offdiag(seaborn_r2,color=slope_color,xy=(.05, .95))
+        g.map_diag(seaborn_diag_func,color=slope_color)
         g.fig.set_size_inches(10,10)
+        g.fig.suptitle(r'Spectral slopes (L$^{-1}$ $\mu$m$^{-3}$)',x=0.5,y=0,size=12,family='serif', color=slope_color)
+        for ax in g.axes.flatten():
+            if ax:
+                ax.tick_params(axis='y', labelrotation=90,labelsize=8,color=slope_color)
         g.savefig(fname='{}/PSSdb_Merged-products_slopes_comparison.svg'.format(str(path_to_directory)), dpi=300)
 
-        plot = (ggplot(data=df_pivot) +
-                geom_point(aes(x="slope_IFCB", y="slope_UVP",group='Sample'), size=1.5, shape='H', color='#{:02x}{:02x}{:02x}{:02x}'.format(0, 0, 0, 50), alpha=0.1) +
-                geom_abline(slope=1,intercept=0)+scale_x_continuous(limits=[min(df_pivot[['slope_IFCB','slope_UVP']].describe().loc['min']),max(df_pivot[['slope_IFCB','slope_UVP']].describe().loc['max'])])+scale_y_continuous(limits=[min(df_pivot[['slope_IFCB','slope_UVP']].describe().loc['min']),max(df_pivot[['slope_IFCB','slope_UVP']].describe().loc['max'])])+
-                labs(x=r'IFCB spectral slope (L$^{-1}$ $\mu$m$^{-3}$)', y=r'UVP spectral slope (L$^{-1}$ $\mu$m$^{3}$)') +
-                #scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in l])+
-                theme_paper).draw(show=True)
-        plot.set_size_inches(3,3)
-        plot.savefig(fname='{}/PSSdb_Merged-products_slopes_comparison.svg'.format(str(path_to_directory)), dpi=300)
-        plot = (ggplot(data=df_pivot) +
-                geom_point(aes(x="intercept_IFCB", y="intercept_UVP", group='Sample'), size=1.5, shape='H',color='#{:02x}{:02x}{:02x}{:02x}'.format(0, 0, 0, 50), alpha=0.1) +
-                geom_abline(slope=1, intercept=0) +
-                labs(x=r'IFCB spectral intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)',  y=r'UVP spectral intercept ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)') +
-                scale_y_continuous(limits=[min(df_pivot[['intercept_IFCB','intercept_UVP']].describe().loc['min']),max(df_pivot[['intercept_IFCB','intercept_UVP']].describe().loc['max'])],breaks=[size for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))], labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else ''  for size in l]) +
-                scale_x_continuous(limits=[min(df_pivot[['intercept_IFCB','intercept_UVP']].describe().loc['min']),max(df_pivot[['intercept_IFCB','intercept_UVP']].describe().loc['max'])],breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in l])+
-                theme_paper).draw(show=True)
-        plot.set_size_inches(3, 3)
-        plot.savefig(fname='{}/PSSdb_Merged-products_intercepts_comparison.svg'.format(str(path_to_directory)), dpi=300)
+        # Plot and save intercept pairplots
+        intercept_color="#de8787ab"
+        g = sns.pairplot(df_pivot[[column for column in df_pivot.columns if 'intercept' in column]].rename(columns={column:' / '.join(column.replace("intercept_",'').split("_")) for column in df_pivot.columns if 'intercept' in column}),kind='scatter',corner=False,diag_kind='kde',plot_kws=dict(marker="o",size=.3, color=intercept_color),diag_kws=dict(color=intercept_color))
+        g.map_offdiag(seaborn_plot_unity)
+        g.map_offdiag(seaborn_r2,color=intercept_color,xy=(.05, .05))
+        g.map_diag(seaborn_diag_func,color=intercept_color)
+        g.map_lower(seaborn_hide_axis)
+        for ax in g.axes.flat:
+            sns.despine(left=True, right=False, bottom=True, top=False, ax=ax)
+            ax.xaxis.set_ticks_position('top')
+            ax.yaxis.set_ticks_position('right')
+            plt.setp(ax.yaxis.get_ticklabels(), visible=False,rotation=-90)
+            plt.setp(ax.xaxis.get_ticklabels(), visible=False)
+
+        for ax1, ax2 in g.axes[:, [0, -1]]:
+            ax2.yaxis.set_label_position('right')
+            ax2.set_ylabel(ax1.get_ylabel(), visible=True,rotation=-90)
+            ax1.set_ylabel('')
+            ax2.yaxis.set_ticks_position('right')
+            plt.setp(ax2.yaxis.get_ticklabels(), visible=True, rotation=-90,color=intercept_color)
+        for ax1, ax2 in g.axes[[0, -1], :].T:
+            ax1.xaxis.set_label_position('top')
+            ax1.set_xlabel(ax2.get_xlabel(), visible=True)
+            ax2.set_xlabel('')
+            ax1.xaxis.set_ticks_position('top')
+            plt.setp(ax1.xaxis.get_ticklabels(), visible=True,color=intercept_color)
+        g.fig.set_size_inches(10, 10)
+        g.fig.suptitle(r'log$_{10}$ Spectral intercepts ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=0.5, y=1.2, size=12, family='serif', color=intercept_color)
+        g.savefig(fname='{}/PSSdb_Merged-products_intercepts_comparison.svg'.format(str(path_to_directory)), dpi=300)
+
 
         # Update progress bar and move to next product
         ok = bar.update(n=1)

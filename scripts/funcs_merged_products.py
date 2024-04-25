@@ -31,6 +31,34 @@ theme_paper=theme(axis_ticks_direction="inout",
               axis_text_y=element_text(family="serif", size=8, rotation=90),
               plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))
 pal_instrument = { 'Scanner': '#6f918aff', 'UVP': 'red','IFCB': '#6f0058ff'}
+import seaborn as sns
+
+sns.set_context("paper",rc={"axes.labelsize": 8, 'axes.labelfamily': 'serif', "tick.labelsize": 8, 'tick.labelfamily': 'serif'})
+
+def seaborn_plot_unity(xdata, ydata, **kwargs):
+    mn = min(xdata.min(), ydata.min())
+    mx = max(xdata.max(), ydata.max())
+    points = np.linspace(mn, mx, 100)
+    plt.gca().plot(points, points, color='k', marker=None,
+            linestyle='--', linewidth=1.0)
+from scipy.stats import linregress
+def seaborn_r2(x, y,xy,color, ax=None, **kws):
+    ax = ax or plt.gca()
+    data=pd.DataFrame({'x':x,'y':y}).dropna(subset=['x','y'])
+    if len(data):
+        slope, intercept, r_value, p_value, std_err = linregress(x=data.x, y=data.y)
+        ax.annotate(f'$r^2 = {r_value ** 2:.2f}$\nEq: ${slope:.2f}x{intercept:+.2f}$',
+                    xy=xy, xycoords=ax.transAxes, fontsize=8,
+                    color=color, backgroundcolor='#FFFFFF99', ha='left', va='top')
+
+def seaborn_diag_func(data, label, color):
+    for val in data.quantile([ .5]):
+        plt.axvline(val, ls=':', color=color)
+        plt.title(str(np.round(val,2)),size=8,family='serif', color=color,rotation=-90,y=0)
+
+def seaborn_hide_axis(*args, **kwds):
+    plt.gca().set_visible(False)
+
 
 dtypes_products={'PFT':str,'Validation_percentage':float,'ocean':str,'year':str,'month':str,'n':float,'min_depth':float,'max_depth':float,'biomass_mid':float,'range_biomass_bin':float,'normalized_biomass_mean':float,'normalized_biomass_std':float,'biovolume_size_class':float,'normalized_biovolume_mean':float,'normalized_biovolume_std':float,'equivalent_circular_diameter_mean':float,'normalized_abundance_mean':float,'normalized_abundance_std':float}
 dict_products_y={'Size':['NB','PSD'],'Biomass':'NB','Weight':'NB'}#{'Size':['normalized_biovolume_mean','normalized_abundance_mean'],'Biomass':'normalized_biomass_mean','Weight':'normalized_weight_mean'}
