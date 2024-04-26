@@ -61,7 +61,7 @@ def seaborn_hide_axis(*args, **kwds):
 
 
 dtypes_products={'PFT':str,'Validation_percentage':float,'ocean':str,'year':str,'month':str,'n':float,'min_depth':float,'max_depth':float,'biomass_mid':float,'range_biomass_bin':float,'normalized_biomass_mean':float,'normalized_biomass_std':float,'biovolume_size_class':float,'normalized_biovolume_mean':float,'normalized_biovolume_std':float,'equivalent_circular_diameter_mean':float,'normalized_abundance_mean':float,'normalized_abundance_std':float}
-dict_products_y={'Size':['NB','PSD'],'Biomass':'NB','Weight':'NB'}#{'Size':['normalized_biovolume_mean','normalized_abundance_mean'],'Biomass':'normalized_biomass_mean','Weight':'normalized_weight_mean'}
+dict_products_y={'Size':['NB','PSD'],'Biomass':['NB'],'Weight':['NB']}#{'Size':['normalized_biovolume_mean','normalized_abundance_mean'],'Biomass':'normalized_biomass_mean','Weight':'normalized_weight_mean'}
 dict_products_x={'Size':'size_class_mid','Biomass':'biomass_mid','Weight':'biomass_mid'}#{'Size':'biovolume_size_class','Biomass':'biomass_mid','Weight':'biomass_mid'}
 
 import geopandas as gpd

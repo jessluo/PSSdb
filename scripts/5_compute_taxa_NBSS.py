@@ -524,3 +524,5 @@ for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['
         print('\nbiomass products 1a, 1b saved under instrument_*_Biomass-*')
         fig=report_product(biovolume_spectra=NBSS_1a_PFT, biomass_spectra=NBSS_1a_biomass_PFT, taxo_group='PFT')
         fig.write_html(NBSSpath / 'PFT'  / str('{}_products_PFT_Cbiomass.html'.format(instrument)))
+
+print("\nProcessed finished. Class- and PFT-specific products should be uploaded to Zenodo under https://zenodo.org/records/11059581 with a new record")
