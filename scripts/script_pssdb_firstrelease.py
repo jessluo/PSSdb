@@ -46,11 +46,13 @@ theme_paper=theme(axis_ticks_direction="inout",
               axis_text_x=element_text(family="serif", size=8),
               axis_text_y=element_text(family="serif", size=8, rotation=90),
               plot_background=element_rect(fill='white'), strip_background=element_rect(fill='white'))
-colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green'}
-
+colors = { 'Scanner': 'red', 'UVP': 'blue','IFCB': 'green','PlanktoScope':'purple','FlowCam':'orange'}
+import time
 ## Workflow starts here:
-
-path_to_datafile=(Path(cfg['git_dir']).expanduser()/ cfg['dataset_subdir']) / 'NBSS_data' / 'NBSS_ver_04_2024' / 'Raw'
+path_to_products=(sorted(list((Path(cfg['raw_dir']).expanduser()  /cfg['product_subdir']).glob('NBSS_ver_*')),key = lambda fname:time.strptime(os.path.basename(fname),"NBSS_ver_%m_%Y"))[-1])
+path_to_datafile= path_to_products / 'Raw'
+path_to_figures=Path(cfg['git_dir']).expanduser() /'figures'/'first_datapaper'/path_to_products.stem
+path_to_figures.mkdir(parents=True,exist_ok=True)
 path_files= list(path_to_datafile.glob('*_1b_*.csv'))
 path_files_1a=list(path_to_datafile.glob('*_1a_*.csv'))
 df=pd.concat(map(lambda path: pd.read_table(path,sep=',').assign(Instrument=path.name[0:path.name.find('_')]),path_files)).drop_duplicates().reset_index(drop=True)
@@ -80,10 +82,10 @@ plot=(ggplot(data=df_summary,mapping=aes(x="longitude",y="latitude"))+
   coord_cartesian(expand = 0)+
  geom_polygon(data=world_polygon, mapping=aes(x='Longitude', y='Latitude', group='Country'), fill='black', color='black') +
  labs(x=r'Longitude ($^{\circ}$E)', y=r'Latitude ($^{\circ}$N)',fill='Number of bins') +
- scale_fill_gradientn(trans='log',colors=palette)+
+ scale_fill_gradientn(trans='log10',colors=palette)+
 theme_paper).draw(show=True)
 plot.set_size_inches(7,3)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Spatial_coverage_PSSdb.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/Spatial_coverage_PSSdb.svg'.format(str(path_to_figures)), dpi=600)
 
 # Fig 2. Temporal coverage
 
@@ -97,7 +99,7 @@ plot=(ggplot(data=df_summary)+
 theme_paper).draw(show=True)
 
 plot.set_size_inches(6.5,2.8)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plot.savefig(fname='{}/Fig_2_Temporal_coverage_PSSdb.svg'.format(str(path_to_figures)), limitsize=False, dpi=600)
 
 #Fig. 3a  Average NBSS and supplemental figure 2 Average PSD
 # Normalized biovolume vs size
@@ -107,11 +109,11 @@ plot = (ggplot(data=df_1a)+
         stat_summary(data=df_1a[df_1a.groupby(['Instrument']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_biovolume_mean', color='Instrument'),geom='line', fun_y=np.nanmedian, size = 1)+
         labs(y=r'Normalized Biovolume ($\mu$m$^{3}$ L$^{-1}$ $\mu$m$^{-3}$)', x=r'Equivalent circular diameter ($\mu$m)')+
         scale_color_manual(values = colors)+
-        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in l])+
         theme_paper).draw(show=True)
 plot.set_size_inches(3.5,3)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSS.pdf'.format(str(Path.home())), dpi=300)
+plot.savefig(fname='{}/fig_3_NBSS.pdf'.format(str(path_to_figures)), dpi=300)
 
 
 #Normalized abundance vs size
@@ -121,22 +123,22 @@ plot = (ggplot(data=df_1a)+
         stat_summary(data=df_1a[df_1a.groupby(['Instrument']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='equivalent_circular_diameter_mean', y='normalized_abundance_mean', color='Instrument'),geom='line', fun_y=np.nanmean, size = 1)+
         labs(y=r'Normalized Abundance (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'Equivalent circular diameter ($\mu$m)')+
         scale_color_manual(values = colors)+
-        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels=lambda l: [int(size) if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in l])+
         theme_paper).draw(show=True)
 plot.set_size_inches(3.5,3)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD.pdf'.format(str(Path.home())), dpi=300)
+plot.savefig(fname='{}/fig_3_PSD.pdf'.format(str(path_to_figures)), dpi=300)
 plot = (ggplot(data=df_1a)+
         geom_line(df_1a,aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument',group='Group_index'), alpha=0.02, size = 0.1) +
         geom_point(aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument'),size = 0.05, alpha=0.01, shape = 'o')+
         stat_summary(data=df_1a[df_1a.groupby(['Instrument']).equivalent_circular_diameter_mean.transform(lambda x: x.astype(str).isin(pd.Series(x.value_counts(normalize=True)[x.value_counts(normalize=True)>=np.quantile(x.value_counts(normalize=True),0.5)].index).astype(str)))],mapping=aes(x='biovolume_size_class', y='normalized_abundance_mean', color='Instrument'),geom='line', fun_y=np.nanmean, size = 1)+
         labs(y=r'Normalized Abundance (particles L$^{-1}$ $\mu$m$^{-1}$)', x=r'Biovolume ($\mu$m$^{3}$)')+
         scale_color_manual(values = colors)+
-        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
+        scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         scale_x_log10(labels=lambda bk: [f'{int(size):,}'  for size in bk])+
         theme_paper).draw(show=True)
 plot.set_size_inches(3.5,3)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSD_biovolume.pdf'.format(str(Path.home())), dpi=100)
+plot.savefig(fname='{}/fig_3_PSD_biovolume.pdf'.format(str(path_to_figures)), dpi=100)
 
 
 #Comparison between NBSS and PSD slope
@@ -151,7 +153,7 @@ plot = (ggplot(data=df)+
         scale_y_continuous(limits=np.nanquantile(df.PSD_slope_mean,[0.05,0.95]))+
         theme_paper).draw(show=True)
 plot.set_size_inches(3,3)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_slopes.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/fig_3_slopes.svg'.format(str(path_to_figures)), dpi=600)
 # Add density
 plot = (ggplot(data=df.dropna(subset=['NBSS_slope_mean']).query('(NBSS_slope_mean>={}) & (NBSS_slope_mean<={})'.format(np.nanquantile(df.NBSS_slope_mean,0.05),np.nanquantile(df.NBSS_slope_mean,0.95))))+
         geom_histogram(aes(x='NBSS_slope_mean', fill='Instrument'),color='#ffffff00', alpha=0.3)+
@@ -159,7 +161,7 @@ plot = (ggplot(data=df.dropna(subset=['NBSS_slope_mean']).query('(NBSS_slope_mea
         scale_fill_manual(values = colors)+
         theme_paper).draw(show=True)
 plot.set_size_inches(3,1.5)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSslopes_density.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/fig_3_NBSSslopes_density.svg'.format(str(path_to_figures)), dpi=600)
 plot = (ggplot(data=df.query('(PSD_slope_mean>={}) & (PSD_slope_mean<={})'.format(np.nanquantile(df.PSD_slope_mean,0.05),np.nanquantile(df.PSD_slope_mean,0.95))))+
         geom_histogram(aes(x='PSD_slope_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'PSD slope ( L$^{-1}$ $\mu$m$^{-1}$)')+
@@ -167,7 +169,7 @@ plot = (ggplot(data=df.query('(PSD_slope_mean>={}) & (PSD_slope_mean<={})'.forma
         #coord_flip()+ flipping messes up the rendering
         theme_paper).draw(show=True)
 plot.set_size_inches(3,1.5)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDslopes_density.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/fig_3_PSDslopes_density.svg'.format(str(path_to_figures)), dpi=600)
 
 #Comparison between NBSS and PSD intercept
 
@@ -182,7 +184,7 @@ plot = (ggplot(data=df)+
         scale_y_continuous(limits=np.nanquantile(df.PSD_intercept_mean,[0.05,0.95]),labels=lambda bk:['10$^{%s}$'% int(size) for size in bk])+
         theme_paper).draw(show=True)
 plot.set_size_inches(3,3)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_intercepts.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/fig_3_intercepts.svg'.format(str(path_to_figures)), dpi=600)
 # Add density
 plot = (ggplot(data=df.query('(NBSS_intercept_mean>={}) & (NBSS_intercept_mean<={})'.format(np.nanquantile(df.NBSS_intercept_mean,0.05),np.nanquantile(df.NBSS_intercept_mean,0.95))))+
         geom_histogram(aes(x='NBSS_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
@@ -190,7 +192,7 @@ plot = (ggplot(data=df.query('(NBSS_intercept_mean>={}) & (NBSS_intercept_mean<=
         scale_fill_manual(values = colors)+
         theme_paper).draw(show=True)
 plot.set_size_inches(3,1.5)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_NBSSintercepts_density.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/fig_3_NBSSintercepts_density.svg'.format(str(path_to_figures)), dpi=600)
 plot = (ggplot(data=df.query('(PSD_intercept_mean>={}) & (PSD_intercept_mean<={})'.format(np.nanquantile(df.PSD_intercept_mean,0.05),np.nanquantile(df.PSD_intercept_mean,0.95))))+
         geom_histogram(aes(x='PSD_intercept_mean', fill='Instrument'),color='#ffffff00',size = 1, alpha=0.3)+
         labs(y='Density', x=r'PSD intercept (particles L$^{-1}$ $\mu$m$^{-1}$)')+
@@ -198,7 +200,7 @@ plot = (ggplot(data=df.query('(PSD_intercept_mean>={}) & (PSD_intercept_mean<={}
         #coord_flip()+ flipping messes up the rendering
         theme_paper).draw(show=True)
 plot.set_size_inches(3,1.5)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_3_PSDintercepts_density.svg'.format(str(Path.home())), dpi=600)
+plot.savefig(fname='{}/fig_3_PSDintercepts_density.svg'.format(str(path_to_figures)), dpi=600)
 
 
 # Fig 5. Latitudinal trends
@@ -210,7 +212,7 @@ plot=(ggplot(data=df.melt(id_vars=['Instrument','year', 'month', 'longitude','la
        coord_flip()+
        theme_paper).draw(show=True)
 plot.set_size_inches(8,10.9)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figure_5.pdf'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
+plot.savefig(fname='{}/Figure_5.pdf'.format(str(path_to_figures)),  dpi=600, bbox_inches='tight')
 
 
 # Fig 6. Climatology per basin
@@ -230,9 +232,10 @@ scale_fill_manual(values=colors)+
 scale_x_continuous(breaks=np.arange(1,13,3),labels=[calendar.month_abbr[month] for month in np.arange(1,13,3)])+
 theme_paper).draw(show=True)
 plot.set_size_inches( 8,6)
-plot.savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Figures_6.svg'.format(str(Path.home())),  dpi=600, bbox_inches='tight')
+plot.savefig(fname='{}/Figures_6.svg'.format(str(path_to_figures)),  dpi=600, bbox_inches='tight')
 
-
+print('Generation of figures for the latest NBSS bulk products completed.\nPlease check {}'.format(str(path_to_figures)))
+quit()
 
 # Suppl Fig A1 (Sampling efforts):
 path_to_project_list=Path(cfg['git_dir']).expanduser()/ cfg['proj_list']
@@ -277,7 +280,7 @@ plot = (ggplot(data=df_nbss)+
         scale_x_log10(breaks=[size  for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))],labels= [size if (size / np.power(10, np.ceil(np.log10(size)))) == 1 else '' for size in np.sort( np.concatenate(np.arange(1, 10).reshape((9, 1)) * np.power(10, np.arange(1, 5, 1))))])+
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(3,14)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_suppl_NBSS_settings.pdf'.format(str(Path.home())), dpi=300, bbox_inches='tight')
+plot[0].savefig(fname='{}/fig_suppl_NBSS_settings.pdf'.format(str(path_to_figures)), dpi=300, bbox_inches='tight')
 
 plot = (ggplot(data=df_nbss[['Setting','Group_index','total_abundance','selected_abundance']].drop_duplicates().melt(id_vars=['Setting','Group_index'],value_vars=['total_abundance','selected_abundance']))+
         facet_wrap('~Setting',ncol=1,scales='free')+
@@ -287,7 +290,7 @@ plot = (ggplot(data=df_nbss[['Setting','Group_index','total_abundance','selected
         scale_y_log10(breaks=[10**np.arange(-5,7,step=2, dtype=np.float)][0],labels=['10$^{%s}$'% int(n) for n in np.arange(-5,7,step=2)])+
         theme_paper).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(1,14)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/fig_suppl_abundance_settings.pdf'.format(str(Path.home())), dpi=300, bbox_inches='tight')
+plot[0].savefig(fname='{}/fig_suppl_abundance_settings.pdf'.format(str(path_to_figures)), dpi=300, bbox_inches='tight')
 
 # Apply depth and artefacts filter, as well as category filter if non-null
 df_depthselection = (df.drop_duplicates(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'])[['Project_ID', 'Sample', 'Depth_min', 'Depth_max']]).astype(dict(zip(['Project_ID', 'Sample', 'Depth_min', 'Depth_max'],[str]*4))).groupby(['Project_ID', 'Sample', 'Depth_min', 'Depth_max']).apply(lambda x: pd.Series({'Depth_selected': ((x.Depth_min.astype(float) < 200) & (x.Depth_max.astype(float) < 250)).values[0]})).reset_index()
@@ -330,7 +333,7 @@ plot=(ggplot(data=df_summary)+
       scale_fill_manual(values={'True':'#{:02x}{:02x}{:02x}'.format(0, 0 , 0),'False':'#{:02x}{:02x}{:02x}'.format(236, 236 , 236)},drop=True,na_value='#{:02x}{:02x}{:02x}{:02x}'.format(255, 255 , 255,0))+
 theme_paper+theme(axis_title_y=element_text(size=10),axis_text_y=element_text(size=10),axis_text_x=element_text(rotation=90,ha='center'))).draw(show=False, return_ggplot=True)
 plot[0].set_size_inches(9.2,4)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_depth_PSSdb_{}.svg'.format(str(Path.home()),df.Instrument.unique()[0]), limitsize=False, dpi=600, bbox_inches='tight')
+plot[0].savefig(fname='{}/Sampling_depth_PSSdb_{}.svg'.format(str(path_to_figures),df.Instrument.unique()[0]), limitsize=False, dpi=600, bbox_inches='tight')
 
 df_summary=df[(df.Depth_selected==True) &(df.Sampling_description.isna()==False)][['Cruise','Pmta_voltage','Pmta_threshold','Pmtb_voltage','Pmtb_threshold']].drop_duplicates().melt(id_vars=['Cruise'])
 df_summary=df_summary.astype({'value':float}).groupby(['Cruise','variable']).agg({'value':['mean','std'] }).reset_index()
@@ -351,7 +354,7 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(3.2,4)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plot[0].savefig(fname='{}/Sampling_acq_PSSdb.svg'.format(str(path_to_figures)), limitsize=False, dpi=600)
 
 plot=(ggplot(data=df[(df.Depth_selected==True) & (df.Net_mesh.isna()==False)])+
   facet_wrap('~Instrument', nrow=1)+
@@ -370,7 +373,7 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(4.5,4)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plot[0].savefig(fname='{}/Sampling_acq_PSSdb.svg'.format(str(path_to_figures)), limitsize=False, dpi=600)
 
 plot=(ggplot(data=df[(df.Depth_selected==True)])+
   facet_wrap('~Instrument', nrow=1)+
@@ -389,7 +392,7 @@ theme(axis_ticks_direction="inout", legend_direction='horizontal', legend_positi
                       plot_background=element_rect(fill='white'),strip_background=element_rect(fill='white'))).draw(show=False, return_ggplot=True)
 
 plot[0].set_size_inches(3,4)
-plot[0].savefig(fname='{}/GIT/PSSdb/figures/first_datapaper/Sampling_acq_PSSdb.svg'.format(str(Path.home())), limitsize=False, dpi=600)
+plot[0].savefig(fname='{}/Sampling_acq_PSSdb.svg'.format(str(path_to_figures)), limitsize=False, dpi=600)
 
 
 

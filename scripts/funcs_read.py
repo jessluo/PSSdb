@@ -6,6 +6,9 @@ import yaml
 from pathlib import Path
 from glob import glob
 
+Instrument_dict = {'IFCB': ['IFCB'], 'UVP': ['UVP'], 'Scanner': ['Scanner', 'ZooCam', 'Zooscan'],'PlanktoScope': ['PlanktoScope'], 'FlowCam': ['FlowCam']}
+
+
 def proj_id_list_func(instrument, data_status):
     """
     Objective:
@@ -14,7 +17,6 @@ def proj_id_list_func(instrument, data_status):
     :return path_to_data: string where the tsv files are stores
     :return file_list: list with the filenames that have data
     """
-    Instrument_dict = {'IFCB':['IFCB'], 'UVP':['UVP'], 'Scanner': ['Scanner', 'ZooCam', 'Zooscan']}
     # read config file
     path_to_config = Path('~/GIT/PSSdb/scripts/configuration_masterfile.yaml').expanduser()
     with open(path_to_config, 'r') as config_file:
@@ -101,7 +103,7 @@ def depth_parsing_func(df, instrument):
         df_d = df.drop(df[(df['Depth_min'] > 250) | (df['Depth_max'] > 250)].index)
         df_d['Min_obs_depth'] = 0
         df_d['Max_obs_depth'] = 250
-    elif instrument == 'IFCB': # IFCB depth specification occurs in step4 due to the need of getting a depth interval of ALL the projects
+    else: # IFCB depth specification occurs in step4 due to the need of getting a depth interval of ALL the projects
         df_d = df.drop(df[(df['Depth_min'] > 200)].index)
         df_d['Min_obs_depth'] = min(df_d['Depth_min'])
         df_d['Max_obs_depth'] = max(df_d['Depth_max'])

@@ -93,6 +93,6 @@ N_test: 0 # number of files to be gridded, 0 means all. This is used for debuggi
 
 st_increment_avg: 1 #size of the grid used for averaging in step4_compute_NBSS
 date_group_avg: 'yyyymm' #time interval for averaging in step4_compute_NBSS. Other options:  'mm' (month), 'yyyy' (year)
-sensitivity: True # condition that specifies if the sensitivity products should be generated
+sensitivity: False # condition that specifies if the sensitivity products should be generated
 
 

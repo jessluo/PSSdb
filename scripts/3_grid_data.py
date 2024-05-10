@@ -37,7 +37,13 @@ if depth_binning == True:
     depth_bins = cfg['depth_bins']
 
 ## processing starts here
-for instrument in ['Scanner', 'UVP', 'IFCB']:
+standardizer=list(Path(cfg['raw_dir']).expanduser().glob("project_*_standardizer.xlsx"))
+list_instruments=np.concatenate(list(map(lambda path:pd.read_excel(path,usecols=['Instrument']).Instrument.unique(),standardizer)))
+gridpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data'
+if not os.path.exists(gridpath):
+    os.mkdir(gridpath)
+
+for instrument in [instrument for instrument,types in Instrument_dict.items() if any(pd.Series(types).isin(list_instruments))]:
     files_subset_df_list = pd.DataFrame()
     files_data = proj_id_list_func(instrument, data_status='standardized')  # generate path and project ID's
     test_1 = cfg['N_test']
@@ -45,15 +51,11 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         files_data = files_data
     else:
         files_data = files_data[0:test_1]
-    gridpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data'
-    if not os.path.exists(gridpath):
-        os.mkdir(gridpath)
-
     dirpath = Path(cfg['raw_dir']).expanduser() / 'gridded_data' / instrument
     if not os.path.exists(dirpath):
         os.mkdir(dirpath)
     elif os.path.isdir(dirpath) and len(os.listdir(dirpath)) != 0:  # and  os.path.exists(path_download)
-        replace = input('There is already gridded data in ' + str(dirpath) + ' do you want to replace the files? \n Y/N')
+        replace = input('There is already gridded data in ' + str(dirpath) + ' do you want to replace the files? \n Y/N (Enter Y if you have standardized new datasets that should be gridded)\n)')
     if (len(os.listdir(dirpath)) == 0) or (replace == 'Y'):
         shutil.rmtree(dirpath)
         os.mkdir(dirpath)
@@ -64,8 +66,19 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
             print('gridding  ' + i)
             df = pd.read_csv(i, header=0)
             df = df.dropna(subset=['Latitude']).reset_index(drop=True)
+            # Only select samples that passed the quality control
+            flag_path=list((Path(cfg['raw_dir']).expanduser() / cfg['flag_subdir']).rglob('project_{}_flags.csv'.format(filename.split("_")[2])))
+            if len(flag_path)==0:
+                print('No corresponding flag datafile found for project {}. Please re-run step 2 if needed.\n'.format(filename.split("_")[2]))
+                n_del_files += 1
+                continue
+            else:
+                df_flag=pd.read_csv(flag_path[0], sep = ',',dtype={'Sample':str,'Overrule':str})
+
+            # Subset samples that passed the quality control
+            df=df[df.Sample.astype(str).isin(df_flag.query('((Flag==0) & (Overrule=="False")) | ((Flag==1) & (Overrule=="True"))').Sample.astype(str).unique())].reset_index(drop=True)
             if len(df) == 0:
-                print('no data left after removing ROIS with no Lat-lon information in' + filename)
+                print('No data left after removing ROIS with no Lat-lon information in' + filename)
                 n_del_files += 1
                 continue
             df = df[df['Area'] != 0].reset_index(drop=True)
@@ -81,7 +94,7 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     n_del_files += 1
                     continue
-            elif instrument == 'IFCB':
+            else:
                 df = depth_parsing_func(df, instrument)
                 df = df.replace(np.nan, '').reset_index(drop = True)
                 sampling_type_to_remove = ['test', 'exp', 'junk', 'culture']
@@ -174,5 +187,6 @@ for instrument in ['Scanner', 'UVP', 'IFCB']:
         metadata_bins.to_csv(str(dirpath) + '/' + instrument + '_' + 'metadata_gridded.csv', index=False)
     elif replace == 'N':
         print('previously gridded files will be kept')
+print('Gridding step completed. Please check gridded datafiles under {}'.format(str(gridpath)))
 
 
