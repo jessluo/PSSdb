@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from glob import glob
 import shutil
+from natsort import natsorted
 # Config modules
 import yaml  # requires installation of PyYAML package
 try:
@@ -43,7 +44,8 @@ Path(NBSSpath / 'Raw').mkdir(parents=True, exist_ok=True)
 standardizer=list(Path(cfg['raw_dir']).expanduser().glob("project_*_standardizer.xlsx"))
 list_instruments=np.concatenate(list(map(lambda path:pd.read_excel(path,usecols=['Instrument']).Instrument.unique(),standardizer)))
 
-for instrument in natsorted(os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir'])):
+
+for instrument in os.listdir(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']):
     #first, break apart datasets by big global grids, to avoid making one HUGE file of all gridded datasets per instrument
     #get paths to gridded files
     file_list = glob(str(Path(cfg['raw_dir']).expanduser() / cfg['gridded_subdir']) + '*/**/' + instrument +'*_temp_binned_*.csv', recursive=True) #generate path and project ID's but ONLY for parsed data
