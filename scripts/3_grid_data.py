@@ -74,6 +74,13 @@ for instrument in [instrument for instrument,types in Instrument_dict.items() if
                 continue
             else:
                 df_flag=pd.read_csv(flag_path[0], sep = ',',dtype={'Sample':str,'Overrule':str})
+            # added 06/11/2024: lat/lon gridding and date binning function will be applied to flagging file
+            df_flag=df_flag.dropna(subset=['Latitude', 'Longitude', 'Sample_datetime'])
+            df_flag['Station_location'], df_flag['midLatBin'], df_flag['midLonBin'] = gridding_func(st_increment, df_flag['Latitude'],df_flag['Longitude'])
+            df_flag['Sample_datetime'] = pd.to_datetime(df_flag['Sample_datetime'], errors='coerce')
+            df_flag['Sampling_date'] = df_flag.Sample_datetime.dt.strftime('%Y%m%d')
+            df_flag['Sampling_time'] = df_flag.Sample_datetime.dt.strftime('%H%M%S')
+            df_flag = date_binning_func(df_flag, group_by=date_group)
 
             # Subset samples that passed the quality control
             df=df[df.Sample.astype(str).isin(df_flag.query('((Flag==0) & (Overrule=="False")) | ((Flag==1) & (Overrule=="True"))').Sample.astype(str).unique())].reset_index(drop=True)
@@ -105,8 +112,9 @@ for instrument in [instrument for instrument,types in Instrument_dict.items() if
                     print('no data left after restricting depths to less than 200 meters in ' + filename)
                     n_del_files += 1
                     continue
-            df = biovol_func(df, instrument, keep_cat='none')
-            df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
+            df = biovol_func(df, instrument, keep_cat='detritus')
+            df = pd.merge(df, df_flag[['Sample', 'Station_location', 'midLatBin', 'midLonBin', 'date_bin', 'light_cond']], on='Sample', how='left')
+            #df['Station_location'], df['midLatBin'], df['midLonBin'] = gridding_func(st_increment, df['Latitude'], df['Longitude'])
             df['Instrument']= instrument # necessary to set the same instrument name for all scanner types
             filename = filename.replace("standardized", "gridded")
             df.to_csv(str(dirpath) + '/' + instrument + '_' + filename, index=False)
@@ -119,11 +127,11 @@ for instrument in [instrument for instrument,types in Instrument_dict.items() if
             file_subset = [file for file in file_list if cell in file]
             df_gridded = pd.concat(map((lambda path: (pd.read_csv(path))), file_subset)).reset_index(drop=True)
             df_gridded_temp_binned = pd.DataFrame()
-            #df_gridded_temp_binned = df_gridded.groupby(['Station_location']).apply(lambda x: date_binning_func(x, group_by=date_group)).reset_index
+            df_gridded_temp_binned = df_gridded.groupby(['Station_location']).apply(lambda x: date_binning_func(x, group_by=date_group, day_night=False)).reset_index(drop=True)
             for st in list(set(df_gridded['Station_location'])):
                 # print(st)
                 df_st_subset = df_gridded[df_gridded['Station_location'] == st].reset_index(drop=True)
-                df_st_subset = date_binning_func(df_st_subset, group_by=date_group)
+                df_st_subset = date_binning_func(df_st_subset, group_by=date_group, day_night=False)
                 if len(df)==0:
                     print('no data left after removing data without proper time stamp in ' + filename) # necessary because some projects don't have time info: '/Users/mc4214/GIT/PSSdb/raw/raw_standardized/ecotaxa/Zooscan/standardized_project_5785_20221103_1928.csv'
                     n_del_files += 1
